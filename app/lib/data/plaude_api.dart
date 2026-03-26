@@ -45,15 +45,21 @@ class PlaudeApi {
     String? audioPath,
     int? durationMs,
   }) async {
+    final requestPayload = <String, dynamic>{
+      'title': title,
+      'sourceType': sourceType,
+    };
+    if (audioPath != null) {
+      requestPayload['audioPath'] = audioPath;
+    }
+    if (durationMs != null) {
+      requestPayload['durationMs'] = durationMs;
+    }
+
     final response = await _client.post(
       _uri('/recordings'),
       headers: _headers,
-      body: jsonEncode({
-        'title': title,
-        'sourceType': sourceType,
-        'audioPath': audioPath,
-        'durationMs': durationMs,
-      }),
+      body: jsonEncode(requestPayload),
     );
     final payload = _decode(response);
     return RecordingNote.fromJson(payload['data'] as Map<String, dynamic>);
@@ -63,12 +69,15 @@ class PlaudeApi {
     required String recordingId,
     String? transcriptText,
   }) async {
+    final requestPayload = <String, dynamic>{};
+    if (transcriptText != null) {
+      requestPayload['transcriptText'] = transcriptText;
+    }
+
     final response = await _client.post(
       _uri('/recordings/$recordingId/process'),
       headers: _headers,
-      body: jsonEncode({
-        'transcriptText': transcriptText,
-      }),
+      body: jsonEncode(requestPayload),
     );
     final payload = _decode(response);
     return RecordingNote.fromJson(payload['data'] as Map<String, dynamic>);
