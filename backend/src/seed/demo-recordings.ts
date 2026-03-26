@@ -10,7 +10,7 @@ export const demoRecordings: Recording[] = [
   {
     id: recordingId,
     userId: demoUserId,
-    title: 'Launch planning sync',
+    title: 'Sincronização de planejamento do lançamento',
     sourceType: 'upload',
     status: 'ready',
     createdAt: '2026-03-26T10:00:00.000Z',
@@ -21,7 +21,7 @@ export const demoRecordings: Recording[] = [
       {
         id: randomUUID(),
         recordingId,
-        speakerLabel: 'Speaker 1',
+        speakerLabel: 'Participante 1',
         startMs: 0,
         endMs: 18000,
         text: 'Vamos lançar o v1 com gravação, upload, resumo e chat sobre notas.',
@@ -29,7 +29,7 @@ export const demoRecordings: Recording[] = [
       {
         id: randomUUID(),
         recordingId,
-        speakerLabel: 'Speaker 2',
+        speakerLabel: 'Participante 2',
         startMs: 18000,
         endMs: 42000,
         text: 'Eu fico com a biblioteca, experiência de detalhe e exportação em markdown.',
@@ -37,7 +37,7 @@ export const demoRecordings: Recording[] = [
       {
         id: randomUUID(),
         recordingId,
-        speakerLabel: 'Speaker 1',
+        speakerLabel: 'Participante 1',
         startMs: 42000,
         endMs: 68000,
         text: 'Precisamos instrumentar falhas do pipeline e deixar retries claros para o usuário.',
@@ -58,8 +58,8 @@ export const demoRecordings: Recording[] = [
       ],
     },
     noteArtifact: {
-      title: 'Launch planning sync',
-      tags: ['launch', 'product', 'ai'],
+      title: 'Sincronização de planejamento do lançamento',
+      tags: ['lancamento', 'produto', 'ia'],
       highlights: [
         'v1 com gravação, upload, resumo e chat',
         'biblioteca e exportação em markdown como entregas críticas',

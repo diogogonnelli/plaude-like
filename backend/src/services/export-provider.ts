@@ -11,18 +11,18 @@ export class PlainTextExportProvider implements ExportProvider {
       ? [
           `# ${recording.noteArtifact?.title ?? recording.title}`,
           '',
-          `Status: ${recording.status}`,
+          `Status: ${translateStatus(recording.status)}`,
           '',
-          '## Overview',
-          recording.summary?.overview ?? 'No summary',
+          '## Resumo',
+          recording.summary?.overview ?? 'Sem resumo',
           '',
-          '## Highlights',
+          '## Destaques',
           ...(recording.noteArtifact?.highlights ?? []).map((item) => `- ${item}`),
           '',
-          '## Action items',
+          '## Itens de ação',
           ...(recording.noteArtifact?.actionItems ?? []).map((item) => `- ${item}`),
           '',
-          '## Transcript',
+          '## Transcrição',
           '```text',
           transcript,
           '```',
@@ -30,12 +30,12 @@ export class PlainTextExportProvider implements ExportProvider {
       : [
           recording.noteArtifact?.title ?? recording.title,
           '',
-          `Status: ${recording.status}`,
+          `Status: ${translateStatus(recording.status)}`,
           '',
-          'Overview',
-          recording.summary?.overview ?? 'No summary',
+          'Resumo',
+          recording.summary?.overview ?? 'Sem resumo',
           '',
-          'Transcript',
+          'Transcrição',
           transcript,
         ].join('\n');
 
@@ -45,5 +45,22 @@ export class PlainTextExportProvider implements ExportProvider {
       contentType: format === 'md' ? 'text/markdown' : 'text/plain',
       body: content,
     };
+  }
+}
+
+function translateStatus(status: Recording['status']): string {
+  switch (status) {
+    case 'uploaded':
+      return 'Enviado';
+    case 'processing_transcript':
+      return 'Transcrevendo';
+    case 'processing_summary':
+      return 'Resumindo';
+    case 'indexing':
+      return 'Indexando';
+    case 'ready':
+      return 'Pronto';
+    case 'failed':
+      return 'Falhou';
   }
 }

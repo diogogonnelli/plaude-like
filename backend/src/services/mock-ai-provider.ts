@@ -3,10 +3,10 @@ import { randomUUID } from 'node:crypto';
 import type { AiProcessingResult, AiProvider, ChatAnswer } from '../domain/contracts.js';
 import type { ProcessRecordingInput, Recording, TranscriptSegment } from '../domain/types.js';
 
-const defaultTranscript = `Speaker 1: Vamos fechar o cronograma do lançamento móvel até sexta-feira.
-Speaker 2: Eu assumo o fluxo de onboarding e a tela de biblioteca.
-Speaker 1: Precisamos validar integração com OpenAI, Deepgram e exportação em markdown.
-Speaker 2: Também vou revisar métricas, empty states e tratamento de falhas do pipeline.`;
+const defaultTranscript = `Participante 1: Vamos fechar o cronograma do lançamento mobile até sexta-feira.
+Participante 2: Eu assumo o fluxo de onboarding e a tela de biblioteca.
+Participante 1: Precisamos validar integração com OpenAI, Deepgram e exportação em markdown.
+Participante 2: Também vou revisar métricas, estados vazios e tratamento de falhas do pipeline.`;
 
 function chunkTranscript(recordingId: string, transcriptText: string): TranscriptSegment[] {
   const rawLines = transcriptText
@@ -17,13 +17,13 @@ function chunkTranscript(recordingId: string, transcriptText: string): Transcrip
   return rawLines.map((line, index) => {
     const [speaker, ...rest] = line.split(':');
     const text = rest.join(':').trim() || line;
-    const startMs = index * 32_000;
-    const endMs = startMs + 26_000;
+    const startMs = index * 32000;
+    const endMs = startMs + 26000;
 
     return {
       id: randomUUID(),
       recordingId,
-      speakerLabel: text === line ? `Speaker ${(index % 2) + 1}` : speaker.trim(),
+      speakerLabel: text === line ? `Participante ${(index % 2) + 1}` : speaker.trim(),
       startMs,
       endMs,
       text,
@@ -39,13 +39,13 @@ function deriveSummary(segments: TranscriptSegment[]): AiProcessingResult {
     .slice(0, 4);
 
   const combined = segments.map((segment) => segment.text).join(' ');
-  const tags = ['meeting', 'transcript', combined.toLowerCase().includes('openai') ? 'ai' : 'ops'];
+  const tags = ['reuniao', 'transcricao', combined.toLowerCase().includes('openai') ? 'ia' : 'ops'];
 
   return {
-    title: segments[0]?.text.slice(0, 56) || 'New recording',
+    title: segments[0]?.text.slice(0, 56) || 'Nova gravação',
     transcriptSegments: segments,
     overview:
-      'Conversa processada com foco em decisões, próximos passos e contexto operacional. O resultado está pronto para consulta e follow-up.',
+      'Conversa processada com foco em decisões, próximos passos e contexto operacional. O resultado está pronto para consulta e acompanhamento.',
     chapters: [
       {
         heading: 'Decisões',
@@ -94,7 +94,7 @@ export class MockAiProvider implements AiProvider {
 
     const answer = matchingSegments.length > 0
       ? `Encontrei ${matchingSegments.length} trechos relevantes. O ponto central é: ${matchingSegments[0]!.text}`
-      : `Nao encontrei correspondencia literal forte, mas o contexto mais proximo indica: ${recording.summary?.overview ?? 'sem resumo disponivel.'}`;
+      : `Não encontrei correspondência literal forte, mas o contexto mais próximo indica: ${recording.summary?.overview ?? 'sem resumo disponível.'}`;
 
     return { answer, citations };
   }

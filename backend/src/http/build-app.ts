@@ -66,7 +66,7 @@ function parseError(error: unknown) {
     return {
       statusCode: 400,
       body: {
-        error: 'Invalid request',
+        error: 'Requisição inválida',
         code: 'validation_error',
         issues: error.issues,
       },
@@ -87,7 +87,7 @@ function parseError(error: unknown) {
   return {
     statusCode: 500,
     body: {
-      error: error instanceof Error ? error.message : 'Unexpected server error',
+      error: error instanceof Error ? error.message : 'Erro interno inesperado',
       code: 'internal_error',
     },
   };
