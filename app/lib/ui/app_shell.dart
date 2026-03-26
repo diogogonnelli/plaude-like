@@ -52,7 +52,7 @@ class AppShell extends StatelessWidget {
                     children: [
                       _ShellHeader(
                         title: title,
-                        subtitle: 'Capture, review and query voice notes from one place.',
+                        subtitle: 'Capture, revise e consulte notas de voz em um só lugar.',
                         actions: actions,
                       ),
                       const SizedBox(height: 16),
@@ -71,8 +71,8 @@ class AppShell extends StatelessWidget {
               selectedIndex: navigationIndex,
               labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
               destinations: const [
-                NavigationDestination(icon: Icon(Icons.dashboard_rounded), label: 'Library'),
-                NavigationDestination(icon: Icon(Icons.tune_rounded), label: 'Settings'),
+                NavigationDestination(icon: Icon(Icons.dashboard_rounded), label: 'Biblioteca'),
+                NavigationDestination(icon: Icon(Icons.tune_rounded), label: 'Configurações'),
               ],
               onDestinationSelected: onNavigationSelected,
             ),
@@ -170,7 +170,7 @@ class _DesktopRail extends StatelessWidget {
           Text('Plaude', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 6),
           Text(
-            'Capture. Summarise. Ask again.',
+            'Capture. Resuma. Pergunte de novo.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 20),
@@ -183,11 +183,11 @@ class _DesktopRail extends StatelessWidget {
               destinations: const [
                 NavigationRailDestination(
                   icon: Icon(Icons.dashboard_rounded),
-                  label: Text('Library'),
+                  label: Text('Biblioteca'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.tune_rounded),
-                  label: Text('Settings'),
+                  label: Text('Configurações'),
                 ),
               ],
               onDestinationSelected: onDestinationSelected,
@@ -203,8 +203,8 @@ class _DesktopRail extends StatelessWidget {
             ),
             child: Text(
               selectedIndex == 1
-                  ? 'Workspace controls and integration status appear here.'
-                  : 'Open a note to inspect transcript, summary and grounded chat.',
+                  ? 'Os controles do espaço e o status das integrações aparecem aqui.'
+                  : 'Abra uma nota para inspecionar a transcrição, o resumo e o chat contextual.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),

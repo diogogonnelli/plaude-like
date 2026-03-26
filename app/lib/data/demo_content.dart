@@ -3,7 +3,7 @@ import 'models.dart';
 final demoNotes = <RecordingNote>[
   RecordingNote(
     id: 'demo-launch-sync',
-    title: 'Launch planning sync',
+    title: 'Sincronizacao de planejamento do lancamento',
     sourceType: 'upload',
     status: ProcessingStatus.ready,
     createdAt: DateTime.parse('2026-03-26T10:00:00.000Z'),
@@ -14,52 +14,52 @@ final demoNotes = <RecordingNote>[
       TranscriptSegment(
         id: 'seg-1',
         recordingId: 'demo-launch-sync',
-        speakerLabel: 'Speaker 1',
+        speakerLabel: 'Participante 1',
         startMs: 0,
         endMs: 18000,
-        text: 'Vamos lançar o v1 com gravação, upload, resumo e chat sobre notas.',
+        text: 'Vamos lancar o v1 com gravacao, upload, resumo e chat sobre notas.',
       ),
       TranscriptSegment(
         id: 'seg-2',
         recordingId: 'demo-launch-sync',
-        speakerLabel: 'Speaker 2',
+        speakerLabel: 'Participante 2',
         startMs: 18000,
         endMs: 42000,
-        text: 'Eu fico com a biblioteca, experiência de detalhe e exportação em markdown.',
+        text: 'Eu fico com a biblioteca, experiencia de detalhe e exportacao em markdown.',
       ),
       TranscriptSegment(
         id: 'seg-3',
         recordingId: 'demo-launch-sync',
-        speakerLabel: 'Speaker 1',
+        speakerLabel: 'Participante 1',
         startMs: 42000,
         endMs: 68000,
-        text: 'Precisamos instrumentar falhas do pipeline e deixar retries claros para o usuário.',
+        text: 'Precisamos instrumentar falhas do pipeline e deixar retries claros para o usuario.',
       ),
     ],
     summary: const RecordingSummary(
       overview:
-          'A reunião alinhou um v1 enxuto com foco em captura de áudio, processamento e consulta posterior via chat.',
+          'A reuniao alinhou um v1 enxuto com foco em captura de audio, processamento e consulta posterior via chat.',
       chapters: [
         SummaryChapter(
           heading: 'Escopo',
-          body: 'O núcleo inclui gravação, upload, transcrição, resumo, biblioteca e chat contextual.',
+          body: 'O nucleo inclui gravacao, upload, transcricao, resumo, biblioteca e chat contextual.',
         ),
         SummaryChapter(
-          heading: 'Responsáveis',
-          body: 'Biblioteca e exportação ficaram com um responsável dedicado para reduzir gargalos.',
+          heading: 'Responsaveis',
+          body: 'Biblioteca e exportacao ficaram com um responsavel dedicado para reduzir gargalos.',
         ),
       ],
     ),
     noteArtifact: const NoteArtifact(
-      title: 'Launch planning sync',
-      tags: ['launch', 'product', 'ai'],
+      title: 'Sincronizacao de planejamento do lancamento',
+      tags: ['lancamento', 'produto', 'ia'],
       highlights: [
-        'v1 com gravação, upload, resumo e chat',
-        'biblioteca e exportação em markdown como entregas críticas',
+        'v1 com gravacao, upload, resumo e chat',
+        'biblioteca e exportacao em markdown como entregas criticas',
       ],
       actionItems: [
         'Instrumentar falhas do pipeline',
-        'Adicionar retries claros para o usuário',
+        'Adicionar retries claros para o usuario',
       ],
     ),
     chatSession: const ChatSession(

@@ -27,8 +27,8 @@ void main() {
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Voice library'), findsOneWidget);
-    expect(find.text('Record'), findsOneWidget);
+    expect(find.text('Biblioteca de voz'), findsOneWidget);
+    expect(find.text('Gravar'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
   });
 
@@ -42,7 +42,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(NavigationRail), findsOneWidget);
-    expect(find.text('Upload audio'), findsOneWidget);
+    expect(find.text('Enviar áudio'), findsOneWidget);
   });
 
   testWidgets('shows the route recovery state for unknown pages', (WidgetTester tester) async {
@@ -55,9 +55,9 @@ void main() {
         ),
       ],
       errorBuilder: (context, state) => AppShell(
-        title: 'Page not found',
+        title: 'Página não encontrada',
         child: Center(
-          child: Text(state.error?.toString() ?? 'unknown'),
+          child: Text(state.error?.toString() ?? 'desconhecido'),
         ),
       ),
     );
@@ -65,7 +65,7 @@ void main() {
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await tester.pumpAndSettle();
 
-    expect(find.text('Page not found'), findsOneWidget);
+    expect(find.text('Página não encontrada'), findsOneWidget);
     expect(find.textContaining('/missing'), findsOneWidget);
   });
 }

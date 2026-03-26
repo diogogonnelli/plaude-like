@@ -34,7 +34,7 @@ final _router = GoRouter(
     ),
   ],
   errorBuilder: (context, state) => AppShell(
-    title: 'Page not found',
+    title: 'Página não encontrada',
     navigationIndex: 0,
     onNavigationSelected: (index) => context.go(index == 0 ? '/' : '/settings'),
     child: Center(
@@ -47,12 +47,12 @@ final _router = GoRouter(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Route unavailable', style: Theme.of(context).textTheme.headlineMedium),
+                Text('Rota indisponível', style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 8),
                 Text(
                   state.error == null
-                      ? 'The page does not exist.'
-                      : 'The router could not resolve this page: ${state.error}',
+                      ? 'A página não existe.'
+                      : 'O roteador não conseguiu resolver esta página: ${state.error}',
                 ),
                 const SizedBox(height: 16),
                 Wrap(
@@ -62,12 +62,12 @@ final _router = GoRouter(
                     FilledButton.icon(
                       onPressed: () => context.go('/'),
                       icon: const Icon(Icons.dashboard_rounded),
-                      label: const Text('Go to library'),
+                      label: const Text('Ir para a biblioteca'),
                     ),
                     OutlinedButton.icon(
                       onPressed: () => context.go('/settings'),
                       icon: const Icon(Icons.tune_rounded),
-                      label: const Text('Open settings'),
+                      label: const Text('Abrir configurações'),
                     ),
                   ],
                 ),
@@ -90,6 +90,7 @@ class PlaudeApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: buildPlaudeTheme(),
       routerConfig: _router,
+      locale: const Locale('pt', 'BR'),
     );
   }
 }

@@ -35,7 +35,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final messages = recording?.chatSession?.messages ?? const [];
 
     return AppShell(
-      title: 'Grounded chat',
+      title: 'Chat contextual',
       navigationIndex: 0,
       onNavigationSelected: (index) => context.go(index == 0 ? '/' : '/settings'),
       actions: [
@@ -63,12 +63,12 @@ class _ChatScreenState extends State<ChatScreen> {
                       return;
                     }
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Export failed: $error')),
+                      SnackBar(content: Text('Falha ao exportar: $error')),
                     );
                   }
                 },
           icon: const Icon(Icons.download_rounded),
-          label: const Text('Export note'),
+          label: const Text('Exportar nota'),
         ),
       ],
       child: recording == null
@@ -114,7 +114,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            isUser ? 'You' : 'Assistant',
+                                            isUser ? 'Você' : 'Assistente',
                                             style: Theme.of(context).textTheme.labelLarge?.copyWith(
                                                   color: isUser ? Colors.white70 : null,
                                                 ),
@@ -218,7 +218,7 @@ class _ChatContextCard extends StatelessWidget {
                 children: [
                   Text(title, style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 6),
-                  Text('Recording ID: $recordingId'),
+                  Text('ID da gravação: $recordingId'),
                 ],
               ),
             ),
@@ -247,18 +247,18 @@ class _ChatEmptyState extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Ask about "$recordingTitle"', style: Theme.of(context).textTheme.headlineMedium),
+            Text('Pergunte sobre "$recordingTitle"', style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 8),
-            const Text('Use the assistant to ask about decisions, speakers, risks or next steps grounded only in this note.'),
+            const Text('Use o assistente para perguntar sobre decisões, participantes, riscos ou próximos passos com base apenas nesta nota.'),
             const SizedBox(height: 18),
             Wrap(
               spacing: 12,
               runSpacing: 12,
               children: [
-                _PromptChip(label: 'What are the next steps?', onTap: onPromptTap),
-                _PromptChip(label: 'Summarise the main decisions.', onTap: onPromptTap),
-                _PromptChip(label: 'What did Speaker 2 own?', onTap: onPromptTap),
-                _PromptChip(label: 'What risks were mentioned?', onTap: onPromptTap),
+                _PromptChip(label: 'Quais são os próximos passos?', onTap: onPromptTap),
+                _PromptChip(label: 'Resuma as principais decisões.', onTap: onPromptTap),
+                _PromptChip(label: 'Qual foi a responsabilidade do Participante 2?', onTap: onPromptTap),
+                _PromptChip(label: 'Quais riscos foram mencionados?', onTap: onPromptTap),
               ],
             ),
           ],
@@ -311,7 +311,7 @@ class _Composer extends StatelessWidget {
                 minLines: 1,
                 maxLines: 4,
                 decoration: const InputDecoration(
-                  hintText: 'Ask about decisions, speakers or action items',
+                  hintText: 'Pergunte sobre decisões, participantes ou itens de ação',
                 ),
                 onSubmitted: onSend,
               ),
@@ -319,7 +319,7 @@ class _Composer extends StatelessWidget {
             const SizedBox(width: 12),
             FilledButton(
               onPressed: disabled ? null : () => onSend(controller.text),
-              child: Text(disabled ? 'Sending' : 'Send'),
+              child: Text(disabled ? 'Enviando' : 'Enviar'),
             ),
           ],
         ),
@@ -368,9 +368,9 @@ class _MissingChatState extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Chat unavailable', style: Theme.of(context).textTheme.headlineMedium),
+                Text('Chat indisponível', style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 8),
-                const Text('The recording is missing or the route points to stale data. Return to the library and retry.'),
+                const Text('A gravação não foi encontrada ou a rota aponta para dados antigos. Volte para a biblioteca e tente novamente.'),
                 const SizedBox(height: 16),
                 Wrap(
                   spacing: 12,
@@ -379,7 +379,7 @@ class _MissingChatState extends StatelessWidget {
                     FilledButton.icon(
                       onPressed: onBack,
                       icon: const Icon(Icons.arrow_back_rounded),
-                      label: const Text('Back to library'),
+                      label: const Text('Voltar para a biblioteca'),
                     ),
                   ],
                 ),

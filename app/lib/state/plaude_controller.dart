@@ -66,12 +66,12 @@ class PlaudeController extends ChangeNotifier {
       _backendAvailable = await api.isHealthy();
       _recordings = _backendAvailable ? await api.listRecordings() : demoNotes;
       _notice = _backendAvailable
-          ? 'Connected to local backend.'
-          : 'Running in demo mode. Start the backend for live HTTP integration.';
+          ? 'Conectado ao backend.'
+          : 'Executando em modo de demonstração. Inicie o backend para usar a integração HTTP real.';
     } catch (_) {
       _backendAvailable = false;
       _recordings = demoNotes;
-      _notice = 'Backend unavailable. Showing local demo data.';
+      _notice = 'Backend indisponível. Exibindo dados locais de demonstração.';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -99,14 +99,14 @@ class PlaudeController extends ChangeNotifier {
 
   Future<void> startRecording() async {
     if (kIsWeb) {
-      _notice = 'Recording capture is enabled for mobile and desktop builds. On web, use upload.';
+      _notice = 'A captura por microfone está disponível nas versões mobile e desktop. Na web, use o envio de áudio.';
       notifyListeners();
       return;
     }
 
     final hasPermission = await _recorder.hasPermission();
     if (!hasPermission) {
-      _notice = 'Microphone permission was denied.';
+      _notice = 'A permissão de microfone foi negada.';
       notifyListeners();
       return;
     }
@@ -116,7 +116,7 @@ class PlaudeController extends ChangeNotifier {
     await _recorder.start(const RecordConfig(), path: path);
     _recordingPath = path;
     _isRecording = true;
-    _notice = 'Recording in progress.';
+    _notice = 'Gravação em andamento.';
     notifyListeners();
   }
 
@@ -131,13 +131,13 @@ class PlaudeController extends ChangeNotifier {
     notifyListeners();
 
     if (_recordingPath == null) {
-      _notice = 'Recording finished without an output file.';
+      _notice = 'A gravação terminou sem gerar um arquivo de saída.';
       notifyListeners();
       return;
     }
 
     await _createAndProcessRecording(
-      title: 'Voice note ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+      title: 'Nota de voz ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
       sourceType: 'microphone',
       audioPath: _recordingPath,
       durationMs: null,
@@ -198,7 +198,7 @@ class PlaudeController extends ChangeNotifier {
           durationMs: durationMs,
         );
         _recordings = [created, ..._recordings];
-        _notice = 'Recording registered. Processing started.';
+        _notice = 'Gravação registrada. Processamento iniciado.';
         notifyListeners();
         return created;
       } catch (_) {
@@ -224,7 +224,7 @@ class PlaudeController extends ChangeNotifier {
     );
 
     _recordings = [created, ..._recordings];
-    _notice = 'Created locally in demo mode.';
+    _notice = 'Criado localmente em modo de demonstração.';
     notifyListeners();
     return created;
   }
@@ -250,7 +250,7 @@ class PlaudeController extends ChangeNotifier {
           transcriptText: transcriptText,
         );
         _replaceRecording(processed);
-        _notice = 'Processing completed.';
+        _notice = 'Processamento concluído.';
         return;
       } catch (_) {
         _backendAvailable = false;
@@ -270,7 +270,7 @@ class PlaudeController extends ChangeNotifier {
     final processed = _buildLocalProcessedRecording(current, transcriptText ?? _mockTranscriptFor(current.title));
     _replaceRecording(processed);
     _processingIds.remove(recordingId);
-    _notice = 'Processed locally in demo mode.';
+    _notice = 'Processado localmente em modo de demonstração.';
     notifyListeners();
   }
 
@@ -333,7 +333,7 @@ class PlaudeController extends ChangeNotifier {
         ),
       );
     } catch (_) {
-      _notice = 'Chat request failed. Staying in demo mode.';
+      _notice = 'A solicitação de chat falhou. Permanecendo em modo de demonstração.';
       _backendAvailable = false;
       final assistantMessage = _buildLocalChatAnswer(current, trimmed);
       final refreshed = findById(recordingId);
@@ -358,7 +358,7 @@ class PlaudeController extends ChangeNotifier {
   Future<ExportArtifact> exportRecording(String recordingId, String format) async {
     final current = findById(recordingId);
     if (current == null) {
-      throw StateError('Recording not found');
+      throw StateError('Gravação não encontrada');
     }
 
     if (_backendAvailable) {
@@ -379,16 +379,16 @@ class PlaudeController extends ChangeNotifier {
         ? [
             '# ${current.noteArtifact?.title ?? current.title}',
             '',
-            '## Overview',
-            current.summary?.overview ?? 'No summary',
+            '## Resumo',
+            current.summary?.overview ?? 'Sem resumo',
             '',
-            '## Highlights',
+            '## Destaques',
             ...highlights.map((item) => '- $item'),
             '',
-            '## Action items',
+            '## Itens de ação',
             ...actionItems.map((item) => '- $item'),
             '',
-            '## Transcript',
+            '## Transcrição',
             '```text',
             transcript,
             '```',
@@ -396,7 +396,7 @@ class PlaudeController extends ChangeNotifier {
         : [
             current.noteArtifact?.title ?? current.title,
             '',
-            current.summary?.overview ?? 'No summary',
+            current.summary?.overview ?? 'Sem resumo',
             '',
             transcript,
           ].join('\n');
@@ -411,7 +411,7 @@ class PlaudeController extends ChangeNotifier {
 
   Future<void> togglePlayback(String path) async {
     if (!isPlayable(path)) {
-      _notice = 'Playback is only available for local mobile or desktop recordings.';
+      _notice = 'A reprodução está disponível apenas para gravações locais em mobile ou desktop.';
       notifyListeners();
       return;
     }
@@ -461,15 +461,15 @@ class PlaudeController extends ChangeNotifier {
       updatedAt: DateTime.now(),
       transcriptSegments: segments,
       summary: RecordingSummary(
-        overview: 'Note processed locally with a structured overview, searchable transcript and grounded chat context.',
+        overview: 'Nota processada localmente com resumo estruturado, transcrição pesquisável e contexto pronto para chat.',
         chapters: [
           SummaryChapter(
-            heading: 'Context',
-            body: highlights.isNotEmpty ? highlights.first : 'No key context detected.',
+            heading: 'Contexto',
+            body: highlights.isNotEmpty ? highlights.first : 'Nenhum contexto principal detectado.',
           ),
           SummaryChapter(
-            heading: 'Execution',
-            body: actionItems.isNotEmpty ? actionItems.first : 'No explicit action item detected.',
+            heading: 'Execução',
+            body: actionItems.isNotEmpty ? actionItems.first : 'Nenhum item de ação explícito foi detectado.',
           ),
         ],
       ),
@@ -477,8 +477,8 @@ class PlaudeController extends ChangeNotifier {
         title: base.title,
         tags: <String>[
           base.sourceType,
-          if (base.title.toLowerCase().contains('launch')) 'launch' else 'note',
-          'ai-ready',
+          if (base.title.toLowerCase().contains('lanc')) 'lancamento' else 'nota',
+          'ia-pronta',
         ],
         highlights: highlights,
         actionItems: actionItems,
@@ -501,12 +501,13 @@ class PlaudeController extends ChangeNotifier {
       );
     }).toList();
 
-    final actionItems = recording.noteArtifact?.actionItems.join('; ') ?? 'No action items were extracted yet.';
-    final answerText = question.toLowerCase().contains('ação') ||
-            question.toLowerCase().contains('next') ||
-            question.toLowerCase().contains('próximo')
+    final actionItems = recording.noteArtifact?.actionItems.join('; ') ?? 'Nenhum item de ação foi extraído ainda.';
+    final lowerQuestion = question.toLowerCase();
+    final answerText = lowerQuestion.contains('ação') ||
+            lowerQuestion.contains('next') ||
+            lowerQuestion.contains('próximo')
         ? 'Os próximos passos detectados são: $actionItems'
-        : 'A nota indica: ${recording.summary?.overview ?? 'No summary available yet.'}';
+        : 'A nota indica: ${recording.summary?.overview ?? 'Ainda não há resumo disponível.'}';
 
     return ChatMessage(
       id: 'assistant-${DateTime.now().microsecondsSinceEpoch}',

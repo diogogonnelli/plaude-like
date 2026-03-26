@@ -16,12 +16,12 @@ enum ProcessingStatus {
       };
 
   String get label => switch (this) {
-        ProcessingStatus.uploaded => 'Uploaded',
-        ProcessingStatus.processingTranscript => 'Transcribing',
-        ProcessingStatus.processingSummary => 'Summarising',
-        ProcessingStatus.indexing => 'Indexing',
-        ProcessingStatus.ready => 'Ready',
-        ProcessingStatus.failed => 'Failed',
+        ProcessingStatus.uploaded => 'Enviado',
+        ProcessingStatus.processingTranscript => 'Transcrevendo',
+        ProcessingStatus.processingSummary => 'Resumindo',
+        ProcessingStatus.indexing => 'Indexando',
+        ProcessingStatus.ready => 'Pronto',
+        ProcessingStatus.failed => 'Falhou',
       };
 
   static ProcessingStatus fromApi(String value) {

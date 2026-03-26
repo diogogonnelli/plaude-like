@@ -21,14 +21,14 @@ class RecordingDetailScreen extends StatelessWidget {
     final recording = controller.findById(recordingId);
 
     return AppShell(
-      title: 'Recording detail',
+      title: 'Detalhe da gravação',
       navigationIndex: 0,
       onNavigationSelected: (index) => context.go(index == 0 ? '/' : '/settings'),
       actions: [
         OutlinedButton.icon(
           onPressed: () => context.go('/recordings/$recordingId/chat'),
           icon: const Icon(Icons.chat_bubble_outline_rounded),
-          label: const Text('Open chat'),
+          label: const Text('Abrir chat'),
         ),
       ],
       child: recording == null
@@ -108,10 +108,10 @@ class _RecoveryPanel extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Recording not found', style: Theme.of(context).textTheme.headlineMedium),
+                Text('Gravação não encontrada', style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 8),
                 const Text(
-                  'This can happen when a note was filtered out, deleted upstream, or the route points to stale data.',
+                  'Isso pode acontecer quando uma nota foi filtrada, removida na origem ou a rota aponta para dados antigos.',
                 ),
                 const SizedBox(height: 16),
                 if (!controller.backendAvailable)
@@ -122,7 +122,7 @@ class _RecoveryPanel extends StatelessWidget {
                       color: const Color(0xFFFFF4D6),
                       borderRadius: BorderRadius.circular(18),
                     ),
-                    child: const Text('Backend is offline, so you are seeing local demo data only.'),
+                    child: const Text('O backend está offline, então você está vendo apenas dados locais de demonstração.'),
                   ),
                 const SizedBox(height: 16),
                 Wrap(
@@ -132,17 +132,17 @@ class _RecoveryPanel extends StatelessWidget {
                     FilledButton.icon(
                       onPressed: onBack,
                       icon: const Icon(Icons.arrow_back_rounded),
-                      label: const Text('Back to library'),
+                      label: const Text('Voltar para a biblioteca'),
                     ),
                     OutlinedButton.icon(
                       onPressed: controller.pickAudioFile,
                       icon: const Icon(Icons.upload_file_rounded),
-                      label: const Text('Upload audio'),
+                      label: const Text('Enviar áudio'),
                     ),
                     OutlinedButton.icon(
                       onPressed: controller.isRecording ? controller.stopRecordingAndProcess : controller.startRecording,
                       icon: Icon(controller.isRecording ? Icons.stop_circle_outlined : Icons.mic_none_rounded),
-                      label: Text(controller.isRecording ? 'Stop recording' : 'Record'),
+                      label: Text(controller.isRecording ? 'Parar gravação' : 'Gravar'),
                     ),
                   ],
                 ),
@@ -162,14 +162,14 @@ class _SummaryColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final format = DateFormat('dd MMM yyyy - HH:mm');
+    final format = DateFormat('dd/MM/yyyy - HH:mm');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(recording.noteArtifact?.title ?? recording.title, style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 10),
-        Text(recording.summary?.overview ?? 'This note is still moving through the processing pipeline.'),
+        Text(recording.summary?.overview ?? 'Esta nota ainda está passando pelo pipeline de processamento.'),
         const SizedBox(height: 14),
         Wrap(
           spacing: 8,
@@ -182,7 +182,7 @@ class _SummaryColumn extends StatelessWidget {
         ),
         if (recording.noteArtifact case final artifact?) ...[
           const SizedBox(height: 22),
-          Text('Highlights', style: Theme.of(context).textTheme.titleLarge),
+          Text('Destaques', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           ...artifact.highlights.map(
             (item) => Padding(
@@ -191,7 +191,7 @@ class _SummaryColumn extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Text('Action items', style: Theme.of(context).textTheme.titleLarge),
+          Text('Itens de ação', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           ...artifact.actionItems.map(
             (item) => Padding(
@@ -231,24 +231,24 @@ class _ActionsColumn extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Actions', style: Theme.of(context).textTheme.titleLarge),
+          Text('Ações', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: controller.isProcessing(recording.id) ? null : () => controller.processRecording(recording.id),
             icon: const Icon(Icons.auto_awesome_rounded),
-            label: Text(controller.isProcessing(recording.id) ? 'Processing' : 'Reprocess'),
+            label: Text(controller.isProcessing(recording.id) ? 'Processando' : 'Processar novamente'),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: onChat,
             icon: const Icon(Icons.chat_bubble_outline_rounded),
-            label: const Text('Open chat'),
+            label: const Text('Abrir chat'),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: canPlay ? () => controller.togglePlayback(recording.audioPath!) : null,
             icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow_rounded),
-            label: Text(isPlaying ? 'Pause local audio' : 'Play local audio'),
+            label: Text(isPlaying ? 'Pausar áudio local' : 'Reproduzir áudio local'),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
@@ -273,18 +273,18 @@ class _ActionsColumn extends StatelessWidget {
                   return;
                 }
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Export failed: $error')),
+                  SnackBar(content: Text('Falha ao exportar: $error')),
                 );
               }
             },
             icon: const Icon(Icons.download_rounded),
-            label: const Text('Export markdown'),
+            label: const Text('Exportar markdown'),
           ),
           const SizedBox(height: 10),
           Text(
             canPlay
-                ? 'Audio can be previewed locally on desktop or mobile builds.'
-                : 'Playback is disabled for this source. Upload a local file to test the player.',
+                ? 'O áudio pode ser reproduzido localmente nas versões desktop e mobile.'
+                : 'A reprodução está desativada para esta origem. Envie um arquivo local para testar o player.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           if (recording.lastError case final String error) ...[
@@ -320,7 +320,7 @@ class _TranscriptColumn extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Transcript', style: Theme.of(context).textTheme.titleLarge),
+        Text('Transcrição', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 14),
         ...recording.transcriptSegments.map(
           (segment) => Padding(
@@ -335,7 +335,7 @@ class _TranscriptColumn extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${segment.speakerLabel} - ${_timestamp(segment.startMs)}',
+                    '${segment.speakerLabel} • ${_timestamp(segment.startMs)}',
                     style: Theme.of(context).textTheme.labelLarge,
                   ),
                   const SizedBox(height: 6),
@@ -375,10 +375,10 @@ class _TranscriptEmptyState extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Transcript unavailable', style: Theme.of(context).textTheme.titleLarge),
+          Text('Transcrição indisponível', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           Text(
-            'This note is still $recordingStatus or it was created locally without transcript content.',
+            'Esta nota ainda está em "$recordingStatus" ou foi criada localmente sem conteúdo de transcrição.',
           ),
         ],
       ),

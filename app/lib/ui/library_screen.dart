@@ -18,19 +18,19 @@ class LibraryScreen extends StatelessWidget {
     final hasQuery = controller.searchQuery.trim().isNotEmpty;
 
     return AppShell(
-      title: 'Voice library',
+      title: 'Biblioteca de voz',
       navigationIndex: 0,
       onNavigationSelected: (index) => context.go(index == 0 ? '/' : '/settings'),
       actions: [
         FilledButton.icon(
           onPressed: controller.isRecording ? controller.stopRecordingAndProcess : controller.startRecording,
           icon: Icon(controller.isRecording ? Icons.stop_circle_outlined : Icons.mic_none_rounded),
-          label: Text(controller.isRecording ? 'Stop recording' : 'Record'),
+          label: Text(controller.isRecording ? 'Parar gravação' : 'Gravar'),
         ),
         OutlinedButton.icon(
           onPressed: controller.pickAudioFile,
           icon: const Icon(Icons.upload_file_rounded),
-          label: const Text('Upload audio'),
+          label: const Text('Enviar áudio'),
         ),
       ],
       child: RefreshIndicator(
@@ -56,8 +56,8 @@ class LibraryScreen extends StatelessWidget {
                   isRemote: controller.backendAvailable,
                   message: controller.notice ??
                       (controller.backendAvailable
-                          ? 'Connected to the local backend.'
-                          : 'Backend is offline. Demo data is active.'),
+                          ? 'Conectado ao backend.'
+                          : 'Backend offline. Dados de demonstracao ativos.'),
                   onRetry: controller.refresh,
                 ),
                 const SizedBox(height: 16),
@@ -102,10 +102,10 @@ class _HeroPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final modeLabel = controller.backendAvailable ? 'HTTP mode' : 'Demo mode';
+    final modeLabel = controller.backendAvailable ? 'Modo HTTP' : 'Modo demo';
     final modeDetail = controller.backendAvailable
-        ? 'The backend is reachable and test flows will exercise live HTTP.'
-        : 'The backend is offline; you can still test the UX against local demo data.';
+        ? 'O backend está acessível e os fluxos de teste usarão HTTP real.'
+        : 'O backend está offline; ainda é possível testar a UX com dados locais de demonstração.';
 
     return Container(
       padding: const EdgeInsets.all(28),
@@ -125,12 +125,12 @@ class _HeroPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Meeting memory without the busywork',
+            'Memória de reuniões sem trabalho manual',
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: Colors.white),
           ),
           const SizedBox(height: 12),
           Text(
-            'Capture voice notes, structure the transcript, and keep a chat-ready knowledge thread for every recording.',
+            'Capture notas de voz, estruture a transcrição e mantenha um contexto pronto para chat em cada gravação.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white.withValues(alpha: 0.88)),
           ),
           const SizedBox(height: 20),
@@ -138,8 +138,8 @@ class _HeroPanel extends StatelessWidget {
             spacing: 12,
             runSpacing: 12,
             children: [
-              _MetricPill(label: 'Notes', value: '$totalCount'),
-              _MetricPill(label: 'Ready', value: '$readyCount'),
+              _MetricPill(label: 'Notas', value: '$totalCount'),
+              _MetricPill(label: 'Prontas', value: '$readyCount'),
               _ModePill(label: modeLabel, detail: modeDetail),
             ],
           ),
@@ -232,14 +232,14 @@ class _SearchBar extends StatelessWidget {
         child: TextField(
           onChanged: onChanged,
           decoration: InputDecoration(
-            hintText: 'Search by topic, summary or transcript',
+                  hintText: 'Buscar por tema, resumo ou transcrição',
             prefixIcon: const Icon(Icons.search_rounded),
             suffixIcon: onClear == null
                 ? null
                 : IconButton(
                     onPressed: onClear,
                     icon: const Icon(Icons.clear_rounded),
-                    tooltip: 'Clear search',
+                    tooltip: 'Limpar busca',
                   ),
           ),
         ),
@@ -263,7 +263,7 @@ class _ConnectionBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final background = isRemote ? const Color(0xFFE8F3E4) : const Color(0xFFFFF4D6);
     final icon = isRemote ? Icons.cloud_done_outlined : Icons.cloud_off_outlined;
-    final label = isRemote ? 'Connected' : 'Offline / demo';
+    final label = isRemote ? 'Conectado' : 'Offline / demo';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -416,14 +416,14 @@ class _EmptyState extends StatelessWidget {
             const Icon(Icons.auto_awesome_outlined, size: 42),
             const SizedBox(height: 14),
             Text(
-              hasQuery ? 'No notes match your search' : 'No notes yet',
+              hasQuery ? 'Nenhuma nota corresponde à busca' : 'Nenhuma nota ainda',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: 8),
             Text(
               hasQuery
-                  ? 'Try a broader keyword or clear the search to inspect the full library.'
-                  : 'Start by recording a voice note or uploading existing audio.',
+                  ? 'Tente uma palavra mais ampla ou limpe a busca para ver toda a biblioteca.'
+                  : 'Comece gravando uma nota de voz ou enviando um áudio existente.',
             ),
             const SizedBox(height: 18),
             Wrap(
@@ -434,17 +434,17 @@ class _EmptyState extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: onClearSearch,
                     icon: const Icon(Icons.clear_rounded),
-                    label: const Text('Clear search'),
+                    label: const Text('Limpar busca'),
                   ),
                 FilledButton.icon(
                   onPressed: onRecord,
                   icon: const Icon(Icons.mic_none_rounded),
-                  label: const Text('Record'),
+                  label: const Text('Gravar'),
                 ),
                 OutlinedButton.icon(
                   onPressed: onUpload,
                   icon: const Icon(Icons.upload_file_rounded),
-                  label: const Text('Upload audio'),
+                  label: const Text('Enviar áudio'),
                 ),
               ],
             ),
@@ -466,7 +466,7 @@ class _RecordingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final format = DateFormat('dd MMM yyyy - HH:mm');
+    final format = DateFormat('dd/MM/yyyy - HH:mm');
 
     return InkWell(
       onTap: onTap,
@@ -490,7 +490,7 @@ class _RecordingCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                note.summary?.overview ?? 'Uploaded and waiting for transcript + summary.',
+                note.summary?.overview ?? 'Enviado e aguardando transcrição e resumo.',
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -501,7 +501,7 @@ class _RecordingCard extends StatelessWidget {
                 children: [
                   _MiniMeta(icon: Icons.schedule_rounded, label: format.format(note.createdAt.toLocal())),
                   _MiniMeta(icon: Icons.graphic_eq_rounded, label: note.sourceType),
-                  _MiniMeta(icon: Icons.notes_rounded, label: '${note.transcriptSegments.length} segments'),
+                  _MiniMeta(icon: Icons.notes_rounded, label: '${note.transcriptSegments.length} trechos'),
                 ],
               ),
               if (note.noteArtifact case final artifact?) ...[

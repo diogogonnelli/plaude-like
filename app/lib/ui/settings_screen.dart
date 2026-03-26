@@ -14,14 +14,14 @@ class SettingsScreen extends StatelessWidget {
     final controller = context.watch<PlaudeController>();
 
     return AppShell(
-      title: 'Settings',
+      title: 'Configurações',
       navigationIndex: 1,
       onNavigationSelected: (index) => context.go(index == 0 ? '/' : '/settings'),
       actions: [
         OutlinedButton.icon(
           onPressed: controller.refresh,
           icon: const Icon(Icons.sync_rounded),
-          label: const Text('Refresh status'),
+          label: const Text('Atualizar status'),
         ),
       ],
       child: ListView(
@@ -40,18 +40,18 @@ class SettingsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Test readiness', style: Theme.of(context).textTheme.headlineMedium),
+                  Text('Pronto para testes', style: Theme.of(context).textTheme.headlineMedium),
                   const SizedBox(height: 16),
-                  const Text('These controls show whether the product is safe to exercise in a test run.'),
+                  const Text('Esses controles mostram se o produto está pronto para uma rodada de testes.'),
                   const SizedBox(height: 18),
                   Wrap(
                     spacing: 12,
                     runSpacing: 12,
                     children: const [
                       Chip(label: Text('Flutter web + mobile')),
-                      Chip(label: Text('Backend status surfaced')),
-                      Chip(label: Text('Demo fallback available')),
-                      Chip(label: Text('Upload / record / chat / export')),
+                      Chip(label: Text('Status do backend visível')),
+                      Chip(label: Text('Fallback de demo disponível')),
+                      Chip(label: Text('Upload / gravação / chat / exportação')),
                     ],
                   ),
                 ],
@@ -65,13 +65,13 @@ class SettingsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Product stance', style: Theme.of(context).textTheme.headlineMedium),
+                  Text('Direção do produto', style: Theme.of(context).textTheme.headlineMedium),
                   const SizedBox(height: 16),
-                  const Text('Single-user voice capture, structured summaries, grounded chat and export-ready notes.'),
+                  const Text('Captura de voz para um único usuário, resumos estruturados, chat contextual e notas prontas para exportação.'),
                   const SizedBox(height: 16),
-                  _KeyValueRow(label: 'Backend URL', value: AppConfig.backendBaseUrl),
-                  _KeyValueRow(label: 'Backend status', value: controller.backendAvailable ? 'Connected' : 'Offline / demo'),
-                  _KeyValueRow(label: 'Supabase configured', value: AppConfig.hasSupabase ? 'Yes' : 'No'),
+                  _KeyValueRow(label: 'URL do backend', value: AppConfig.backendBaseUrl),
+                  _KeyValueRow(label: 'Status do backend', value: controller.backendAvailable ? 'Conectado' : 'Offline / demo'),
+                  _KeyValueRow(label: 'Supabase configurado', value: AppConfig.hasSupabase ? 'Sim' : 'Não'),
                 ],
               ),
             ),
@@ -99,7 +99,7 @@ class _ConnectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final background = backendAvailable ? const Color(0xFFE8F3E4) : const Color(0xFFFFF4D6);
     final icon = backendAvailable ? Icons.cloud_done_outlined : Icons.cloud_off_outlined;
-    final title = backendAvailable ? 'Backend connected' : 'Backend offline';
+    final title = backendAvailable ? 'Backend conectado' : 'Backend offline';
 
     return Card(
       child: Padding(
@@ -107,7 +107,7 @@ class _ConnectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Connection', style: Theme.of(context).textTheme.headlineMedium),
+            Text('Conexão', style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 16),
             Container(
               width: double.infinity,
@@ -131,8 +131,8 @@ class _ConnectionCard extends StatelessWidget {
                         Text(
                           notice ??
                               (backendAvailable
-                                  ? 'The app is using live HTTP flows.'
-                                  : 'The app is using local demo data until the backend comes back online.'),
+                                  ? 'O app está usando fluxos HTTP reais.'
+                                  : 'O app está usando dados locais de demonstração até o backend voltar.'),
                         ),
                       ],
                     ),
@@ -141,8 +141,8 @@ class _ConnectionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            _KeyValueRow(label: 'Backend URL', value: backendUrl),
-            _KeyValueRow(label: 'Supabase configured', value: supabaseConfigured ? 'Yes' : 'No'),
+            _KeyValueRow(label: 'URL do backend', value: backendUrl),
+            _KeyValueRow(label: 'Supabase configurado', value: supabaseConfigured ? 'Sim' : 'Não'),
           ],
         ),
       ),
