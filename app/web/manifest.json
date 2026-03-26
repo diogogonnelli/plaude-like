@@ -1,0 +1,35 @@
+{
+    "name": "Plaude Like",
+    "short_name": "Plaude",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#F4EFE7",
+    "theme_color": "#DA6B2D",
+    "description": "Voice capture, structured notes and grounded chat for meetings and interviews.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

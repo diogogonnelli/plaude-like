@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      PORT: 8787
+      APP_BASE_URL: http://localhost:8787
+    ports:
+      - "8787:8787"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: ./app
+      args:
+        BACKEND_BASE_URL: http://localhost:8787
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
