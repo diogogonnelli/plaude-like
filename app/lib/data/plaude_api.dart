@@ -16,6 +16,8 @@ class PlaudeApi {
   final Map<String, String> _headers = const {
     'content-type': 'application/json',
     'x-user-id': 'demo-user',
+    'cache-control': 'no-cache',
+    'pragma': 'no-cache',
   };
 
   Uri _uri(String path, [Map<String, String>? query]) {
@@ -26,13 +28,25 @@ class PlaudeApi {
   }
 
   Future<bool> isHealthy() async {
-    final response = await _client.get(_uri('/health'));
-    return response.statusCode == 200;
+    final response = await _client.get(
+      _uri('/health', {
+        '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
+      }),
+      headers: _headers,
+    );
+    return response.statusCode >= 200 && response.statusCode < 300;
   }
 
   Future<List<RecordingNote>> listRecordings({String? query}) async {
+    final requestQuery = <String, String>{
+      '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
+    };
+    if (query != null && query.isNotEmpty) {
+      requestQuery['query'] = query;
+    }
+
     final response = await _client.get(
-      _uri('/recordings', query == null || query.isEmpty ? null : {'query': query}),
+      _uri('/recordings', requestQuery),
       headers: _headers,
     );
     final payload = _decode(response);
@@ -126,7 +140,9 @@ class PlaudeApi {
 
   Future<RecordingNote> getRecording(String recordingId) async {
     final response = await _client.get(
-      _uri('/recordings/$recordingId'),
+      _uri('/recordings/$recordingId', {
+        '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
+      }),
       headers: _headers,
     );
     final payload = _decode(response);
