@@ -18,6 +18,10 @@ create table if not exists public.recordings (
   status public.processing_status not null default 'uploaded',
   duration_ms integer,
   audio_path text,
+  transcription_provider text check (transcription_provider in ('assemblyai', 'mock')),
+  transcription_job_id text,
+  transcription_started_at timestamptz,
+  transcription_completed_at timestamptz,
   last_error text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())

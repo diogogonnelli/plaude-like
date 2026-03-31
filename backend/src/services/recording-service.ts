@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { unlink } from 'node:fs/promises';
 
-import type { AiProvider, ExportProvider, RecordingRepository } from '../domain/contracts.js';
+import type { AiProvider, ExportProvider, RecordingRepository, UploadAudioInput } from '../domain/contracts.js';
 import type { ChatMessage, CreateRecordingInput, ProcessRecordingInput, Recording } from '../domain/types.js';
+import { config } from '../lib/config.js';
+import { resolveStorageUserId } from '../lib/persistence.js';
+import { hasSupabasePersistenceConfig, uploadAudioToStorage } from '../lib/supabase-admin.js';
+import { AssemblyAiTranscriptionProvider } from './assemblyai-transcription-provider.js';
 import { ServiceError, isRetryableError, withRetries } from './service-errors.js';
 
 function extractTranscriptText(recording: Recording): string {
@@ -47,6 +52,8 @@ function buildGroundedCitations(recording: Recording, question: string) {
 }
 
 export class RecordingService {
+  private readonly assemblyAi = new AssemblyAiTranscriptionProvider();
+
   constructor(
     private readonly repository: RecordingRepository,
     private readonly aiProvider: AiProvider,
@@ -70,6 +77,74 @@ export class RecordingService {
 
   create(userId: string, input: CreateRecordingInput) {
     return this.repository.create(userId, input);
+  }
+
+  async uploadAndStartTranscription(userId: string, input: UploadAudioInput): Promise<Recording> {
+    const startedAt = new Date().toISOString();
+    let recording = await this.repository.create(userId, {
+      title: input.title,
+      sourceType: input.sourceType,
+      durationMs: input.durationMs,
+      audioPath: input.fileName,
+      transcriptionProvider: config.TRANSCRIPTION_PROVIDER === 'assemblyai' ? 'assemblyai' : 'mock',
+      transcriptionStartedAt: startedAt,
+    });
+
+    recording.status = 'processing_transcript';
+    recording = await this.repository.update(recording);
+
+    if (config.TRANSCRIPTION_PROVIDER === 'assemblyai') {
+      if (!hasSupabasePersistenceConfig()) {
+        recording.status = 'failed';
+        recording.lastError = 'Supabase persistence is required for audio retention when using AssemblyAI.';
+        await this.repository.update(recording);
+        await unlink(input.filePath).catch(() => undefined);
+        throw new ServiceError(
+          'Supabase persistence is required for audio retention when using AssemblyAI.',
+          500,
+          'supabase_storage_required',
+        );
+      }
+
+      try {
+        const objectPath = buildAudioObjectPath(userId, recording.id, input.fileName);
+        await uploadAudioToStorage({
+          objectPath,
+          filePath: input.filePath,
+          contentType: input.mimeType,
+        });
+
+        const audioUrl = await this.assemblyAi.uploadFile(input.filePath, input.mimeType);
+        const transcriptJobId = await this.assemblyAi.createTranscript({
+          audioUrl,
+          recordingId: recording.id,
+          userId,
+        });
+        return await this.repository.update({
+          ...recording,
+          audioPath: objectPath,
+          transcriptionProvider: 'assemblyai',
+          transcriptionJobId: transcriptJobId,
+          transcriptionStartedAt: startedAt,
+        });
+      } catch (error) {
+        recording.status = 'failed';
+        recording.lastError = error instanceof Error ? error.message : 'AssemblyAI upload failed.';
+        await this.repository.update(recording);
+        throw error;
+      } finally {
+        await unlink(input.filePath).catch(() => undefined);
+      }
+    }
+
+    // Mock mode keeps the asynchronous shape but processes with synthetic transcript.
+    queueMicrotask(() => {
+      void this.process(recording.id, userId, {
+        transcriptText: this.buildMockTranscript(input.title),
+      });
+    });
+    await unlink(input.filePath).catch(() => undefined);
+    return recording;
   }
 
   async process(recordingId: string, userId: string, input?: ProcessRecordingInput): Promise<Recording> {
@@ -100,7 +175,9 @@ export class RecordingService {
       recording = await this.repository.update(recording);
 
       recording.title = result.title;
-      if (result.transcriptSegments.length > 0) {
+      if ((input?.transcriptSegments?.length ?? 0) > 0) {
+        recording.transcriptSegments = input!.transcriptSegments!;
+      } else if (result.transcriptSegments.length > 0) {
         recording.transcriptSegments = result.transcriptSegments;
       }
       recording.summary = {
@@ -148,7 +225,7 @@ export class RecordingService {
       role: 'assistant',
       content:
         answer.answer.trim() ||
-        `Summary available: ${recording.summary?.overview ?? 'no summary available.'}`,
+        `Resumo disponível: ${recording.summary?.overview ?? 'sem resumo disponível.'}`,
       citations: answer.citations.length > 0 ? answer.citations : buildGroundedCitations(recording, question),
       createdAt: new Date().toISOString(),
     };
@@ -180,4 +257,68 @@ export class RecordingService {
   ): Promise<Recording> {
     return this.process(recordingId, userId, input);
   }
+
+  async completeAssemblyAiTranscript(recordingId: string, userId: string, transcriptId: string): Promise<Recording> {
+    const existing = await this.getOrThrow(recordingId, userId);
+    if (
+      existing.status === 'ready' &&
+      existing.transcriptionProvider === 'assemblyai' &&
+      existing.transcriptionJobId === transcriptId
+    ) {
+      return existing;
+    }
+
+    const transcript = await this.assemblyAi.getTranscript(transcriptId);
+
+    if (transcript.status === 'error') {
+      const recording = await this.getOrThrow(recordingId, userId);
+      recording.status = 'failed';
+      recording.lastError = transcript.error ?? 'AssemblyAI transcript failed.';
+      recording.transcriptionProvider = 'assemblyai';
+      recording.transcriptionJobId = transcriptId;
+      recording.transcriptionCompletedAt = new Date().toISOString();
+      return this.repository.update(recording);
+    }
+
+    if (transcript.status !== 'completed' || !transcript.text?.trim()) {
+      throw new ServiceError(
+        'AssemblyAI transcript is not completed yet.',
+        409,
+        'assemblyai_transcript_not_ready',
+        { transcriptId, status: transcript.status },
+      );
+    }
+
+    const transcriptSegments = transcript.utterances.map((utterance, index) => ({
+      id: randomUUID(),
+      recordingId,
+      speakerLabel: `Participante ${utterance.speaker ?? index + 1}`,
+      startMs: utterance.start ?? index * 30000,
+      endMs: utterance.end ?? (utterance.start ?? index * 30000) + 20000,
+      text: utterance.text,
+    }));
+
+    return this.process(recordingId, userId, {
+      transcriptText: transcript.text,
+      transcriptSegments,
+    }).then((recording) => this.repository.update({
+      ...recording,
+      transcriptionProvider: 'assemblyai',
+      transcriptionJobId: transcriptId,
+      transcriptionCompletedAt: new Date().toISOString(),
+    }));
+  }
+
+  private buildMockTranscript(title: string): string {
+    return [
+      `Participante 1: Esta nota chamada ${title} precisa consolidar o contexto da conversa.`,
+      'Participante 2: Vamos registrar responsáveis, riscos e próximos passos para o produto.',
+      'Participante 1: Precisamos manter busca, resumo estruturado e chat contextual no lançamento.',
+    ].join('\n');
+  }
+}
+
+function buildAudioObjectPath(userId: string, recordingId: string, fileName: string): string {
+  const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return `${resolveStorageUserId(userId)}/${recordingId}/${safeFileName}`;
 }

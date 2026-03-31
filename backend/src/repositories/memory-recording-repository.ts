@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { stat } from 'node:fs/promises';
+import { basename, isAbsolute } from 'node:path';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -10,7 +12,11 @@ import {
   resolveStorageUserId,
   serializeRecordingGraph,
 } from '../lib/persistence.js';
-import { createSupabaseAdminClient, hasSupabasePersistenceConfig } from '../lib/supabase-admin.js';
+import {
+  createSupabaseAdminClient,
+  hasSupabasePersistenceConfig,
+  uploadAudioToStorage,
+} from '../lib/supabase-admin.js';
 
 const nowIso = () => new Date().toISOString();
 
@@ -71,6 +77,10 @@ export class MemoryRecordingRepository implements RecordingRepository {
       updatedAt: timestamp,
       durationMs: input.durationMs,
       audioPath: input.audioPath,
+      transcriptionProvider: input.transcriptionProvider,
+      transcriptionJobId: input.transcriptionJobId,
+      transcriptionStartedAt: input.transcriptionStartedAt,
+      transcriptionCompletedAt: input.transcriptionCompletedAt,
       status: 'uploaded',
       transcriptSegments: [],
       chatSession: {
@@ -82,7 +92,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
     recording.chatSession!.recordingId = recording.id;
 
     if (this.persistenceMode === 'supabase') {
-      return this.upsertToSupabase(recording);
+      return this.upsertToSupabase(await maybeUploadOriginalAudio(recording));
     }
 
     this.recordings.set(recording.id, structuredClone(recording));
@@ -96,7 +106,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
     };
 
     if (this.persistenceMode === 'supabase') {
-      return this.upsertToSupabase(next);
+      return this.upsertToSupabase(await maybeUploadOriginalAudio(next));
     }
 
     this.recordings.set(next.id, structuredClone(next));
@@ -194,6 +204,33 @@ export class MemoryRecordingRepository implements RecordingRepository {
 
     return this.supabase;
   }
+}
+
+async function maybeUploadOriginalAudio(recording: Recording): Promise<Recording> {
+  const audioPath = recording.audioPath;
+  if (!audioPath || !isAbsolute(audioPath)) {
+    return recording;
+  }
+
+  const fileStats = await stat(audioPath).catch(() => null);
+  if (!fileStats) {
+    return recording;
+  }
+
+  if (!fileStats.isFile()) {
+    return recording;
+  }
+
+  const objectPath = `${resolveStorageUserId(recording.userId)}/${recording.id}/${basename(audioPath)}`;
+  await uploadAudioToStorage({
+    objectPath,
+    filePath: audioPath,
+  });
+
+  return {
+    ...recording,
+    audioPath: objectPath,
+  };
 }
 
 function matchesFilters(recording: Recording, filters?: { query?: string; tag?: string }): boolean {

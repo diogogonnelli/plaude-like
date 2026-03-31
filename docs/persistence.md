@@ -36,11 +36,19 @@ The second migration adds RPC helpers used by the backend repository to persist 
 
 ## Storage Layout
 
-Audio objects should be stored with a prefix that starts with the authenticated user id:
+Audio objects should be stored with a prefix that starts with the authenticated user id.
+When the hybrid repository receives a real filesystem path for the uploaded audio, it uploads the original file to a stable bucket path before the temp file is deleted:
 
-`{user-id}/{file-name}`
+`{user-id}/{recording-id}/{file-name}`
 
 That keeps the storage policy aligned with the bucket rule in the migration.
+
+The recording graph also persists transcription job metadata at the top level:
+
+- `transcriptionProvider`
+- `transcriptionJobId`
+- `transcriptionStartedAt`
+- `transcriptionCompletedAt`
 
 ## Deploy Test Flow
 

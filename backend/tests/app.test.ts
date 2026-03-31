@@ -99,6 +99,19 @@ describe('recordings api', () => {
     expect(processResponse.body.data.summary.overview).toBeTruthy();
   });
 
+  it('accepts multipart audio upload and creates an async recording', async () => {
+    const response = await request(app)
+      .post('/recordings/upload')
+      .set('x-user-id', demoUserId)
+      .field('title', 'Audio longo')
+      .field('sourceType', 'upload')
+      .attach('file', Buffer.from('fake audio bytes'), 'audio-test.wav');
+
+    expect(response.status).toBe(201);
+    expect(response.body.data.title).toBe('Audio longo');
+    expect(response.body.data.status).toBe('processing_transcript');
+  });
+
   it('retries transient processing failures', async () => {
     const retryRepository = new MemoryRecordingRepository(demoRecordings);
     const flakyProvider = new FlakyAiProvider();
@@ -195,7 +208,7 @@ describe('recordings api', () => {
       .send({ question: 'What are the next steps?' });
 
     expect(response.status).toBe(200);
-    expect(response.body.answer.content).toContain('Summary available');
+    expect(response.body.answer.content).toContain('Resumo disponível');
     expect(response.body.answer.citations.length).toBeGreaterThan(0);
   });
 });

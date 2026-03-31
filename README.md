@@ -78,8 +78,9 @@ Para sair do modo mock:
 
 1. Configure `OPENAI_API_KEY` em [`backend/.env.example`](./backend/.env.example).
 2. Troque `AI_PROVIDER=mock` por `AI_PROVIDER=openai`.
-3. Aponte `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` para seu projeto real.
-4. Aplique a migration [`supabase/migrations/0001_init.sql`](./supabase/migrations/0001_init.sql).
+3. Para transcrição real de áudio longo, configure `TRANSCRIPTION_PROVIDER=assemblyai` e `ASSEMBLYAI_API_KEY`.
+4. Aponte `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` para seu projeto real.
+5. Aplique as migrations em [`supabase/migrations`](./supabase/migrations).
 
 ## Validação local
 

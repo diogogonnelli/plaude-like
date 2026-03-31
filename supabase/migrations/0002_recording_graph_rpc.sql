@@ -15,6 +15,10 @@ as $$
     'updatedAt', r.updated_at::text,
     'durationMs', r.duration_ms,
     'audioPath', r.audio_path,
+    'transcriptionProvider', r.transcription_provider,
+    'transcriptionJobId', r.transcription_job_id,
+    'transcriptionStartedAt', r.transcription_started_at::text,
+    'transcriptionCompletedAt', r.transcription_completed_at::text,
     'lastError', r.last_error,
     'transcriptSegments', coalesce((
       select jsonb_agg(
@@ -97,6 +101,10 @@ begin
     status,
     duration_ms,
     audio_path,
+    transcription_provider,
+    transcription_job_id,
+    transcription_started_at,
+    transcription_completed_at,
     last_error,
     created_at,
     updated_at
@@ -109,6 +117,10 @@ begin
     (payload ->> 'status')::public.processing_status,
     nullif(payload ->> 'durationMs', '')::integer,
     payload ->> 'audioPath',
+    payload ->> 'transcriptionProvider',
+    payload ->> 'transcriptionJobId',
+    (payload ->> 'transcriptionStartedAt')::timestamptz,
+    (payload ->> 'transcriptionCompletedAt')::timestamptz,
     payload ->> 'lastError',
     (payload ->> 'createdAt')::timestamptz,
     (payload ->> 'updatedAt')::timestamptz
@@ -120,6 +132,10 @@ begin
     status = excluded.status,
     duration_ms = excluded.duration_ms,
     audio_path = excluded.audio_path,
+    transcription_provider = excluded.transcription_provider,
+    transcription_job_id = excluded.transcription_job_id,
+    transcription_started_at = excluded.transcription_started_at,
+    transcription_completed_at = excluded.transcription_completed_at,
     last_error = excluded.last_error;
 
   delete from public.transcript_segments where recording_id = recording_uuid;

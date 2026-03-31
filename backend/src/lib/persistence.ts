@@ -38,6 +38,10 @@ export function serializeRecordingGraph(recording: Recording, storageUserId: str
     updatedAt: recording.updatedAt,
     durationMs: recording.durationMs ?? null,
     audioPath: recording.audioPath ?? null,
+    transcriptionProvider: recording.transcriptionProvider ?? null,
+    transcriptionJobId: recording.transcriptionJobId ?? null,
+    transcriptionStartedAt: recording.transcriptionStartedAt ?? null,
+    transcriptionCompletedAt: recording.transcriptionCompletedAt ?? null,
     lastError: recording.lastError ?? null,
     transcriptSegments: recording.transcriptSegments.map(serializeTranscriptSegment),
     summary: recording.summary ? serializeSummary(recording.summary) : null,
@@ -64,6 +68,12 @@ export function deserializeRecordingGraph(
     updatedAt: String(raw.updatedAt),
     durationMs: raw.durationMs == null ? undefined : Number(raw.durationMs),
     audioPath: raw.audioPath == null ? undefined : String(raw.audioPath),
+    transcriptionProvider: raw.transcriptionProvider == null
+      ? undefined
+      : raw.transcriptionProvider as Recording['transcriptionProvider'],
+    transcriptionJobId: raw.transcriptionJobId == null ? undefined : String(raw.transcriptionJobId),
+    transcriptionStartedAt: raw.transcriptionStartedAt == null ? undefined : String(raw.transcriptionStartedAt),
+    transcriptionCompletedAt: raw.transcriptionCompletedAt == null ? undefined : String(raw.transcriptionCompletedAt),
     transcriptSegments: transcriptSegments.map(deserializeTranscriptSegment),
     summary: raw.summary ? deserializeSummary(raw.summary as Record<string, unknown>) : undefined,
     noteArtifact: raw.noteArtifact

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { readFile } from 'node:fs/promises';
 
 import { config } from './config.js';
 
@@ -17,4 +18,32 @@ export function createSupabaseAdminClient(): SupabaseClient | null {
       persistSession: false,
     },
   });
+}
+
+export function requireSupabaseAdminClient(): SupabaseClient {
+  const client = createSupabaseAdminClient();
+  if (!client) {
+    throw new Error('Supabase admin client is not configured');
+  }
+
+  return client;
+}
+
+export async function uploadAudioToStorage(args: {
+  objectPath: string;
+  filePath: string;
+  contentType?: string;
+}): Promise<void> {
+  const client = requireSupabaseAdminClient();
+  const bytes = await readFile(args.filePath);
+  const { error } = await client.storage
+    .from(config.SUPABASE_STORAGE_BUCKET)
+    .upload(args.objectPath, bytes, {
+      contentType: args.contentType ?? 'application/octet-stream',
+      upsert: true,
+    });
+
+  if (error) {
+    throw error;
+  }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../data/models.dart';
 import '../state/plaude_controller.dart';
 import 'app_shell.dart';
 
@@ -33,6 +34,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final controller = context.watch<PlaudeController>();
     final recording = controller.findById(widget.recordingId);
     final messages = recording?.chatSession?.messages ?? const [];
+    final isReady = recording?.isReady ?? false;
 
     return AppShell(
       title: 'Chat contextual',
@@ -40,9 +42,8 @@ class _ChatScreenState extends State<ChatScreen> {
       onNavigationSelected: (index) => context.go(index == 0 ? '/' : '/settings'),
       actions: [
         OutlinedButton.icon(
-          onPressed: recording == null
-              ? null
-              : () async {
+          onPressed: recording != null && isReady
+              ? () async {
                   try {
                     final export = await controller.exportRecording(recording.id, 'md');
                     if (!context.mounted) {
@@ -66,7 +67,8 @@ class _ChatScreenState extends State<ChatScreen> {
                       SnackBar(content: Text('Falha ao exportar: $error')),
                     );
                   }
-                },
+                }
+              : null,
           icon: const Icon(Icons.download_rounded),
           label: const Text('Exportar nota'),
         ),
@@ -80,13 +82,35 @@ class _ChatScreenState extends State<ChatScreen> {
                 return Column(
                   children: [
                     if (wide) ...[
-                      _ChatContextCard(recordingId: recording.id, title: recording.title, status: recording.status.label),
+                      _ChatContextCard(
+                        recordingId: recording.id,
+                        title: recording.title,
+                        status: recording.status.label,
+                      ),
                       const SizedBox(height: 16),
                     ],
+                    if (!isReady)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF4D6),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Text(
+                            recording.status == ProcessingStatus.failed
+                                ? 'A transcricao falhou. Corrija o erro e tente novamente antes de usar o chat.'
+                                : 'A nota ainda esta em processamento. O chat sera liberado quando a transcricao e o resumo forem concluidos.',
+                          ),
+                        ),
+                      ),
                     Expanded(
                       child: messages.isEmpty
                           ? _ChatEmptyState(
                               recordingTitle: recording.title,
+                              enabled: isReady,
                               onPromptTap: (prompt) => _submitPrompt(controller, prompt),
                             )
                           : ListView.separated(
@@ -114,7 +138,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            isUser ? 'Você' : 'Assistente',
+                                            isUser ? 'Voce' : 'Assistente',
                                             style: Theme.of(context).textTheme.labelLarge?.copyWith(
                                                   color: isUser ? Colors.white70 : null,
                                                 ),
@@ -139,10 +163,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                                             : const Color(0xFFF8F4EE),
                                                         borderRadius: BorderRadius.circular(16),
                                                       ),
-                                                      child: Text(
-                                                        citation.quote,
-                                                        style: TextStyle(color: isUser ? Colors.white70 : null),
-                                                      ),
+                                                      child: Text(citation.quote),
                                                     ),
                                                   )
                                                   .toList(),
@@ -159,7 +180,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     const SizedBox(height: 16),
                     _Composer(
                       controller: _textController,
-                      disabled: controller.isChatBusy(widget.recordingId),
+                      disabled: controller.isChatBusy(widget.recordingId) || !isReady,
                       onSend: (question) => _submitPrompt(controller, question),
                     ),
                     if (controller.notice case final String notice) ...[
@@ -218,7 +239,7 @@ class _ChatContextCard extends StatelessWidget {
                 children: [
                   Text(title, style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 6),
-                  Text('ID da gravação: $recordingId'),
+                  Text('ID da gravacao: $recordingId'),
                 ],
               ),
             ),
@@ -233,10 +254,12 @@ class _ChatContextCard extends StatelessWidget {
 class _ChatEmptyState extends StatelessWidget {
   const _ChatEmptyState({
     required this.recordingTitle,
+    required this.enabled,
     required this.onPromptTap,
   });
 
   final String recordingTitle;
+  final bool enabled;
   final ValueChanged<String> onPromptTap;
 
   @override
@@ -249,16 +272,20 @@ class _ChatEmptyState extends StatelessWidget {
           children: [
             Text('Pergunte sobre "$recordingTitle"', style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 8),
-            const Text('Use o assistente para perguntar sobre decisões, participantes, riscos ou próximos passos com base apenas nesta nota.'),
+            Text(
+              enabled
+                  ? 'Use o assistente para perguntar sobre decisoes, participantes, riscos ou proximos passos com base apenas nesta nota.'
+                  : 'Aguarde a conclusao da transcricao para usar o chat contextual.',
+            ),
             const SizedBox(height: 18),
             Wrap(
               spacing: 12,
               runSpacing: 12,
               children: [
-                _PromptChip(label: 'Quais são os próximos passos?', onTap: onPromptTap),
-                _PromptChip(label: 'Resuma as principais decisões.', onTap: onPromptTap),
-                _PromptChip(label: 'Qual foi a responsabilidade do Participante 2?', onTap: onPromptTap),
-                _PromptChip(label: 'Quais riscos foram mencionados?', onTap: onPromptTap),
+                _PromptChip(label: 'Quais sao os proximos passos?', enabled: enabled, onTap: onPromptTap),
+                _PromptChip(label: 'Resuma as principais decisoes.', enabled: enabled, onTap: onPromptTap),
+                _PromptChip(label: 'Qual foi a responsabilidade do Participante 2?', enabled: enabled, onTap: onPromptTap),
+                _PromptChip(label: 'Quais riscos foram mencionados?', enabled: enabled, onTap: onPromptTap),
               ],
             ),
           ],
@@ -271,17 +298,19 @@ class _ChatEmptyState extends StatelessWidget {
 class _PromptChip extends StatelessWidget {
   const _PromptChip({
     required this.label,
+    required this.enabled,
     required this.onTap,
   });
 
   final String label;
+  final bool enabled;
   final ValueChanged<String> onTap;
 
   @override
   Widget build(BuildContext context) {
     return ActionChip(
       label: Text(label),
-      onPressed: () => onTap(label),
+      onPressed: enabled ? () => onTap(label) : null,
     );
   }
 }
@@ -311,7 +340,7 @@ class _Composer extends StatelessWidget {
                 minLines: 1,
                 maxLines: 4,
                 decoration: const InputDecoration(
-                  hintText: 'Pergunte sobre decisões, participantes ou itens de ação',
+                  hintText: 'Pergunte sobre decisoes, participantes ou itens de acao',
                 ),
                 onSubmitted: onSend,
               ),
@@ -319,7 +348,7 @@ class _Composer extends StatelessWidget {
             const SizedBox(width: 12),
             FilledButton(
               onPressed: disabled ? null : () => onSend(controller.text),
-              child: Text(disabled ? 'Enviando' : 'Enviar'),
+              child: Text(disabled ? 'Indisponivel' : 'Enviar'),
             ),
           ],
         ),
@@ -368,20 +397,14 @@ class _MissingChatState extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Chat indisponível', style: Theme.of(context).textTheme.headlineMedium),
+                Text('Chat indisponivel', style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 8),
-                const Text('A gravação não foi encontrada ou a rota aponta para dados antigos. Volte para a biblioteca e tente novamente.'),
+                const Text('A gravacao nao foi encontrada ou a rota aponta para dados antigos. Volte para a biblioteca e tente novamente.'),
                 const SizedBox(height: 16),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: onBack,
-                      icon: const Icon(Icons.arrow_back_rounded),
-                      label: const Text('Voltar para a biblioteca'),
-                    ),
-                  ],
+                FilledButton.icon(
+                  onPressed: onBack,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  label: const Text('Voltar para a biblioteca'),
                 ),
               ],
             ),

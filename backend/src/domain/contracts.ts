@@ -40,3 +40,12 @@ export interface AiProvider {
 export interface ExportProvider {
   build(recording: Recording, format: 'txt' | 'md'): ExportArtifact;
 }
+
+export interface UploadAudioInput {
+  title: string;
+  sourceType: Recording['sourceType'];
+  filePath: string;
+  fileName: string;
+  mimeType?: string;
+  durationMs?: number;
+}

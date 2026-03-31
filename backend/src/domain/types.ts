@@ -68,6 +68,10 @@ export interface Recording {
   updatedAt: string;
   durationMs?: number;
   audioPath?: string;
+  transcriptionProvider?: 'assemblyai' | 'mock';
+  transcriptionJobId?: string;
+  transcriptionStartedAt?: string;
+  transcriptionCompletedAt?: string;
   transcriptSegments: TranscriptSegment[];
   summary?: Summary;
   noteArtifact?: NoteArtifact;
@@ -80,8 +84,13 @@ export interface CreateRecordingInput {
   sourceType: Recording['sourceType'];
   durationMs?: number;
   audioPath?: string;
+  transcriptionProvider?: Recording['transcriptionProvider'];
+  transcriptionJobId?: string;
+  transcriptionStartedAt?: string;
+  transcriptionCompletedAt?: string;
 }
 
 export interface ProcessRecordingInput {
   transcriptText?: string;
+  transcriptSegments?: TranscriptSegment[];
 }

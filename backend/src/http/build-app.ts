@@ -1,8 +1,10 @@
 import cors from 'cors';
 import express from 'express';
+import multer from 'multer';
+import { tmpdir } from 'node:os';
 import { z } from 'zod';
 
-import { isServiceError } from '../services/service-errors.js';
+import { ServiceError, isServiceError } from '../services/service-errors.js';
 import type { RecordingService } from '../services/recording-service.js';
 
 const userHeader = 'x-user-id';
@@ -31,6 +33,14 @@ const chatSchema = z
 const exportSchema = z
   .object({
     format: z.enum(['txt', 'md']),
+  })
+  .strict();
+
+const uploadRecordingSchema = z
+  .object({
+    title: z.string().min(1),
+    sourceType: z.enum(['microphone', 'upload']).default('upload'),
+    durationMs: z.coerce.number().int().positive().optional(),
   })
   .strict();
 
@@ -120,6 +130,12 @@ function buildTranscriptFromSegments(
 
 export function buildApp(recordingService: RecordingService) {
   const app = express();
+  const upload = multer({
+    dest: tmpdir(),
+    limits: {
+      fileSize: 1024 * 1024 * 512,
+    },
+  });
   app.use(cors());
   app.use(express.json({ limit: '8mb' }));
 
@@ -158,6 +174,29 @@ export function buildApp(recordingService: RecordingService) {
           objectPath: recording.audioPath ?? `${recording.id}.m4a`,
         },
       });
+    }),
+  );
+
+  app.post(
+    '/recordings/upload',
+    upload.single('file'),
+    asyncRoute(async (request, response) => {
+      const file = request.file;
+      if (!file) {
+        throw new ServiceError('Arquivo de audio nao enviado.', 400, 'audio_file_missing');
+      }
+
+      const body = uploadRecordingSchema.parse(request.body ?? {});
+      const recording = await recordingService.uploadAndStartTranscription(getUserId(request), {
+        title: body.title,
+        sourceType: body.sourceType,
+        durationMs: body.durationMs,
+        filePath: file.path,
+        fileName: file.originalname,
+        mimeType: file.mimetype,
+      });
+
+      response.status(201).json({ data: recording });
     }),
   );
 
@@ -248,6 +287,41 @@ export function buildApp(recordingService: RecordingService) {
         event: body.event,
         requestId: body.requestId,
         data: recording,
+      });
+    }),
+  );
+
+  app.post(
+    '/webhooks/assemblyai',
+    asyncRoute(async (request, response) => {
+      const query = z
+        .object({
+          recordingId: z.string().min(1),
+          userId: z.string().min(1),
+        })
+        .strict()
+        .parse(request.query);
+
+      const body = z
+        .object({
+          transcript_id: z.string().min(1),
+          status: z.string().min(1),
+        })
+        .passthrough()
+        .parse(request.body ?? {});
+
+      if (body.status === 'completed' || body.status === 'error') {
+        await recordingService.completeAssemblyAiTranscript(
+          query.recordingId,
+          query.userId,
+          body.transcript_id,
+        );
+      }
+
+      response.status(202).json({
+        accepted: true,
+        provider: 'assemblyai',
+        status: body.status,
       });
     }),
   );

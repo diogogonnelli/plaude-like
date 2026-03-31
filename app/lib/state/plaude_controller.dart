@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -136,6 +137,22 @@ class PlaudeController extends ChangeNotifier {
       return;
     }
 
+    if (_backendAvailable) {
+      final filePath = _recordingPath!;
+      final file = File(filePath);
+      final platformFile = PlatformFile(
+        name: file.uri.pathSegments.isNotEmpty ? file.uri.pathSegments.last : 'gravacao.m4a',
+        path: file.path,
+        size: await file.length(),
+      );
+      await _uploadAndWatch(
+        platformFile: platformFile,
+        title: 'Nota de voz ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+        sourceType: 'microphone',
+      );
+      return;
+    }
+
     await _createAndProcessRecording(
       title: 'Nota de voz ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
       sourceType: 'microphone',
@@ -156,6 +173,15 @@ class PlaudeController extends ChangeNotifier {
       return;
     }
 
+    if (_backendAvailable) {
+      await _uploadAndWatch(
+        platformFile: file,
+        title: file.name,
+        sourceType: 'upload',
+      );
+      return;
+    }
+
     await _createAndProcessRecording(
       title: file.name,
       sourceType: 'upload',
@@ -170,17 +196,71 @@ class PlaudeController extends ChangeNotifier {
     String? audioPath,
     int? durationMs,
   }) async {
-    final created = await _createRecording(
-      title: title,
-      sourceType: sourceType,
-      audioPath: audioPath,
-      durationMs: durationMs,
-    );
+    RecordingNote created;
+    try {
+      created = await _createRecording(
+        title: title,
+        sourceType: sourceType,
+        audioPath: audioPath,
+        durationMs: durationMs,
+      );
+    } catch (_) {
+      return;
+    }
 
     await processRecording(
       created.id,
       transcriptText: _mockTranscriptFor(title),
     );
+  }
+
+  Future<void> _uploadAndWatch({
+    required PlatformFile platformFile,
+    required String title,
+    required String sourceType,
+  }) async {
+    try {
+      final created = await api.uploadRecording(
+        file: platformFile,
+        title: title,
+        sourceType: sourceType,
+      );
+      _recordings = [created, ..._recordings.where((recording) => recording.id != created.id)];
+      _notice = 'Arquivo enviado. A transcrição será processada em segundo plano.';
+      notifyListeners();
+      unawaited(_watchRecordingUntilSettled(created.id));
+    } catch (error) {
+      _notice = 'Falha ao enviar o áudio: $error';
+      notifyListeners();
+    }
+  }
+
+  Future<void> _watchRecordingUntilSettled(String recordingId) async {
+    const maxAttempts = 120;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      await Future<void>.delayed(const Duration(seconds: 3));
+      try {
+        final refreshed = await api.getRecording(recordingId);
+        _replaceRecording(refreshed);
+        if (refreshed.status == ProcessingStatus.ready) {
+          _notice = 'Transcrição concluída e nota pronta.';
+          notifyListeners();
+          return;
+        }
+        if (refreshed.status == ProcessingStatus.failed) {
+          _notice = refreshed.lastError ?? 'A transcrição falhou.';
+          notifyListeners();
+          return;
+        }
+      } catch (_) {
+        _notice = 'Não foi possível acompanhar o status da transcrição.';
+        notifyListeners();
+        return;
+      }
+    }
+
+    _notice = 'O processamento ainda está em andamento. Atualize a biblioteca em alguns instantes.';
+    notifyListeners();
   }
 
   Future<RecordingNote> _createRecording({
@@ -202,7 +282,9 @@ class PlaudeController extends ChangeNotifier {
         notifyListeners();
         return created;
       } catch (_) {
-        _backendAvailable = false;
+        _notice = 'Falha ao criar a gravação no backend.';
+        notifyListeners();
+        throw StateError('Falha ao criar a gravação no backend.');
       }
     }
 
@@ -253,7 +335,8 @@ class PlaudeController extends ChangeNotifier {
         _notice = 'Processamento concluído.';
         return;
       } catch (_) {
-        _backendAvailable = false;
+        _notice = 'Falha ao processar a gravação no backend.';
+        return;
       } finally {
         _processingIds.remove(recordingId);
         notifyListeners();
@@ -333,22 +416,7 @@ class PlaudeController extends ChangeNotifier {
         ),
       );
     } catch (_) {
-      _notice = 'A solicitação de chat falhou. Permanecendo em modo de demonstração.';
-      _backendAvailable = false;
-      final assistantMessage = _buildLocalChatAnswer(current, trimmed);
-      final refreshed = findById(recordingId);
-      if (refreshed != null) {
-        final session = refreshed.chatSession ?? baseSession;
-        _replaceRecording(
-          refreshed.copyWith(
-            chatSession: ChatSession(
-              id: session.id,
-              recordingId: session.recordingId,
-              messages: [...session.messages, assistantMessage],
-            ),
-          ),
-        );
-      }
+      _notice = 'A solicitação de chat falhou.';
     } finally {
       _chatBusyIds.remove(recordingId);
       notifyListeners();
@@ -365,7 +433,8 @@ class PlaudeController extends ChangeNotifier {
       try {
         return await api.exportRecording(recordingId: recordingId, format: format);
       } catch (_) {
-        _backendAvailable = false;
+        _notice = 'Falha ao exportar a nota pelo backend.';
+        notifyListeners();
       }
     }
 
