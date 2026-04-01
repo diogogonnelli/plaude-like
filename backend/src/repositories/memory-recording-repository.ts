@@ -17,6 +17,7 @@ import {
   hasSupabasePersistenceConfig,
   uploadAudioToStorage,
 } from '../lib/supabase-admin.js';
+import { ServiceError } from '../services/service-errors.js';
 
 const nowIso = () => new Date().toISOString();
 
@@ -127,7 +128,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
       .order('created_at', { ascending: false });
 
     if (error) {
-      throw error;
+      throw wrapSupabaseError('Falha ao listar gravacoes no Supabase.', error);
     }
 
     const recordings = await Promise.all(
@@ -155,7 +156,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
       .maybeSingle();
 
     if (error) {
-      throw error;
+      throw wrapSupabaseError('Falha ao buscar gravacao no Supabase.', error);
     }
 
     if (!data) {
@@ -172,7 +173,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
     });
 
     if (error) {
-      throw error;
+      throw wrapSupabaseError('Falha ao carregar grafo da gravacao no Supabase.', error);
     }
 
     if (!data) {
@@ -191,7 +192,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
     });
 
     if (error) {
-      throw error;
+      throw wrapSupabaseError('Falha ao persistir grafo da gravacao no Supabase.', error);
     }
 
     return deserializeRecordingGraph(data, recording.userId);
@@ -263,4 +264,29 @@ function matchesFilters(recording: Recording, filters?: { query?: string; tag?: 
   }
 
   return true;
+}
+
+function wrapSupabaseError(message: string, error: unknown): ServiceError {
+  if (error instanceof ServiceError) {
+    return error;
+  }
+
+  const details = typeof error === 'object' && error !== null
+    ? {
+        code: 'code' in error ? (error as { code?: unknown }).code : undefined,
+        details: 'details' in error ? (error as { details?: unknown }).details : undefined,
+        hint: 'hint' in error ? (error as { hint?: unknown }).hint : undefined,
+      }
+    : undefined;
+
+  const errorMessage = typeof error === 'object' && error !== null && 'message' in error
+    ? String((error as { message?: unknown }).message)
+    : String(error);
+
+  return new ServiceError(
+    `${message} ${errorMessage}`,
+    502,
+    'supabase_operation_failed',
+    details,
+  );
 }

@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { readFile } from 'node:fs/promises';
 
 import { config } from './config.js';
+import { ServiceError } from '../services/service-errors.js';
 
 export function hasSupabasePersistenceConfig(): boolean {
   return Boolean(config.SUPABASE_URL && config.SUPABASE_SERVICE_ROLE_KEY);
@@ -44,6 +45,14 @@ export async function uploadAudioToStorage(args: {
     });
 
   if (error) {
-    throw error;
+    throw new ServiceError(
+      `Falha ao enviar audio para o Supabase Storage: ${error.message}`,
+      502,
+      'supabase_storage_upload_failed',
+      {
+        objectPath: args.objectPath,
+        bucket: config.SUPABASE_STORAGE_BUCKET,
+      },
+    );
   }
 }

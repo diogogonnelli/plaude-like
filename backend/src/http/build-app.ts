@@ -329,6 +329,9 @@ export function buildApp(recordingService: RecordingService) {
 
   app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
     const parsed = parseError(error);
+    if (!isServiceError(error) && !(error instanceof z.ZodError)) {
+      console.error('Unhandled backend error:', error);
+    }
     response.status(parsed.statusCode).json(parsed.body);
   });
 
