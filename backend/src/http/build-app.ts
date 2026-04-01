@@ -153,6 +153,7 @@ export function buildApp(recordingService: RecordingService) {
         .object({
           query: z.string().min(1).optional(),
           tag: z.string().min(1).optional(),
+          _ts: z.string().optional(),
         })
         .strict()
         .parse(request.query);
