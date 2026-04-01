@@ -78,7 +78,7 @@ export class AssemblyAiTranscriptionProvider {
       },
       body: JSON.stringify({
         audio_url: args.audioUrl,
-        speech_model: config.ASSEMBLYAI_SPEECH_MODEL,
+        speech_models: [config.ASSEMBLYAI_SPEECH_MODEL],
         speaker_labels: true,
         language_detection: true,
         webhook_url: webhookUrl,
