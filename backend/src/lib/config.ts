@@ -9,6 +9,7 @@ const envSchema = z.object({
   OPENAI_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
   TRANSCRIPTION_PROVIDER: z.enum(['mock', 'assemblyai']).default('mock'),
   ASSEMBLYAI_API_KEY: z.string().optional(),
+  ASSEMBLYAI_SPEECH_MODEL: z.enum(['universal-2', 'universal-3-pro']).default('universal-2'),
   SUPABASE_URL: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SUPABASE_PERSISTENCE_MODE: z.enum(['auto', 'memory', 'supabase']).default('auto'),
