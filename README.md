@@ -88,3 +88,9 @@ Para sair do modo mock:
 - `cd app && flutter test`
 - `cd backend && npm run typecheck`
 - `cd backend && npm test`
+
+## Documentacao da API
+
+- [`docs/api.md`](./docs/api.md)
+- `GET /openapi.json`
+- `GET /docs`

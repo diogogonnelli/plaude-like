@@ -10,7 +10,8 @@
     "resolveJsonModule": true,
     "outDir": "dist",
     "types": [
-      "node"
+      "node",
+      "swagger-ui-express"
     ]
   },
   "include": [

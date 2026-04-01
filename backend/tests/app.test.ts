@@ -54,6 +54,16 @@ const service = new RecordingService(repository, new MockAiProvider(), new Plain
 const app = buildApp(service);
 
 describe('recordings api', () => {
+  it('serves the OpenAPI document and Swagger UI', async () => {
+    const jsonResponse = await request(app).get('/openapi.json');
+    expect(jsonResponse.status).toBe(200);
+    expect(jsonResponse.body.openapi).toBe('3.1.0');
+    expect(jsonResponse.body.paths['/recordings/upload']).toBeTruthy();
+
+    const docsResponse = await request(app).get('/docs');
+    expect(docsResponse.status).toBe(301);
+  });
+
   it('lists demo recordings', async () => {
     const response = await request(app)
       .get('/recordings')

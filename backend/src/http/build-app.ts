@@ -2,10 +2,13 @@ import cors from 'cors';
 import express from 'express';
 import multer from 'multer';
 import { tmpdir } from 'node:os';
+import swaggerUi from 'swagger-ui-express';
 import { z } from 'zod';
 
+import { config } from '../lib/config.js';
 import { ServiceError, isServiceError } from '../services/service-errors.js';
 import type { RecordingService } from '../services/recording-service.js';
+import { buildOpenApiDocument } from './openapi.js';
 
 const userHeader = 'x-user-id';
 
@@ -130,6 +133,7 @@ function buildTranscriptFromSegments(
 
 export function buildApp(recordingService: RecordingService) {
   const app = express();
+  const openApiDocument = buildOpenApiDocument(config.APP_BASE_URL);
   const upload = multer({
     dest: tmpdir(),
     limits: {
@@ -138,6 +142,19 @@ export function buildApp(recordingService: RecordingService) {
   });
   app.use(cors());
   app.use(express.json({ limit: '8mb' }));
+
+  app.get('/openapi.json', (_request, response) => {
+    response.json(openApiDocument);
+  });
+
+  app.use(
+    '/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(openApiDocument, {
+      explorer: true,
+      customSiteTitle: 'Plaude Like API Docs',
+    }),
+  );
 
   app.get(
     '/health',
