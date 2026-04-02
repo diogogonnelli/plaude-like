@@ -19,7 +19,7 @@ class LibraryScreen extends StatelessWidget {
       title: 'Biblioteca operacional',
       subtitle:
           'Busca, filtros por projeto e leitura densa do pipeline em uma superfície única.',
-      navigationIndex: 1,
+      navigationIndex: 0,
       showCaptureFab: true,
       homeBrandOnly: true,
       interceptBackToPrimary: true,
@@ -431,10 +431,10 @@ BrandStatusTone _toneForStatus(ProcessingStatus status) {
 void _goToIndex(BuildContext context, int index) {
   switch (index) {
     case 0:
-      context.go('/home');
+      context.go('/library');
       return;
     case 1:
-      context.go('/library');
+      context.go('/home');
       return;
     case 2:
       context.go('/settings');

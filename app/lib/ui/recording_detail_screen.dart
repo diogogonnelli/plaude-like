@@ -22,7 +22,7 @@ class RecordingDetailScreen extends StatelessWidget {
       title: 'Leitura executiva da gravação',
       subtitle:
           'Resumo, destaques, transcript com speaker e ações imediatas em um mesmo fluxo.',
-      navigationIndex: 1,
+      navigationIndex: 0,
       onNavigationSelected: (index) => _goToIndex(context, index),
       actions: [
         BrandButton(
@@ -525,10 +525,10 @@ BrandStatusTone _toneForStatus(ProcessingStatus status) {
 void _goToIndex(BuildContext context, int index) {
   switch (index) {
     case 0:
-      context.go('/home');
+      context.go('/library');
       return;
     case 1:
-      context.go('/library');
+      context.go('/home');
       return;
     case 2:
       context.go('/settings');

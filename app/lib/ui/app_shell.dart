@@ -37,7 +37,7 @@ class AppShell extends StatelessWidget {
       canPop: !interceptBackToPrimary,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && interceptBackToPrimary && onNavigationSelected != null) {
-          onNavigationSelected!(0);
+          onNavigationSelected!(1);
         }
       },
       child: LayoutBuilder(
@@ -129,12 +129,12 @@ class AppShell extends StatelessWidget {
                             NavigationDestinationLabelBehavior.alwaysShow,
                         destinations: const [
                           NavigationDestination(
-                            icon: Icon(Icons.dashboard_rounded),
-                            label: 'Cockpit',
-                          ),
-                          NavigationDestination(
                             icon: Icon(Icons.library_books_rounded),
                             label: 'Biblioteca',
+                          ),
+                          NavigationDestination(
+                            icon: Icon(Icons.home_rounded),
+                            label: 'Início',
                           ),
                           NavigationDestination(
                             icon: Icon(Icons.tune_rounded),
@@ -319,15 +319,15 @@ class _MobileDrawer extends StatelessWidget {
                 ],
                 const SizedBox(height: 12),
                 _DrawerDestination(
-                  icon: Icons.dashboard_rounded,
-                  label: 'Cockpit',
+                  icon: Icons.library_books_rounded,
+                  label: 'Biblioteca',
                   selected: selectedIndex == 0,
                   onTap: () => _selectDestination(context, 0),
                 ),
                 const SizedBox(height: 8),
                 _DrawerDestination(
-                  icon: Icons.library_books_rounded,
-                  label: 'Biblioteca',
+                  icon: Icons.home_rounded,
+                  label: 'Início',
                   selected: selectedIndex == 1,
                   onTap: () => _selectDestination(context, 1),
                 ),
@@ -486,12 +486,12 @@ class _DesktopRail extends StatelessWidget {
                 labelType: NavigationRailLabelType.all,
                 destinations: const [
                   NavigationRailDestination(
-                    icon: Icon(Icons.dashboard_rounded),
-                    label: Text('Cockpit'),
-                  ),
-                  NavigationRailDestination(
                     icon: Icon(Icons.library_books_rounded),
                     label: Text('Biblioteca'),
+                  ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.home_rounded),
+                    label: Text('Início'),
                   ),
                   NavigationRailDestination(
                     icon: Icon(Icons.tune_rounded),

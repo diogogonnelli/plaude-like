@@ -117,7 +117,7 @@ GoRouter _buildRouter(PlaudeController controller) {
                       FilledButton.icon(
                         onPressed: () => context.go('/home'),
                         icon: const Icon(Icons.home_rounded),
-                        label: const Text('Ir para o cockpit'),
+                        label: const Text('Ir para o início'),
                       ),
                       OutlinedButton.icon(
                         onPressed: () => context.go('/library'),

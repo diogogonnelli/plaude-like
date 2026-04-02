@@ -37,7 +37,7 @@ class _ChatScreenState extends State<ChatScreen> {
       title: 'Chat contextual',
       subtitle:
           'Perguntas guiadas por evidências da gravação, com respostas ancoradas no transcript atual.',
-      navigationIndex: 1,
+      navigationIndex: 0,
       onNavigationSelected: (index) => _goToIndex(context, index),
       actions: [
         BrandButton(
@@ -473,10 +473,10 @@ class _MissingChatState extends StatelessWidget {
 void _goToIndex(BuildContext context, int index) {
   switch (index) {
     case 0:
-      context.go('/home');
+      context.go('/library');
       return;
     case 1:
-      context.go('/library');
+      context.go('/home');
       return;
     case 2:
       context.go('/settings');

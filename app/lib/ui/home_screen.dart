@@ -17,7 +17,7 @@ class HomeScreen extends StatelessWidget {
     return AppShell(
       title: '',
       subtitle: '',
-      navigationIndex: 0,
+      navigationIndex: 1,
       showCaptureFab: false,
       homeBrandOnly: true,
       onNavigationSelected: (index) => _goToIndex(context, index),
@@ -240,10 +240,10 @@ class _MetricPanel extends StatelessWidget {
 void _goToIndex(BuildContext context, int index) {
   switch (index) {
     case 0:
-      context.go('/home');
+      context.go('/library');
       return;
     case 1:
-      context.go('/library');
+      context.go('/home');
       return;
     case 2:
       context.go('/settings');
