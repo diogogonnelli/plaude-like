@@ -6,6 +6,9 @@ import '../design/brand_design_system.dart';
 import '../state/plaude_controller.dart';
 import 'app_shell.dart';
 
+const _webCaptureNotice =
+    'A captura por microfone esta disponivel nas versoes mobile e desktop. Na web, use o envio de audio.';
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -54,6 +57,11 @@ class HomeScreen extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 28),
           children: [
+            if (controller.notice case final String notice
+                when notice != 'Conectado ao backend.') ...[
+              _NoticeStrip(text: notice, positive: notice != _webCaptureNotice),
+              const SizedBox(height: 16),
+            ],
             _CommandDeck(
               controller: controller,
               activeProjectName: activeProject?.name ?? 'Nenhum projeto ativo',
@@ -64,6 +72,42 @@ class HomeScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _NoticeStrip extends StatelessWidget {
+  const _NoticeStrip({required this.text, required this.positive});
+
+  final String text;
+  final bool positive;
+
+  @override
+  Widget build(BuildContext context) {
+    return BrandPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      backgroundColor: positive
+          ? BrandColors.positive.withValues(alpha: 0.08)
+          : BrandColors.warning.withValues(alpha: 0.12),
+      child: Row(
+        children: [
+          Icon(
+            positive
+                ? Icons.check_circle_outline_rounded
+                : Icons.info_outline_rounded,
+            color: positive ? const Color(0xFF087A45) : BrandColors.shellDark,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: BrandColors.text),
+            ),
+          ),
+        ],
       ),
     );
   }

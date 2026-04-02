@@ -8,6 +8,9 @@ import '../design/brand_design_system.dart';
 import '../state/plaude_controller.dart';
 import 'app_shell.dart';
 
+const _webCaptureNotice =
+    'A captura por microfone esta disponivel nas versoes mobile e desktop. Na web, use o envio de audio.';
+
 class LibraryScreen extends StatelessWidget {
   const LibraryScreen({super.key});
 
@@ -68,7 +71,8 @@ class LibraryScreen extends StatelessWidget {
                       prefixIcon: Icon(Icons.search_rounded),
                     ),
                   ),
-                  if (controller.notice case final String notice) ...[
+                  if (controller.notice case final String notice
+                      when notice != _webCaptureNotice) ...[
                     const SizedBox(height: 14),
                     _Banner(
                       text: notice,
