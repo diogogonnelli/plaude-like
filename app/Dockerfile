@@ -8,7 +8,12 @@ RUN flutter pub get
 COPY . .
 
 ARG BACKEND_BASE_URL=http://localhost:8787
-RUN flutter build web --release --dart-define=BACKEND_BASE_URL=${BACKEND_BASE_URL}
+ARG SUPABASE_URL=
+ARG SUPABASE_ANON_KEY=
+RUN flutter build web --release \
+  --dart-define=BACKEND_BASE_URL=${BACKEND_BASE_URL} \
+  --dart-define=SUPABASE_URL=${SUPABASE_URL} \
+  --dart-define=SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
 
 FROM nginx:1.27-alpine
 
