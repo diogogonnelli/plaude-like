@@ -814,27 +814,62 @@ export class MemoryRecordingRepository implements RecordingRepository {
   }
 
   private async ensureProjectMembership(userId: string, projectId: string): Promise<void> {
-    const memberships = this.persistenceMode === 'supabase'
-      ? await this.listProjectMembersFromSupabase(userId, projectId).catch(() => [])
-      : this.projectMembers.get(projectId) ?? [];
+    const isMember = this.persistenceMode === 'supabase'
+      ? await this.hasProjectMembershipInSupabase(userId, projectId)
+      : (this.projectMembers.get(projectId) ?? []).some(
+          (member) => member.userId === userId || member.userId === resolveStorageUserId(userId),
+        );
 
-    if (!memberships.some((member) => member.userId === userId || member.userId === resolveStorageUserId(userId))) {
+    if (!isMember) {
       throw new ServiceError('Project access denied.', 403, 'project_access_denied', { projectId });
     }
   }
 
   private async ensureProjectOwner(userId: string, projectId: string): Promise<void> {
-    const memberships = this.persistenceMode === 'supabase'
-      ? await this.listProjectMembersFromSupabase(userId, projectId)
-      : this.projectMembers.get(projectId) ?? [];
+    const isOwner = this.persistenceMode === 'supabase'
+      ? await this.hasProjectOwnerRoleInSupabase(userId, projectId)
+      : (this.projectMembers.get(projectId) ?? []).some(
+          (member) =>
+            (member.userId === userId || member.userId === resolveStorageUserId(userId)) &&
+            member.role === 'owner',
+        );
 
-    if (!memberships.some(
-      (member) =>
-        (member.userId === userId || member.userId === resolveStorageUserId(userId)) &&
-        member.role === 'owner',
-    )) {
+    if (!isOwner) {
       throw new ServiceError('Project owner access required.', 403, 'project_owner_required', { projectId });
     }
+  }
+
+  private async hasProjectMembershipInSupabase(userId: string, projectId: string): Promise<boolean> {
+    const supabase = this.ensureSupabaseClient();
+    const { data, error } = await supabase
+      .from('project_members')
+      .select('project_id')
+      .eq('project_id', projectId)
+      .eq('user_id', resolveStorageUserId(userId))
+      .maybeSingle();
+
+    if (error) {
+      throw wrapSupabaseError('Falha ao validar membership do projeto.', error);
+    }
+
+    return Boolean(data);
+  }
+
+  private async hasProjectOwnerRoleInSupabase(userId: string, projectId: string): Promise<boolean> {
+    const supabase = this.ensureSupabaseClient();
+    const { data, error } = await supabase
+      .from('project_members')
+      .select('project_id')
+      .eq('project_id', projectId)
+      .eq('user_id', resolveStorageUserId(userId))
+      .eq('role', 'owner')
+      .maybeSingle();
+
+    if (error) {
+      throw wrapSupabaseError('Falha ao validar ownership do projeto.', error);
+    }
+
+    return Boolean(data);
   }
 
   private ensureSupabaseClient(): SupabaseClient {
