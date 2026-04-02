@@ -8,62 +8,102 @@ class BrandWordmark extends StatelessWidget {
     super.key,
     this.compact = false,
     this.showSpot = true,
+    this.showSpotText = true,
+    this.leadingSeal = false,
+    this.showSubtitle = false,
     this.textColor = BrandColors.text,
     this.subtitleColor = BrandColors.textMuted,
   });
 
   final bool compact;
   final bool showSpot;
+  final bool showSpotText;
+  final bool leadingSeal;
+  final bool showSubtitle;
   final Color textColor;
   final Color subtitleColor;
 
   @override
   Widget build(BuildContext context) {
     final titleSize = compact ? 24.0 : 30.0;
+    final sealSize = compact ? 18.0 : 20.0;
+    final sealWidth = (sealSize * 4) + 6;
     final subtitleStyle = Theme.of(
       context,
     ).textTheme.bodyMedium?.copyWith(color: subtitleColor);
+
+    final title = Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: 'Grav',
+            style: BrandTypography.wordmark(size: titleSize, color: textColor),
+          ),
+          TextSpan(
+            text: 'Ação',
+            style: BrandTypography.wordmark(
+              size: titleSize,
+              color: BrandColors.accent,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final mark = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        title,
+        if (showSubtitle)
+          Text('Inteligência de captura e execução', style: subtitleStyle),
+      ],
+    );
+
+    final lockup = leadingSeal
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SpotSeal(size: sealSize),
+                  const SizedBox(width: 10),
+                  Flexible(child: title),
+                ],
+              ),
+              if (showSubtitle) ...[
+                const SizedBox(height: 4),
+                Padding(
+                  padding: EdgeInsets.only(left: sealWidth + 10),
+                  child: Text(
+                    'Inteligência de captura e execução',
+                    style: subtitleStyle,
+                  ),
+                ),
+              ],
+            ],
+          )
+        : mark;
 
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 12,
       runSpacing: 8,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: 'Grav',
-                    style: BrandTypography.wordmark(
-                      size: titleSize,
-                      color: textColor,
-                    ),
-                  ),
-                  TextSpan(
-                    text: 'Ação',
-                    style: BrandTypography.wordmark(
-                      size: titleSize,
-                      color: BrandColors.accent,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Text('Inteligência de captura e execução', style: subtitleStyle),
-          ],
-        ),
-        if (showSpot) const SpotEndorsement(),
+        lockup,
+        if (showSpot) SpotEndorsement(showText: showSpotText),
       ],
     );
   }
 }
 
 class SpotEndorsement extends StatelessWidget {
-  const SpotEndorsement({super.key});
+  const SpotEndorsement({super.key, this.showText = true});
+
+  final bool showText;
 
   @override
   Widget build(BuildContext context) {
@@ -71,8 +111,10 @@ class SpotEndorsement extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SpotSeal(size: 16),
-        const SizedBox(width: 8),
-        Text('SPOT', style: BrandTypography.institutionalLabel),
+        if (showText) ...[
+          const SizedBox(width: 8),
+          Text('SPOT', style: BrandTypography.institutionalLabel),
+        ],
       ],
     );
   }

@@ -16,6 +16,7 @@ class AppShell extends StatelessWidget {
     this.onNavigationSelected,
     this.showCaptureFab = false,
     this.interceptBackToPrimary = false,
+    this.homeBrandOnly = false,
   });
 
   final String title;
@@ -26,6 +27,7 @@ class AppShell extends StatelessWidget {
   final ValueChanged<int>? onNavigationSelected;
   final bool showCaptureFab;
   final bool interceptBackToPrimary;
+  final bool homeBrandOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -42,10 +44,20 @@ class AppShell extends StatelessWidget {
         builder: (context, constraints) {
           final wide = constraints.maxWidth >= 1100;
           final medium = constraints.maxWidth >= 760;
+          final compact = !medium;
 
           return Scaffold(
             extendBody: true,
             backgroundColor: Colors.transparent,
+            drawer: compact
+                ? _MobileDrawer(
+                    controller: controller,
+                    title: title,
+                    actions: actions,
+                    selectedIndex: navigationIndex,
+                    onDestinationSelected: onNavigationSelected,
+                  )
+                : null,
             floatingActionButton: showCaptureFab
                 ? _CaptureFab(controller: controller)
                 : null,
@@ -74,7 +86,8 @@ class AppShell extends StatelessWidget {
                                   subtitle ??
                                   'Projeto ativo: ${controller.activeProject?.name ?? 'nenhum projeto selecionado'}',
                               actions: actions,
-                              compact: !medium,
+                              compact: compact,
+                              homeBrandOnly: homeBrandOnly,
                             ),
                             const SizedBox(height: 16),
                             Expanded(
@@ -145,12 +158,14 @@ class _ShellHeader extends StatelessWidget {
     required this.subtitle,
     required this.actions,
     required this.compact,
+    required this.homeBrandOnly,
   });
 
   final String title;
   final String subtitle;
   final List<Widget> actions;
   final bool compact;
+  final bool homeBrandOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -164,24 +179,56 @@ class _ShellHeader extends StatelessWidget {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const BrandWordmark(compact: true),
-                const SizedBox(height: 18),
-                _HeaderCopy(title: title, subtitle: subtitle),
-                if (actions.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Wrap(spacing: 10, runSpacing: 10, children: actions),
+                Builder(
+                  builder: (context) => Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Expanded(
+                        child: BrandWordmark(
+                          compact: true,
+                          showSpot: false,
+                          leadingSeal: true,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: IconButton(
+                          onPressed: () => Scaffold.of(context).openDrawer(),
+                          icon: const Icon(Icons.menu_rounded),
+                          tooltip: 'Abrir menu lateral',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!homeBrandOnly) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ],
               ],
             )
           : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Expanded(child: BrandWordmark()),
-                const SizedBox(width: 24),
-                Expanded(
-                  flex: 2,
-                  child: _HeaderCopy(title: title, subtitle: subtitle),
+                const Expanded(
+                  child: BrandWordmark(showSpot: false, leadingSeal: true),
                 ),
+                const SizedBox(width: 24),
+                if (!homeBrandOnly)
+                  Expanded(
+                    flex: 2,
+                    child: _HeaderCopy(title: title, subtitle: subtitle),
+                  ),
                 if (actions.isNotEmpty) ...[
                   const SizedBox(width: 18),
                   Flexible(
@@ -195,6 +242,163 @@ class _ShellHeader extends StatelessWidget {
                 ],
               ],
             ),
+    );
+  }
+}
+
+class _MobileDrawer extends StatelessWidget {
+  const _MobileDrawer({
+    required this.controller,
+    required this.title,
+    required this.actions,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+  });
+
+  final PlaudeController controller;
+  final String title;
+  final List<Widget> actions;
+  final int selectedIndex;
+  final ValueChanged<int>? onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
+          child: BrandPanel(
+            highlight: true,
+            child: ListView(
+              children: [
+                const BrandWordmark(compact: true),
+                const SizedBox(height: 18),
+                BrandBadge(
+                  label: 'SPOT endorsed workflow',
+                  leading: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: BrandColors.accent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(title, style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 8),
+                BrandPanel(
+                  padding: const EdgeInsets.all(18),
+                  backgroundColor: BrandColors.surfaceMuted,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Projeto ativo',
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        controller.activeProject?.name ??
+                            'Selecione um projeto',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                ),
+                if (actions.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  ...actions.map(
+                    (action) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: action,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                _DrawerDestination(
+                  icon: Icons.dashboard_rounded,
+                  label: 'Cockpit',
+                  selected: selectedIndex == 0,
+                  onTap: () => _selectDestination(context, 0),
+                ),
+                const SizedBox(height: 8),
+                _DrawerDestination(
+                  icon: Icons.library_books_rounded,
+                  label: 'Biblioteca',
+                  selected: selectedIndex == 1,
+                  onTap: () => _selectDestination(context, 1),
+                ),
+                const SizedBox(height: 8),
+                _DrawerDestination(
+                  icon: Icons.tune_rounded,
+                  label: 'Sistema',
+                  selected: selectedIndex == 2,
+                  onTap: () => _selectDestination(context, 2),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _selectDestination(BuildContext context, int index) {
+    Navigator.of(context).pop();
+    onDestinationSelected?.call(index);
+  }
+}
+
+class _DrawerDestination extends StatelessWidget {
+  const _DrawerDestination({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(BrandRadius.md),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: selected
+              ? BrandColors.accent.withValues(alpha: 0.1)
+              : BrandColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(BrandRadius.md),
+          border: Border.all(
+            color: selected
+                ? BrandColors.accent.withValues(alpha: 0.22)
+                : BrandColors.stroke,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: selected ? BrandColors.accent : BrandColors.shell,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: selected ? BrandColors.accent : BrandColors.text,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

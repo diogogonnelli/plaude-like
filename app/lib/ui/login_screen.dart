@@ -30,7 +30,8 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: BrandBackground(
         child: SafeArea(
-          child: Center(
+          child: Align(
+            alignment: Alignment.topCenter,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1120),
               child: Padding(
@@ -39,7 +40,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   builder: (context, constraints) {
                     final wide = constraints.maxWidth >= 900;
                     final narrative = _BrandNarrative(
-                      authRequired: controller.requiresAuth,
                       backendAvailable: controller.backendAvailable,
                     );
                     final form = _LoginCard(
@@ -69,15 +69,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     if (!wide) {
                       return ListView(
-                        children: [narrative, const SizedBox(height: 16), form],
+                        shrinkWrap: true,
+                        children: [form, const SizedBox(height: 16), narrative],
                       );
                     }
 
                     return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(flex: 7, child: narrative),
-                        const SizedBox(width: 16),
                         Expanded(flex: 5, child: form),
+                        const SizedBox(width: 16),
+                        Expanded(flex: 7, child: narrative),
                       ],
                     );
                   },
@@ -92,12 +94,8 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 class _BrandNarrative extends StatelessWidget {
-  const _BrandNarrative({
-    required this.authRequired,
-    required this.backendAvailable,
-  });
+  const _BrandNarrative({required this.backendAvailable});
 
-  final bool authRequired;
   final bool backendAvailable;
 
   @override
@@ -125,9 +123,9 @@ class _BrandNarrative extends StatelessWidget {
             foregroundColor: Colors.white,
             borderColor: Colors.white.withValues(alpha: 0.2),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 20),
           Text(
-            'Captura, estrutura e execução na mesma operação.',
+            'Captação, estrutura e execução na mesma operação.',
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
               color: Colors.white,
               fontSize: 34,
@@ -140,45 +138,7 @@ class _BrandNarrative extends StatelessWidget {
               color: Colors.white.withValues(alpha: 0.86),
             ),
           ),
-          const SizedBox(height: 24),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _NarrativePill(
-                label: authRequired
-                    ? 'Supabase Auth exigido'
-                    : 'Modo local liberado',
-              ),
-              _NarrativePill(label: 'Resumo estruturado'),
-              _NarrativePill(label: 'Chat com evidências'),
-            ],
-          ),
         ],
-      ),
-    );
-  }
-}
-
-class _NarrativePill extends StatelessWidget {
-  const _NarrativePill({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(BrandRadius.pill),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(
-          context,
-        ).textTheme.labelMedium?.copyWith(color: Colors.white),
       ),
     );
   }

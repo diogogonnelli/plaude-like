@@ -21,6 +21,7 @@ class LibraryScreen extends StatelessWidget {
           'Busca, filtros por projeto e leitura densa do pipeline em uma superfície única.',
       navigationIndex: 1,
       showCaptureFab: true,
+      homeBrandOnly: true,
       interceptBackToPrimary: true,
       onNavigationSelected: (index) => _goToIndex(context, index),
       actions: [

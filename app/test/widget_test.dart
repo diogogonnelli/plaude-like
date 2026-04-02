@@ -32,7 +32,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('Cockpit de captação'), findsOneWidget);
+    expect(find.text('Cockpit de captação'), findsNothing);
+    expect(find.textContaining('Grav'), findsWidgets);
     expect(find.text('Nova captação'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
   });
@@ -61,7 +62,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
 
       expect(find.text('Entrar no GravAção'), findsOneWidget);
-    expect(find.textContaining('Supabase Auth'), findsWidgets);
+      expect(find.textContaining('Supabase Auth'), findsWidgets);
     },
   );
 

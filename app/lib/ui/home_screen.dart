@@ -19,12 +19,11 @@ class HomeScreen extends StatelessWidget {
     final recent = controller.readyRecordings.take(5).toList();
 
     return AppShell(
-      title: 'Cockpit de captação',
-      subtitle:
-          controller.notice ??
-          'Capture, acompanhe o pipeline e transforme cada gravação em execução com contexto visível.',
+      title: '',
+      subtitle: '',
       navigationIndex: 0,
       showCaptureFab: true,
+      homeBrandOnly: true,
       onNavigationSelected: (index) => _goToIndex(context, index),
       actions: [
         if (controller.projects.isNotEmpty)
@@ -59,7 +58,8 @@ class HomeScreen extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 28),
           children: [
-            if (controller.notice case final String notice) ...[
+            if (controller.notice case final String notice
+                when notice != 'Conectado ao backend.') ...[
               _NoticeStrip(text: notice, positive: controller.backendAvailable),
               const SizedBox(height: 16),
             ],

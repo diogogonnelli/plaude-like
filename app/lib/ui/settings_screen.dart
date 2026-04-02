@@ -19,6 +19,7 @@ class SettingsScreen extends StatelessWidget {
       subtitle:
           'Sessão, backend, projeto ativo e direção do produto consolidados em um painel único.',
       navigationIndex: 2,
+      homeBrandOnly: true,
       interceptBackToPrimary: true,
       onNavigationSelected: (index) => _goToIndex(context, index),
       actions: [
