@@ -229,20 +229,49 @@ class PlaudeController extends ChangeNotifier {
       return;
     }
 
-    final hasPermission = await _recorder.hasPermission();
-    if (!hasPermission) {
-      _notice = 'A permissao de microfone foi negada.';
-      notifyListeners();
-      return;
-    }
+    try {
+      final hasPermission = await _recorder.hasPermission();
+      if (!hasPermission) {
+        _notice = 'A permissao de microfone foi negada.';
+        notifyListeners();
+        return;
+      }
 
-    final tempDir = await getTemporaryDirectory();
-    final path = '${tempDir.path}/plaude_${DateTime.now().millisecondsSinceEpoch}.m4a';
-    await _recorder.start(const RecordConfig(), path: path);
-    _recordingPath = path;
-    _isRecording = true;
-    _notice = 'Gravacao em andamento.';
-    notifyListeners();
+      final tempDir = await getTemporaryDirectory();
+      final useAac = await _supportsPreferredMobileEncoder();
+      final extension = useAac ? 'm4a' : 'wav';
+      final path = '${tempDir.path}/plaude_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final config = useAac
+          ? const RecordConfig(
+              encoder: AudioEncoder.aacLc,
+              bitRate: 128000,
+              sampleRate: 44100,
+            )
+          : const RecordConfig(
+              encoder: AudioEncoder.wav,
+              sampleRate: 44100,
+            );
+
+      await _recorder.start(config, path: path);
+      final started = await _recorder.isRecording();
+      if (!started) {
+        _recordingPath = null;
+        _isRecording = false;
+        _notice = 'O gravador nao iniciou. Verifique a permissao de microfone e tente novamente.';
+        notifyListeners();
+        return;
+      }
+
+      _recordingPath = path;
+      _isRecording = true;
+      _notice = 'Gravacao em andamento.';
+      notifyListeners();
+    } catch (error) {
+      _recordingPath = null;
+      _isRecording = false;
+      _notice = 'Falha ao iniciar a gravacao: $error';
+      notifyListeners();
+    }
   }
 
   Future<void> stopRecordingAndProcess() async {
@@ -744,6 +773,14 @@ class PlaudeController extends ChangeNotifier {
       'Speaker 2: Vamos registrar responsaveis, riscos e proximos passos para o produto.',
       'Speaker 1: Precisamos manter busca, resumo estruturado e chat contextual no lancamento.',
     ].join('\n');
+  }
+
+  Future<bool> _supportsPreferredMobileEncoder() async {
+    try {
+      return await _recorder.isEncoderSupported(AudioEncoder.aacLc);
+    } catch (_) {
+      return false;
+    }
   }
 
   List<RecordingNote> _filteredRecordings() {
