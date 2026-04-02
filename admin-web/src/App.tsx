@@ -425,7 +425,7 @@ function FullscreenState(props: {
   return (
     <div className="auth-shell">
       <div className="auth-card">
-        <div className="auth-kicker">Plaude Admin</div>
+        <div className="auth-kicker">SPOT | GravAção Admin</div>
         <h1>{props.title}</h1>
         <p>{props.description}</p>
         {props.actions ? <div className="auth-actions">{props.actions}</div> : null}
@@ -470,8 +470,8 @@ function LoginPage() {
   return (
     <div className="auth-shell">
       <div className="auth-card">
-        <div className="auth-kicker">Backoffice operacional</div>
-        <h1>Entrar no Plaude Admin</h1>
+        <div className="auth-kicker">SPOT endorsed workflow</div>
+        <h1>Entrar no GravAção Admin</h1>
         <p>Use uma conta provisionada no Supabase Auth e já autorizada na tabela `admin_users`.</p>
         {!hasSupabaseConfig ? (
           <div className="inline-error">
@@ -527,9 +527,9 @@ function AdminLayout(props: { adminMe: AdminMe; onSignOut: () => Promise<void> }
     <div className="admin-shell">
       <aside className="sidebar">
         <div className="brand-card">
-          <div className="brand-kicker">Plaude Admin</div>
-          <h1>Operação de áudio</h1>
-          <p>Projetos, membros, gravações e jobs com foco em leitura rápida e ação imediata.</p>
+          <div className="brand-kicker">SPOT endorsed product</div>
+          <h1>GravAção Admin</h1>
+          <p>Projetos, membros, gravações, jobs e providers com foco em leitura rápida e ação imediata.</p>
         </div>
 
         <nav className="nav-stack">
@@ -566,7 +566,7 @@ function AdminLayout(props: { adminMe: AdminMe; onSignOut: () => Promise<void> }
       <main className="content-shell">
         <header className="topbar">
           <div>
-            <div className="eyebrow">Admin operacional</div>
+            <div className="eyebrow">Backoffice SPOT</div>
             <h2>{sectionTitle}</h2>
             <p>Superfícies roteadas, estados claros e ações administrativas com contexto por URL.</p>
           </div>

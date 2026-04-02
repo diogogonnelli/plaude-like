@@ -19,7 +19,8 @@ final demoNotes = <RecordingNote>[
         speakerLabel: 'Participante 1',
         startMs: 0,
         endMs: 18000,
-        text: 'Vamos lancar o v1 com gravacao, upload, resumo e chat sobre notas.',
+        text:
+            'Vamos lancar o v1 com gravacao, upload, resumo e chat sobre notas.',
       ),
       TranscriptSegment(
         id: 'seg-2',
@@ -27,7 +28,8 @@ final demoNotes = <RecordingNote>[
         speakerLabel: 'Participante 2',
         startMs: 18000,
         endMs: 42000,
-        text: 'Eu fico com a biblioteca, experiencia de detalhe e exportacao em markdown.',
+        text:
+            'Eu fico com a biblioteca, experiencia de detalhe e exportacao em markdown.',
       ),
       TranscriptSegment(
         id: 'seg-3',
@@ -35,7 +37,8 @@ final demoNotes = <RecordingNote>[
         speakerLabel: 'Participante 1',
         startMs: 42000,
         endMs: 68000,
-        text: 'Precisamos instrumentar falhas do pipeline e deixar retries claros para o usuario.',
+        text:
+            'Precisamos instrumentar falhas do pipeline e deixar retries claros para o usuario.',
       ),
     ],
     summary: const RecordingSummary(
@@ -44,11 +47,13 @@ final demoNotes = <RecordingNote>[
       chapters: [
         SummaryChapter(
           heading: 'Escopo',
-          body: 'O nucleo inclui gravacao, upload, transcricao, resumo, biblioteca e chat contextual.',
+          body:
+              'O nucleo inclui gravacao, upload, transcricao, resumo, biblioteca e chat contextual.',
         ),
         SummaryChapter(
           heading: 'Responsaveis',
-          body: 'Biblioteca e exportacao ficaram com um responsavel dedicado para reduzir gargalos.',
+          body:
+              'Biblioteca e exportacao ficaram com um responsavel dedicado para reduzir gargalos.',
         ),
       ],
     ),

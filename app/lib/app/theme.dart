@@ -1,109 +1,86 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-ThemeData buildPlaudeTheme() {
-  const background = Color(0xFFF7F0E5);
-  const surface = Color(0xFFFFFBF6);
-  const ink = Color(0xFF221B16);
-  const accent = Color(0xFFD97706);
-  const secondary = Color(0xFF6B7280);
+import '../design/brand_design_system.dart';
 
-  final scheme = ColorScheme.fromSeed(
-    seedColor: accent,
-    brightness: Brightness.light,
-    surface: surface,
-  ).copyWith(
-    primary: accent,
-    secondary: secondary,
-    onPrimary: Colors.white,
-    surface: surface,
-    onSurface: ink,
-    outline: const Color(0xFFD8CFC2),
-  );
+ThemeData buildGravacaoTheme() {
+  final scheme =
+      ColorScheme.fromSeed(
+        seedColor: BrandColors.accent,
+        brightness: Brightness.light,
+        surface: BrandColors.surface,
+      ).copyWith(
+        primary: BrandColors.accent,
+        secondary: BrandColors.shell,
+        onPrimary: Colors.white,
+        surface: BrandColors.surface,
+        onSurface: BrandColors.text,
+        outline: BrandColors.strokeStrong,
+        error: BrandColors.accent,
+      );
 
-  final textTheme = GoogleFonts.plusJakartaSansTextTheme().copyWith(
-    displayLarge: GoogleFonts.plusJakartaSans(
-      fontSize: 52,
-      fontWeight: FontWeight.w800,
-      color: ink,
-    ),
-    headlineLarge: GoogleFonts.plusJakartaSans(
-      fontSize: 34,
-      fontWeight: FontWeight.w800,
-      color: ink,
-    ),
-    headlineMedium: GoogleFonts.plusJakartaSans(
-      fontSize: 24,
-      fontWeight: FontWeight.w700,
-      color: ink,
-    ),
-    titleLarge: GoogleFonts.plusJakartaSans(
-      fontSize: 18,
-      fontWeight: FontWeight.w700,
-      color: ink,
-    ),
-    titleMedium: GoogleFonts.plusJakartaSans(
-      fontSize: 16,
-      fontWeight: FontWeight.w700,
-      color: ink,
-    ),
-    bodyLarge: GoogleFonts.plusJakartaSans(
-      fontSize: 16,
-      color: ink,
-      height: 1.45,
-    ),
-    bodyMedium: GoogleFonts.plusJakartaSans(
-      fontSize: 14,
-      color: ink,
-      height: 1.45,
-    ),
-    labelLarge: GoogleFonts.plusJakartaSans(
-      fontSize: 14,
-      fontWeight: FontWeight.w700,
-      color: ink,
-    ),
-  );
+  final textTheme = BrandTypography.textTheme(ThemeData.light().textTheme);
 
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: background,
+    scaffoldBackgroundColor: BrandColors.canvas,
     textTheme: textTheme,
     cardTheme: CardThemeData(
       elevation: 0,
-      color: surface,
+      color: BrandColors.surface,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(28),
-        side: const BorderSide(color: Color(0xFFE2D7C8)),
+        borderRadius: BorderRadius.circular(BrandRadius.lg),
+        side: const BorderSide(color: BrandColors.stroke),
       ),
     ),
     chipTheme: ChipThemeData(
-      backgroundColor: Colors.white,
-      side: const BorderSide(color: Color(0xFFD8CFC2)),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-      labelStyle: GoogleFonts.plusJakartaSans(
-        fontSize: 12,
-        fontWeight: FontWeight.w700,
-        color: ink,
+      backgroundColor: BrandColors.surfaceMuted,
+      side: const BorderSide(color: BrandColors.stroke),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(BrandRadius.pill),
       ),
+      labelStyle: textTheme.labelMedium,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: Colors.white,
+      fillColor: BrandColors.surface,
+      labelStyle: textTheme.bodyMedium,
+      hintStyle: textTheme.bodyMedium,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(22),
-        borderSide: const BorderSide(color: Color(0xFFD8CFC2)),
+        borderRadius: BorderRadius.circular(BrandRadius.md),
+        borderSide: const BorderSide(color: BrandColors.stroke),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(22),
-        borderSide: const BorderSide(color: Color(0xFFD8CFC2)),
+        borderRadius: BorderRadius.circular(BrandRadius.md),
+        borderSide: const BorderSide(color: BrandColors.stroke),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(22),
-        borderSide: const BorderSide(color: accent, width: 1.5),
+        borderRadius: BorderRadius.circular(BrandRadius.md),
+        borderSide: const BorderSide(color: BrandColors.accent, width: 1.5),
       ),
+    ),
+    dividerColor: BrandColors.stroke,
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: BrandColors.surface.withValues(alpha: 0.96),
+      indicatorColor: BrandColors.accent.withValues(alpha: 0.1),
+      labelTextStyle: WidgetStatePropertyAll(textTheme.labelMedium),
+    ),
+    navigationRailTheme: NavigationRailThemeData(
+      backgroundColor: Colors.transparent,
+      indicatorColor: BrandColors.accent.withValues(alpha: 0.1),
+      selectedIconTheme: const IconThemeData(color: BrandColors.accent),
+      unselectedIconTheme: const IconThemeData(color: BrandColors.textMuted),
+      selectedLabelTextStyle: textTheme.labelMedium,
+      unselectedLabelTextStyle: textTheme.labelMedium?.copyWith(
+        color: BrandColors.textMuted,
+      ),
+    ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: BrandColors.accent,
+      foregroundColor: Colors.white,
     ),
   );
 }

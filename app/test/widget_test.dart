@@ -15,12 +15,14 @@ Widget buildApp({bool authRequiredOverride = false}) {
 
   return ChangeNotifierProvider(
     create: (_) => controller,
-    child: const PlaudeApp(),
+    child: const GravacaoApp(),
   );
 }
 
 void main() {
-  testWidgets('renders the home shell with mobile navigation', (WidgetTester tester) async {
+  testWidgets('renders the home shell with mobile navigation', (
+    WidgetTester tester,
+  ) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -30,12 +32,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('Home'), findsWidgets);
-    expect(find.text('Capturar'), findsOneWidget);
+    expect(find.text('Cockpit de captação'), findsOneWidget);
+    expect(find.text('Nova captação'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
   });
 
-  testWidgets('switches to desktop navigation when the viewport is wide', (WidgetTester tester) async {
+  testWidgets('switches to desktop navigation when the viewport is wide', (
+    WidgetTester tester,
+  ) async {
     tester.view.physicalSize = const Size(1440, 1000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -45,20 +49,25 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.text('SPOT'), findsWidgets);
     expect(find.text('Biblioteca'), findsWidgets);
   });
 
-  testWidgets('redirects to login when auth is required and there is no session', (WidgetTester tester) async {
-    await tester.pumpWidget(buildApp(authRequiredOverride: true));
-    await tester.pump(const Duration(milliseconds: 100));
-    await tester.pump(const Duration(seconds: 1));
+  testWidgets(
+    'redirects to login when auth is required and there is no session',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(buildApp(authRequiredOverride: true));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('Entrar'), findsWidgets);
-    expect(find.textContaining('Supabase Auth'), findsOneWidget);
-  });
+      expect(find.text('Entrar no GravAção'), findsOneWidget);
+    expect(find.textContaining('Supabase Auth'), findsWidgets);
+    },
+  );
 
-  testWidgets('shows route recovery state for unknown pages', (WidgetTester tester) async {
+  testWidgets('shows route recovery state for unknown pages', (
+    WidgetTester tester,
+  ) async {
     final router = GoRouter(
       initialLocation: '/missing',
       routes: [
@@ -68,9 +77,7 @@ void main() {
         ),
       ],
       errorBuilder: (context, state) => Scaffold(
-        body: Center(
-          child: Text(state.error?.toString() ?? 'desconhecido'),
-        ),
+        body: Center(child: Text(state.error?.toString() ?? 'desconhecido')),
       ),
     );
 

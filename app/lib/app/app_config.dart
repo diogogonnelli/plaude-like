@@ -14,5 +14,6 @@ class AppConfig {
     defaultValue: '',
   );
 
-  static bool get hasSupabase => supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
+  static bool get hasSupabase =>
+      supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 }

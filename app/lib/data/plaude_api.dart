@@ -23,7 +23,9 @@ class PlaudeApi {
     );
   }
 
-  Future<Map<String, String>> _headers({bool includeJsonContentType = true}) async {
+  Future<Map<String, String>> _headers({
+    bool includeJsonContentType = true,
+  }) async {
     final headers = <String, String>{
       'cache-control': 'no-cache',
       'pragma': 'no-cache',
@@ -53,7 +55,10 @@ class PlaudeApi {
     return response.statusCode >= 200 && response.statusCode < 300;
   }
 
-  Future<List<RecordingNote>> listRecordings({String? query, String? projectId}) async {
+  Future<List<RecordingNote>> listRecordings({
+    String? query,
+    String? projectId,
+  }) async {
     final requestQuery = <String, String>{
       '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
     };
@@ -70,7 +75,9 @@ class PlaudeApi {
     );
     final payload = _decode(response);
     final raw = payload['data'] as List<dynamic>;
-    return raw.map((item) => RecordingNote.fromJson(item as Map<String, dynamic>)).toList();
+    return raw
+        .map((item) => RecordingNote.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
   Future<List<Project>> listProjects() async {
@@ -82,7 +89,9 @@ class PlaudeApi {
     );
     final payload = _decode(response);
     final raw = payload['data'] as List<dynamic>;
-    return raw.map((item) => Project.fromJson(item as Map<String, dynamic>)).toList();
+    return raw
+        .map((item) => Project.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
   Future<RecordingNote> createRecording({
@@ -131,11 +140,7 @@ class PlaudeApi {
 
     if (file.bytes != null) {
       request.files.add(
-        http.MultipartFile.fromBytes(
-          'file',
-          file.bytes!,
-          filename: file.name,
-        ),
+        http.MultipartFile.fromBytes('file', file.bytes!, filename: file.name),
       );
     } else if (file.path != null) {
       request.files.add(

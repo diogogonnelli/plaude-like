@@ -1,11 +1,11 @@
 {
-    "name": "Plaude Like",
-    "short_name": "Plaude",
+    "name": "GravAção",
+    "short_name": "GravAção",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#F4EFE7",
-    "theme_color": "#DA6B2D",
-    "description": "Voice capture, structured notes and grounded chat for meetings and interviews.",
+    "background_color": "#F7F8FA",
+    "theme_color": "#DE0C2F",
+    "description": "SPOT-endorsed capture, structured notes and grounded chat for operational execution.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

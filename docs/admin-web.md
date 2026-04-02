@@ -1,6 +1,6 @@
 # Admin Web
 
-Aplicação separada em `admin-web/`, agora com autenticação Supabase e rotas reais de backoffice.
+Aplicação separada em `admin-web/`, com autenticação Supabase e rotas reais de backoffice para o GravAção Admin com endosso SPOT.
 
 ## Stack
 
@@ -69,6 +69,6 @@ Aplicação separada em `admin-web/`, agora com autenticação Supabase e rotas 
 
 ## Observações
 
-- a experiência visual segue paleta creme + âmbar + texto escuro com `Plus Jakarta Sans`
+- a experiência visual segue a base institucional da SPOT: branco, cinza estrutural, vermelho SPOT e tipografia `Roboto`
 - o uso de transparência fica restrito ao shell e aos painéis principais
 - a aplicação prioriza densidade operacional, contraste e legibilidade sobre decoração

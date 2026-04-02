@@ -1,6 +1,6 @@
-# Plaude Like
+# GravAção
 
-Aplicativo `PLAUD Note`-like com `Flutter` para web/mobile, backend `TypeScript` e infraestrutura preparada para `Supabase`.
+Produto `GravAção`, co-branded com `SPOT`, com app `Flutter` para web/mobile, backoffice `React` e backend `TypeScript` preparado para `Supabase`.
 
 ## O que já está implementado
 

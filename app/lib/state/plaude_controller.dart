@@ -68,20 +68,28 @@ class PlaudeController extends ChangeNotifier {
   List<RecordingNote> get recordings => _filteredRecordings();
 
   List<RecordingNote> get processingRecordings => recordings
-      .where((recording) => recording.status != ProcessingStatus.ready && recording.status != ProcessingStatus.failed)
+      .where(
+        (recording) =>
+            recording.status != ProcessingStatus.ready &&
+            recording.status != ProcessingStatus.failed,
+      )
       .toList();
 
-  List<RecordingNote> get readyRecordings =>
-      recordings.where((recording) => recording.status == ProcessingStatus.ready).toList();
+  List<RecordingNote> get readyRecordings => recordings
+      .where((recording) => recording.status == ProcessingStatus.ready)
+      .toList();
 
-  List<RecordingNote> get failedRecordings =>
-      recordings.where((recording) => recording.status == ProcessingStatus.failed).toList();
+  List<RecordingNote> get failedRecordings => recordings
+      .where((recording) => recording.status == ProcessingStatus.failed)
+      .toList();
 
   Future<void> bootstrap() async {
     if (_authRequired && supabaseClient != null) {
       _session = supabaseClient!.auth.currentSession;
       _authReady = true;
-      _authSubscription ??= supabaseClient!.auth.onAuthStateChange.listen((event) {
+      _authSubscription ??= supabaseClient!.auth.onAuthStateChange.listen((
+        event,
+      ) {
         _session = event.session;
         if (_session == null) {
           _clearSignedOutState();
@@ -162,7 +170,8 @@ class PlaudeController extends ChangeNotifier {
         _notice = 'Conectado ao backend.';
       } else {
         _loadDemoData();
-        _notice = 'Executando em modo de demonstração. Inicie o backend para usar a integração HTTP real.';
+        _notice =
+            'Executando em modo de demonstração. Inicie o backend para usar a integração HTTP real.';
       }
     } catch (_) {
       _backendAvailable = false;
@@ -172,7 +181,8 @@ class PlaudeController extends ChangeNotifier {
         _notice = 'Não foi possível carregar os dados do backend autenticado.';
       } else {
         _loadDemoData();
-        _notice = 'Backend indisponível. Exibindo dados locais de demonstração.';
+        _notice =
+            'Backend indisponível. Exibindo dados locais de demonstração.';
       }
     } finally {
       _isLoading = false;
@@ -213,12 +223,15 @@ class PlaudeController extends ChangeNotifier {
 
   bool isProcessing(String recordingId) => _processingIds.contains(recordingId);
   bool isChatBusy(String recordingId) => _chatBusyIds.contains(recordingId);
-  bool isPlayable(String? path) => !kIsWeb && path != null && !path.startsWith('demo/');
-  bool isCurrentlyPlaying(String? path) => path != null && path == _currentlyPlayingPath && _player.playing;
+  bool isPlayable(String? path) =>
+      !kIsWeb && path != null && !path.startsWith('demo/');
+  bool isCurrentlyPlaying(String? path) =>
+      path != null && path == _currentlyPlayingPath && _player.playing;
 
   Future<void> startRecording() async {
     if (kIsWeb) {
-      _notice = 'A captura por microfone esta disponivel nas versoes mobile e desktop. Na web, use o envio de audio.';
+      _notice =
+          'A captura por microfone esta disponivel nas versoes mobile e desktop. Na web, use o envio de audio.';
       notifyListeners();
       return;
     }
@@ -240,24 +253,23 @@ class PlaudeController extends ChangeNotifier {
       final tempDir = await getTemporaryDirectory();
       final useAac = await _supportsPreferredMobileEncoder();
       final extension = useAac ? 'm4a' : 'wav';
-      final path = '${tempDir.path}/plaude_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final path =
+          '${tempDir.path}/gravacao_${DateTime.now().millisecondsSinceEpoch}.$extension';
       final config = useAac
           ? const RecordConfig(
               encoder: AudioEncoder.aacLc,
               bitRate: 128000,
               sampleRate: 44100,
             )
-          : const RecordConfig(
-              encoder: AudioEncoder.wav,
-              sampleRate: 44100,
-            );
+          : const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 44100);
 
       await _recorder.start(config, path: path);
       final started = await _recorder.isRecording();
       if (!started) {
         _recordingPath = null;
         _isRecording = false;
-        _notice = 'O gravador nao iniciou. Verifique a permissao de microfone e tente novamente.';
+        _notice =
+            'O gravador nao iniciou. Verifique a permissao de microfone e tente novamente.';
         notifyListeners();
         return;
       }
@@ -301,13 +313,16 @@ class PlaudeController extends ChangeNotifier {
       final filePath = _recordingPath!;
       final file = File(filePath);
       final platformFile = PlatformFile(
-        name: file.uri.pathSegments.isNotEmpty ? file.uri.pathSegments.last : 'gravacao.m4a',
+        name: file.uri.pathSegments.isNotEmpty
+            ? file.uri.pathSegments.last
+            : 'gravacao.m4a',
         path: file.path,
         size: await file.length(),
       );
       await _uploadAndWatch(
         platformFile: platformFile,
-        title: 'Nota de voz ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+        title:
+            'Nota de voz ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
         projectId: projectId,
         sourceType: 'microphone',
       );
@@ -315,7 +330,8 @@ class PlaudeController extends ChangeNotifier {
     }
 
     await _createAndProcessRecording(
-      title: 'Nota de voz ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+      title:
+          'Nota de voz ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
       projectId: projectId,
       sourceType: 'microphone',
       audioPath: _recordingPath,
@@ -328,9 +344,7 @@ class PlaudeController extends ChangeNotifier {
       type: FileType.custom,
       allowedExtensions: const ['mp3', 'wav', 'm4a', 'aac', 'mp4'],
       withData: kIsWeb,
-    ))
-        ?.files
-        .singleOrNull;
+    ))?.files.singleOrNull;
 
     if (file == null) {
       return;
@@ -401,8 +415,12 @@ class PlaudeController extends ChangeNotifier {
         projectId: projectId,
         sourceType: sourceType,
       );
-      _recordings = [created, ..._recordings.where((recording) => recording.id != created.id)];
-      _notice = 'Arquivo enviado. A transcricao sera processada em segundo plano.';
+      _recordings = [
+        created,
+        ..._recordings.where((recording) => recording.id != created.id),
+      ];
+      _notice =
+          'Arquivo enviado. A transcricao sera processada em segundo plano.';
       notifyListeners();
       unawaited(_watchRecordingUntilSettled(created.id));
     } catch (error) {
@@ -435,7 +453,8 @@ class PlaudeController extends ChangeNotifier {
       }
     }
 
-    _notice = 'O processamento ainda esta em andamento. Atualize a biblioteca em alguns instantes.';
+    _notice =
+        'O processamento ainda esta em andamento. Atualize a biblioteca em alguns instantes.';
     notifyListeners();
   }
 
@@ -491,7 +510,10 @@ class PlaudeController extends ChangeNotifier {
     return created;
   }
 
-  Future<void> processRecording(String recordingId, {String? transcriptText}) async {
+  Future<void> processRecording(
+    String recordingId, {
+    String? transcriptText,
+  }) async {
     final current = findById(recordingId);
     if (current == null) {
       return;
@@ -524,13 +546,18 @@ class PlaudeController extends ChangeNotifier {
     }
 
     await Future<void>.delayed(const Duration(milliseconds: 350));
-    _replaceRecording(current.copyWith(
-      status: ProcessingStatus.processingSummary,
-      updatedAt: DateTime.now(),
-    ));
+    _replaceRecording(
+      current.copyWith(
+        status: ProcessingStatus.processingSummary,
+        updatedAt: DateTime.now(),
+      ),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 350));
 
-    final processed = _buildLocalProcessedRecording(current, transcriptText ?? _mockTranscriptFor(current.title));
+    final processed = _buildLocalProcessedRecording(
+      current,
+      transcriptText ?? _mockTranscriptFor(current.title),
+    );
     _replaceRecording(processed);
     _processingIds.remove(recordingId);
     _notice = 'Processado localmente em modo de demonstracao.';
@@ -544,7 +571,8 @@ class PlaudeController extends ChangeNotifier {
       return;
     }
 
-    final baseSession = current.chatSession ??
+    final baseSession =
+        current.chatSession ??
         ChatSession(
           id: 'session-$recordingId',
           recordingId: recordingId,
@@ -579,7 +607,8 @@ class PlaudeController extends ChangeNotifier {
         return;
       }
 
-      final session = refreshed.chatSession ??
+      final session =
+          refreshed.chatSession ??
           ChatSession(
             id: baseSession.id,
             recordingId: recordingId,
@@ -603,7 +632,10 @@ class PlaudeController extends ChangeNotifier {
     }
   }
 
-  Future<ExportArtifact> exportRecording(String recordingId, String format) async {
+  Future<ExportArtifact> exportRecording(
+    String recordingId,
+    String format,
+  ) async {
     final current = findById(recordingId);
     if (current == null) {
       throw StateError('Gravacao nao encontrada');
@@ -611,7 +643,10 @@ class PlaudeController extends ChangeNotifier {
 
     if (_backendAvailable) {
       try {
-        return await api.exportRecording(recordingId: recordingId, format: format);
+        return await api.exportRecording(
+          recordingId: recordingId,
+          format: format,
+        );
       } catch (_) {
         _notice = 'Falha ao exportar a nota pelo backend.';
         notifyListeners();
@@ -660,7 +695,8 @@ class PlaudeController extends ChangeNotifier {
 
   Future<void> togglePlayback(String path) async {
     if (!isPlayable(path)) {
-      _notice = 'A reproducao esta disponivel apenas para gravacoes locais em mobile ou desktop.';
+      _notice =
+          'A reproducao esta disponivel apenas para gravacoes locais em mobile ou desktop.';
       notifyListeners();
       return;
     }
@@ -678,7 +714,10 @@ class PlaudeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  RecordingNote _buildLocalProcessedRecording(RecordingNote base, String transcriptText) {
+  RecordingNote _buildLocalProcessedRecording(
+    RecordingNote base,
+    String transcriptText,
+  ) {
     final lines = transcriptText
         .split('\n')
         .map((line) => line.trim())
@@ -690,16 +729,24 @@ class PlaudeController extends ChangeNotifier {
         TranscriptSegment(
           id: '${base.id}-$index',
           recordingId: base.id,
-          speakerLabel: lines[index].startsWith('Speaker') ? lines[index].split(':').first : 'Speaker ${(index % 2) + 1}',
+          speakerLabel: lines[index].startsWith('Speaker')
+              ? lines[index].split(':').first
+              : 'Speaker ${(index % 2) + 1}',
           startMs: index * 28000,
           endMs: (index * 28000) + 22000,
-          text: lines[index].contains(':') ? lines[index].split(':').skip(1).join(':').trim() : lines[index],
+          text: lines[index].contains(':')
+              ? lines[index].split(':').skip(1).join(':').trim()
+              : lines[index],
         ),
     ];
 
     final highlights = segments.take(2).map((segment) => segment.text).toList();
     final actionItems = segments
-        .where((segment) => segment.text.toLowerCase().contains('precis') || segment.text.toLowerCase().contains('vamos'))
+        .where(
+          (segment) =>
+              segment.text.toLowerCase().contains('precis') ||
+              segment.text.toLowerCase().contains('vamos'),
+        )
         .map((segment) => segment.text)
         .take(3)
         .toList();
@@ -710,15 +757,20 @@ class PlaudeController extends ChangeNotifier {
       updatedAt: DateTime.now(),
       transcriptSegments: segments,
       summary: RecordingSummary(
-        overview: 'Nota processada localmente com resumo estruturado, transcricao pesquisavel e contexto pronto para chat.',
+        overview:
+            'Nota processada localmente com resumo estruturado, transcricao pesquisavel e contexto pronto para chat.',
         chapters: [
           SummaryChapter(
             heading: 'Contexto',
-            body: highlights.isNotEmpty ? highlights.first : 'Nenhum contexto principal detectado.',
+            body: highlights.isNotEmpty
+                ? highlights.first
+                : 'Nenhum contexto principal detectado.',
           ),
           SummaryChapter(
             heading: 'Execucao',
-            body: actionItems.isNotEmpty ? actionItems.first : 'Nenhum item de acao explicito foi detectado.',
+            body: actionItems.isNotEmpty
+                ? actionItems.first
+                : 'Nenhum item de acao explicito foi detectado.',
           ),
         ],
       ),
@@ -726,7 +778,10 @@ class PlaudeController extends ChangeNotifier {
         title: base.title,
         tags: <String>[
           base.sourceType,
-          if (base.title.toLowerCase().contains('lanc')) 'lancamento' else 'nota',
+          if (base.title.toLowerCase().contains('lanc'))
+            'lancamento'
+          else
+            'nota',
           'ia-pronta',
         ],
         highlights: highlights,
@@ -750,9 +805,12 @@ class PlaudeController extends ChangeNotifier {
       );
     }).toList();
 
-    final actionItems = recording.noteArtifact?.actionItems.join('; ') ?? 'Nenhum item de acao foi extraido ainda.';
+    final actionItems =
+        recording.noteArtifact?.actionItems.join('; ') ??
+        'Nenhum item de acao foi extraido ainda.';
     final lowerQuestion = question.toLowerCase();
-    final answerText = lowerQuestion.contains('acao') ||
+    final answerText =
+        lowerQuestion.contains('acao') ||
             lowerQuestion.contains('next') ||
             lowerQuestion.contains('proximo')
         ? 'Os proximos passos detectados sao: $actionItems'
@@ -805,16 +863,16 @@ class PlaudeController extends ChangeNotifier {
   }
 
   void _loadDemoData() {
-      _projects = [
-        Project(
-          id: 'project-demo',
-          name: 'Projeto demo',
-          slug: 'projeto-demo',
-          status: 'active',
-          createdAt: DateTime(2026, 3, 26, 10, 0, 0),
-          updatedAt: DateTime(2026, 3, 26, 10, 0, 0),
-        ),
-      ];
+    _projects = [
+      Project(
+        id: 'project-demo',
+        name: 'Projeto demo',
+        slug: 'projeto-demo',
+        status: 'active',
+        createdAt: DateTime(2026, 3, 26, 10, 0, 0),
+        updatedAt: DateTime(2026, 3, 26, 10, 0, 0),
+      ),
+    ];
     _activeProjectId ??= 'project-demo';
     _recordings = demoNotes;
   }

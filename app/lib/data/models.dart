@@ -7,22 +7,22 @@ enum ProcessingStatus {
   failed;
 
   String get apiValue => switch (this) {
-        ProcessingStatus.uploaded => 'uploaded',
-        ProcessingStatus.processingTranscript => 'processing_transcript',
-        ProcessingStatus.processingSummary => 'processing_summary',
-        ProcessingStatus.indexing => 'indexing',
-        ProcessingStatus.ready => 'ready',
-        ProcessingStatus.failed => 'failed',
-      };
+    ProcessingStatus.uploaded => 'uploaded',
+    ProcessingStatus.processingTranscript => 'processing_transcript',
+    ProcessingStatus.processingSummary => 'processing_summary',
+    ProcessingStatus.indexing => 'indexing',
+    ProcessingStatus.ready => 'ready',
+    ProcessingStatus.failed => 'failed',
+  };
 
   String get label => switch (this) {
-        ProcessingStatus.uploaded => 'Enviado',
-        ProcessingStatus.processingTranscript => 'Transcrevendo',
-        ProcessingStatus.processingSummary => 'Resumindo',
-        ProcessingStatus.indexing => 'Indexando',
-        ProcessingStatus.ready => 'Pronto',
-        ProcessingStatus.failed => 'Falhou',
-      };
+    ProcessingStatus.uploaded => 'Enviado',
+    ProcessingStatus.processingTranscript => 'Transcrevendo',
+    ProcessingStatus.processingSummary => 'Resumindo',
+    ProcessingStatus.indexing => 'Indexando',
+    ProcessingStatus.ready => 'Pronto',
+    ProcessingStatus.failed => 'Falhou',
+  };
 
   static ProcessingStatus fromApi(String value) {
     return ProcessingStatus.values.firstWhere(
@@ -52,8 +52,10 @@ class TranscriptSegment {
   factory TranscriptSegment.fromJson(Map<String, dynamic> json) {
     return TranscriptSegment(
       id: json['id'] as String,
-      recordingId: json['recordingId'] as String? ?? json['recording_id'] as String,
-      speakerLabel: json['speakerLabel'] as String? ?? json['speaker_label'] as String,
+      recordingId:
+          json['recordingId'] as String? ?? json['recording_id'] as String,
+      speakerLabel:
+          json['speakerLabel'] as String? ?? json['speaker_label'] as String,
       startMs: json['startMs'] as int? ?? json['start_ms'] as int,
       endMs: json['endMs'] as int? ?? json['end_ms'] as int,
       text: json['text'] as String,
@@ -62,10 +64,7 @@ class TranscriptSegment {
 }
 
 class RecordingSummary {
-  const RecordingSummary({
-    required this.overview,
-    required this.chapters,
-  });
+  const RecordingSummary({required this.overview, required this.chapters});
 
   final String overview;
   final List<SummaryChapter> chapters;
@@ -82,10 +81,7 @@ class RecordingSummary {
 }
 
 class SummaryChapter {
-  const SummaryChapter({
-    required this.heading,
-    required this.body,
-  });
+  const SummaryChapter({required this.heading, required this.body});
 
   final String heading;
   final String body;
@@ -115,9 +111,13 @@ class NoteArtifact {
     return NoteArtifact(
       title: json['title'] as String,
       tags: (json['tags'] as List<dynamic>? ?? const []).cast<String>(),
-      highlights: (json['highlights'] as List<dynamic>? ?? const []).cast<String>(),
-      actionItems: (json['actionItems'] as List<dynamic>? ?? json['action_items'] as List<dynamic>? ?? const [])
+      highlights: (json['highlights'] as List<dynamic>? ?? const [])
           .cast<String>(),
+      actionItems:
+          (json['actionItems'] as List<dynamic>? ??
+                  json['action_items'] as List<dynamic>? ??
+                  const [])
+              .cast<String>(),
     );
   }
 }
@@ -166,7 +166,9 @@ class ChatMessage {
       id: json['id'] as String,
       role: json['role'] as String,
       content: json['content'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String? ?? json['created_at'] as String),
+      createdAt: DateTime.parse(
+        json['createdAt'] as String? ?? json['created_at'] as String,
+      ),
       citations: rawCitations
           .map((item) => ChatCitation.fromJson(item as Map<String, dynamic>))
           .toList(),
@@ -189,7 +191,8 @@ class ChatSession {
     final rawMessages = (json['messages'] as List<dynamic>? ?? const []);
     return ChatSession(
       id: json['id'] as String,
-      recordingId: json['recordingId'] as String? ?? json['recording_id'] as String,
+      recordingId:
+          json['recordingId'] as String? ?? json['recording_id'] as String,
       messages: rawMessages
           .map((item) => ChatMessage.fromJson(item as Map<String, dynamic>))
           .toList(),
@@ -266,22 +269,41 @@ class RecordingNote {
   }
 
   factory RecordingNote.fromJson(Map<String, dynamic> json) {
-    final rawSegments = (json['transcriptSegments'] as List<dynamic>? ?? json['transcript_segments'] as List<dynamic>? ?? const []);
+    final rawSegments =
+        (json['transcriptSegments'] as List<dynamic>? ??
+        json['transcript_segments'] as List<dynamic>? ??
+        const []);
     return RecordingNote(
       id: json['id'] as String,
-      projectId: json['projectId'] as String? ?? json['project_id'] as String? ?? 'project-demo',
-      createdByUserId: json['createdByUserId'] as String? ?? json['created_by_user_id'] as String? ?? json['userId'] as String? ?? 'demo-user',
+      projectId:
+          json['projectId'] as String? ??
+          json['project_id'] as String? ??
+          'project-demo',
+      createdByUserId:
+          json['createdByUserId'] as String? ??
+          json['created_by_user_id'] as String? ??
+          json['userId'] as String? ??
+          'demo-user',
       title: json['title'] as String,
-      sourceType: json['sourceType'] as String? ?? json['source_type'] as String,
+      sourceType:
+          json['sourceType'] as String? ?? json['source_type'] as String,
       status: ProcessingStatus.fromApi(json['status'] as String),
-      createdAt: DateTime.parse(json['createdAt'] as String? ?? json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String? ?? json['updated_at'] as String),
+      createdAt: DateTime.parse(
+        json['createdAt'] as String? ?? json['created_at'] as String,
+      ),
+      updatedAt: DateTime.parse(
+        json['updatedAt'] as String? ?? json['updated_at'] as String,
+      ),
       durationMs: json['durationMs'] as int? ?? json['duration_ms'] as int?,
       audioPath: json['audioPath'] as String? ?? json['audio_path'] as String?,
       transcriptSegments: rawSegments
-          .map((item) => TranscriptSegment.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) => TranscriptSegment.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
-      summary: json['summary'] == null ? null : RecordingSummary.fromJson(json['summary'] as Map<String, dynamic>),
+      summary: json['summary'] == null
+          ? null
+          : RecordingSummary.fromJson(json['summary'] as Map<String, dynamic>),
       noteArtifact: json['noteArtifact'] == null
           ? null
           : NoteArtifact.fromJson(json['noteArtifact'] as Map<String, dynamic>),
@@ -316,8 +338,12 @@ class Project {
       name: json['name'] as String,
       slug: json['slug'] as String,
       status: json['status'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String? ?? json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String? ?? json['updated_at'] as String),
+      createdAt: DateTime.parse(
+        json['createdAt'] as String? ?? json['created_at'] as String,
+      ),
+      updatedAt: DateTime.parse(
+        json['updatedAt'] as String? ?? json['updated_at'] as String,
+      ),
     );
   }
 }
@@ -339,7 +365,8 @@ class ExportArtifact {
     return ExportArtifact(
       format: json['format'] as String,
       fileName: json['fileName'] as String? ?? json['file_name'] as String,
-      contentType: json['contentType'] as String? ?? json['content_type'] as String,
+      contentType:
+          json['contentType'] as String? ?? json['content_type'] as String,
       body: json['body'] as String,
     );
   }

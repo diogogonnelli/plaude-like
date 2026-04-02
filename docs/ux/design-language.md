@@ -1,8 +1,8 @@
-# Plaude UX Language
+# GravAção UX Language
 
 ## Direction
 
-Warm, editorial, and tactile. The product should feel like a premium capture tool, not a generic SaaS dashboard.
+Precise, institutional, and operational. The product should feel like a SPOT system of execution, not a generic SaaS dashboard.
 
 ## Principles
 
@@ -10,21 +10,22 @@ Warm, editorial, and tactile. The product should feel like a premium capture too
 - Make status visible at all times.
 - Keep transcript reading and chat grounding equally important.
 - Use dense information with calm spacing, not crowded panels.
-- Prefer earthy surfaces, clay accents, and paper-like backgrounds.
+- Prefer white and cool-neutral surfaces, structural gray blocks and SPOT red for decisive emphasis.
 
 ## Typography
 
-- Headlines: `Space Grotesk`
-- Body: `DM Sans`
-- Use strong hierarchy and avoid neutral system fallbacks in user-facing screens.
+- Product/UI: `Roboto`
+- Institutional lockups and short brand labels: `Montserrat`
+- Use strong hierarchy and avoid decorative font mixing outside the brand moments.
 
 ## Color
 
-- Base canvas: `#F4EFE7`
-- Surface paper: `#FFFBF6`
-- Primary clay: `#DA6B2D`
-- Support olive: `#53624B`
-- Ink: `#1D1B1A`
+- Base canvas: `#F7F8FA`
+- Cool support canvas: `#F0F4F8`
+- Surface white: `#FFFFFF`
+- Structural gray: `#666362`
+- SPOT red: `#DE0C2F`
+- Charcoal ink: `#3F3D3C`
 
 ## Motion
 
@@ -34,17 +35,16 @@ Warm, editorial, and tactile. The product should feel like a premium capture too
 
 ## Visual Assets
 
-- `app/assets/design/plaude-grain.svg`
-- `app/assets/design/plaude-ribbon.svg`
-- `app/assets/design/plaude-mark.svg`
+- `app/assets/design/spot-dot-grid.svg`
+- `app/assets/design/spot-orbit.svg`
+- `app/assets/design/gravacao-monogram.svg`
 
 ## Reusable Blocks
 
-- Buttons
+- Brand backgrounds
+- Panels
 - Badges
-- Status chips
-- Cards
-- Stat tiles
+- Status pills
+- Wordmark and SPOT endorsement
+- Capture cards
 - Transcript blocks
-- Background shells
-

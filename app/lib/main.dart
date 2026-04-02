@@ -28,7 +28,7 @@ Future<void> main() async {
         ),
         supabaseClient: AppConfig.hasSupabase ? Supabase.instance.client : null,
       )..bootstrap(),
-      child: const PlaudeApp(),
+      child: const GravacaoApp(),
     ),
   );
 }

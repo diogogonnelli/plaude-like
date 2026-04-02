@@ -2,27 +2,22 @@
 
 ## Tokens
 
-- `PlaudeColors`
-- `PlaudeSpacing`
-- `PlaudeRadius`
-- `PlaudeMotion`
-- `PlaudeTypography`
+- `BrandColors`
+- `BrandSpacing`
+- `BrandRadius`
+- `BrandMotion`
+- `BrandTypography`
 
 ## Components
 
-- `PlaudeBackground`
-- `PlaudeArcBackdrop`
-- `PlaudeCard`
-- `PlaudeButton`
-- `PlaudeBadge`
-- `PlaudeStatusChip`
-- `PlaudeStatTile`
-- `PlaudeTranscriptBlock`
-
-## Preview
-
-- `PlaudeDesignPreview`
+- `BrandBackground`
+- `BrandPanel`
+- `BrandButton`
+- `BrandBadge`
+- `BrandStatusPill`
+- `BrandWordmark`
+- `SpotEndorsement`
 
 ## Usage Note
 
-This layer is intentionally isolated in `app/lib/design/**` so the screens can adopt it later without forcing architectural changes in the current feature code.
+This layer now powers the active product screens in `app/lib/ui/**` and should remain the single source of truth for GravAção + SPOT visual primitives.

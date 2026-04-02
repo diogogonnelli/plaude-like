@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../design/brand_design_system.dart';
 import '../state/plaude_controller.dart';
 import 'app_shell.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({
-    super.key,
-    required this.recordingId,
-  });
+  const ChatScreen({super.key, required this.recordingId});
 
   final String recordingId;
 
@@ -37,137 +35,99 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return AppShell(
       title: 'Chat contextual',
-      subtitle: 'Perguntas sugeridas e respostas ancoradas apenas na gravação atual.',
+      subtitle:
+          'Perguntas guiadas por evidências da gravação, com respostas ancoradas no transcript atual.',
       navigationIndex: 1,
       onNavigationSelected: (index) => _goToIndex(context, index),
       actions: [
-        OutlinedButton.icon(
+        BrandButton(
+          label: 'Voltar ao detalhe',
+          icon: Icons.article_outlined,
+          variant: BrandButtonVariant.secondary,
           onPressed: () => context.go('/recordings/${widget.recordingId}'),
-          icon: const Icon(Icons.article_outlined),
-          label: const Text('Voltar ao detalhe'),
         ),
       ],
       child: recording == null
           ? const _MissingChatState()
-          : Column(
-              children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(recording.title, style: Theme.of(context).textTheme.titleLarge),
-                              const SizedBox(height: 6),
-                              Text('Projeto ${recording.projectId} • ${recording.status.label}'),
-                            ],
-                          ),
-                        ),
-                        Chip(label: Text(recording.status.label)),
-                      ],
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= 1040;
+                final thread = Column(
+                  children: [
+                    _ChatHeader(
+                      recordingTitle: recording.title,
+                      isReady: isReady,
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (!isReady)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF4D6),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Text(
-                      'O chat será liberado quando a gravação atingir o estado ready.',
-                    ),
-                  ),
-                if (!isReady) const SizedBox(height: 16),
-                Expanded(
-                  child: messages.isEmpty
-                      ? _ChatEmptyState(
-                          recordingTitle: recording.title,
-                          enabled: isReady,
-                          onPromptTap: (prompt) => _submitPrompt(controller, prompt),
-                        )
-                      : ListView.separated(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.only(bottom: 16),
-                          itemCount: messages.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final message = messages[index];
-                            final isUser = message.role == 'user';
-                            return Align(
-                              alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 760),
-                                child: Container(
-                                  padding: const EdgeInsets.all(18),
-                                  decoration: BoxDecoration(
-                                    color: isUser ? const Color(0xFF2E2521) : Colors.white,
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(
-                                      color: isUser ? const Color(0xFF2E2521) : const Color(0xFFD8CFC2),
-                                    ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        isUser ? 'Você' : 'Assistente',
-                                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                              color: isUser ? Colors.white70 : null,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        message.content,
-                                        style: TextStyle(color: isUser ? Colors.white : null),
-                                      ),
-                                      if (message.citations.isNotEmpty) ...[
-                                        const SizedBox(height: 12),
-                                        Wrap(
-                                          spacing: 8,
-                                          runSpacing: 8,
-                                          children: message.citations
-                                              .map(
-                                                (citation) => Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                                  decoration: BoxDecoration(
-                                                    color: isUser
-                                                        ? Colors.white.withValues(alpha: 0.08)
-                                                        : const Color(0xFFF8F4EE),
-                                                    borderRadius: BorderRadius.circular(16),
-                                                  ),
-                                                  child: Text(citation.quote),
-                                                ),
-                                              )
-                                              .toList(),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: BrandPanel(
+                        child: messages.isEmpty
+                            ? _ThreadEmptyState(
+                                recordingTitle: recording.title,
+                                enabled: isReady,
+                                onPromptTap: (prompt) =>
+                                    _submitPrompt(controller, prompt),
+                              )
+                            : ListView.separated(
+                                controller: _scrollController,
+                                padding: const EdgeInsets.only(bottom: 12),
+                                itemCount: messages.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  final message = messages[index];
+                                  return _MessageBubble(message: message);
+                                },
                               ),
-                            );
-                          },
-                        ),
-                ),
-                const SizedBox(height: 16),
-                _Composer(
-                  controller: _textController,
-                  disabled: controller.isChatBusy(widget.recordingId) || !isReady,
-                  onSend: (question) => _submitPrompt(controller, question),
-                ),
-              ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _Composer(
+                      controller: _textController,
+                      disabled:
+                          controller.isChatBusy(widget.recordingId) || !isReady,
+                      onSend: (question) => _submitPrompt(controller, question),
+                    ),
+                  ],
+                );
+
+                final contextPanel = _ChatContextPanel(
+                  recordingTitle: recording.title,
+                  statusLabel: recording.status.label,
+                  summary:
+                      recording.summary?.overview ??
+                      'Aguardando resumo estruturado.',
+                  isReady: isReady,
+                  onPromptTap: (prompt) => _submitPrompt(controller, prompt),
+                );
+
+                if (!wide) {
+                  return Column(
+                    children: [
+                      Expanded(child: thread),
+                      const SizedBox(height: 16),
+                      contextPanel,
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 8, child: thread),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 4, child: contextPanel),
+                  ],
+                );
+              },
             ),
     );
   }
 
-  Future<void> _submitPrompt(PlaudeController controller, String question) async {
+  Future<void> _submitPrompt(
+    PlaudeController controller,
+    String question,
+  ) async {
     final trimmed = question.trim();
     if (trimmed.isEmpty) {
       return;
@@ -180,16 +140,121 @@ class _ChatScreenState extends State<ChatScreen> {
       if (_scrollController.hasClients) {
         await _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
+          duration: BrandMotion.medium,
+          curve: BrandMotion.standardCurve,
         );
       }
     }
   }
 }
 
-class _ChatEmptyState extends StatelessWidget {
-  const _ChatEmptyState({
+class _ChatHeader extends StatelessWidget {
+  const _ChatHeader({required this.recordingTitle, required this.isReady});
+
+  final String recordingTitle;
+  final bool isReady;
+
+  @override
+  Widget build(BuildContext context) {
+    return BrandPanel(
+      highlight: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  recordingTitle,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  isReady
+                      ? 'Conversa destravada com evidências do transcript atual.'
+                      : 'O chat será liberado quando a gravação atingir o estado ready.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          BrandStatusPill(
+            label: isReady ? 'Chat habilitado' : 'Aguardando processamento',
+            tone: isReady ? BrandStatusTone.success : BrandStatusTone.warning,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageBubble extends StatelessWidget {
+  const _MessageBubble({required this.message});
+
+  final dynamic message;
+
+  @override
+  Widget build(BuildContext context) {
+    final isUser = message.role == 'user';
+
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: isUser ? BrandColors.shellDark : BrandColors.surfaceMuted,
+            borderRadius: BorderRadius.circular(BrandRadius.lg),
+            border: Border.all(
+              color: isUser ? BrandColors.shellDark : BrandColors.stroke,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isUser ? 'Você' : 'Assistente SPOT',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: isUser ? Colors.white70 : BrandColors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message.content,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: isUser ? Colors.white : BrandColors.text,
+                ),
+              ),
+              if (message.citations.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: message.citations
+                      .map<Widget>(
+                        (citation) => BrandStatusPill(
+                          label: citation.quote,
+                          tone: isUser
+                              ? BrandStatusTone.neutral
+                              : BrandStatusTone.info,
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ThreadEmptyState extends StatelessWidget {
+  const _ThreadEmptyState({
     required this.recordingTitle,
     required this.enabled,
     required this.onPromptTap,
@@ -201,31 +266,106 @@ class _ChatEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Pergunte sobre "$recordingTitle"',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          enabled
+              ? 'Use o chat para identificar decisões, riscos, responsáveis e próximos passos.'
+              : 'Aguarde o processamento concluir para abrir o contexto conversacional.',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 18),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
           children: [
-            Text('Pergunte sobre "$recordingTitle"', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 8),
-            Text(
-              enabled
-                  ? 'Use o assistente para perguntar sobre decisões, participantes, riscos ou próximos passos.'
-                  : 'Aguarde a conclusão da transcrição para usar o chat contextual.',
+            _PromptChip(
+              label: 'Quais são os próximos passos?',
+              enabled: enabled,
+              onTap: onPromptTap,
             ),
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _PromptChip(label: 'Quais são os próximos passos?', enabled: enabled, onTap: onPromptTap),
-                _PromptChip(label: 'Resuma as principais decisões.', enabled: enabled, onTap: onPromptTap),
-                _PromptChip(label: 'Quais riscos foram mencionados?', enabled: enabled, onTap: onPromptTap),
-              ],
+            _PromptChip(
+              label: 'Resuma as principais decisões.',
+              enabled: enabled,
+              onTap: onPromptTap,
+            ),
+            _PromptChip(
+              label: 'Quais riscos foram mencionados?',
+              enabled: enabled,
+              onTap: onPromptTap,
             ),
           ],
         ),
+      ],
+    );
+  }
+}
+
+class _ChatContextPanel extends StatelessWidget {
+  const _ChatContextPanel({
+    required this.recordingTitle,
+    required this.statusLabel,
+    required this.summary,
+    required this.isReady,
+    required this.onPromptTap,
+  });
+
+  final String recordingTitle;
+  final String statusLabel;
+  final String summary;
+  final bool isReady;
+  final ValueChanged<String> onPromptTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return BrandPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const BrandWordmark(compact: true),
+          const SizedBox(height: 18),
+          Text(
+            'Contexto da conversa',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 12),
+          BrandStatusPill(
+            label: statusLabel,
+            tone: isReady ? BrandStatusTone.success : BrandStatusTone.warning,
+          ),
+          const SizedBox(height: 12),
+          Text(recordingTitle, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text(summary, style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 18),
+          Text(
+            'Prompts rápidos',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _PromptChip(
+                label: 'Liste responsáveis e entregas',
+                enabled: isReady,
+                onTap: onPromptTap,
+              ),
+              _PromptChip(
+                label: 'Mostre decisões e contexto',
+                enabled: isReady,
+                onTap: onPromptTap,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -247,6 +387,8 @@ class _PromptChip extends StatelessWidget {
     return ActionChip(
       label: Text(label),
       onPressed: enabled ? () => onTap(label) : null,
+      side: const BorderSide(color: BrandColors.stroke),
+      backgroundColor: BrandColors.surfaceMuted,
     );
   }
 }
@@ -264,30 +406,28 @@ class _Composer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                minLines: 1,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  hintText: 'Pergunte sobre decisões, participantes ou itens de ação',
-                ),
-                onSubmitted: onSend,
+    return BrandPanel(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: TextField(
+              controller: controller,
+              minLines: 1,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                hintText:
+                    'Pergunte sobre decisões, participantes ou itens de ação',
               ),
+              onSubmitted: onSend,
             ),
-            const SizedBox(width: 12),
-            FilledButton(
-              onPressed: disabled ? null : () => onSend(controller.text),
-              child: Text(disabled ? 'Indisponível' : 'Enviar'),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 12),
+          BrandButton(
+            label: disabled ? 'Indisponível' : 'Enviar',
+            onPressed: disabled ? null : () => onSend(controller.text),
+          ),
+        ],
       ),
     );
   }
@@ -301,24 +441,28 @@ class _MissingChatState extends StatelessWidget {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Chat indisponível', style: Theme.of(context).textTheme.headlineMedium),
-                const SizedBox(height: 8),
-                const Text('A gravação não foi encontrada ou a rota aponta para dados antigos.'),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: () => context.go('/library'),
-                  icon: const Icon(Icons.library_books_rounded),
-                  label: const Text('Voltar para a biblioteca'),
-                ),
-              ],
-            ),
+        child: BrandPanel(
+          highlight: true,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Chat indisponível',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'A gravação não foi encontrada ou a rota aponta para dados antigos.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              BrandButton(
+                label: 'Voltar para a biblioteca',
+                icon: Icons.library_books_rounded,
+                onPressed: () => context.go('/library'),
+              ),
+            ],
           ),
         ),
       ),

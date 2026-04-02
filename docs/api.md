@@ -1,11 +1,11 @@
 # API
 
-Documentação prática da API HTTP do backend `Plaude Like`.
+Documentação prática da API HTTP do backend do GravAção.
 
 Base URL de exemplo:
 
 ```text
-https://plaude-like-production.up.railway.app
+https://<seu-backend>.up.railway.app
 ```
 
 Artefatos de documentação quando o backend estiver no ar:
@@ -82,7 +82,7 @@ Resposta `200`:
 ```json
 {
   "ok": true,
-  "service": "plaude-like-backend"
+  "service": "gravacao-backend"
 }
 ```
 

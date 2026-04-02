@@ -4,14 +4,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../data/models.dart';
+import '../design/brand_design_system.dart';
 import '../state/plaude_controller.dart';
 import 'app_shell.dart';
 
 class RecordingDetailScreen extends StatelessWidget {
-  const RecordingDetailScreen({
-    super.key,
-    required this.recordingId,
-  });
+  const RecordingDetailScreen({super.key, required this.recordingId});
 
   final String recordingId;
 
@@ -21,20 +19,24 @@ class RecordingDetailScreen extends StatelessWidget {
     final recording = controller.findById(recordingId);
 
     return AppShell(
-      title: 'Detalhe',
-      subtitle: 'Resumo executivo, destaques, itens de ação e transcript por speaker.',
+      title: 'Leitura executiva da gravação',
+      subtitle:
+          'Resumo, destaques, transcript com speaker e ações imediatas em um mesmo fluxo.',
       navigationIndex: 1,
       onNavigationSelected: (index) => _goToIndex(context, index),
       actions: [
-        OutlinedButton.icon(
+        BrandButton(
+          label: 'Biblioteca',
+          icon: Icons.arrow_back_rounded,
+          variant: BrandButtonVariant.secondary,
           onPressed: () => context.go('/library'),
-          icon: const Icon(Icons.arrow_back_rounded),
-          label: const Text('Biblioteca'),
         ),
-        OutlinedButton.icon(
-          onPressed: recording != null && recording.isReady ? () => context.go('/recordings/$recordingId/chat') : null,
-          icon: const Icon(Icons.chat_bubble_outline_rounded),
-          label: const Text('Abrir chat'),
+        BrandButton(
+          label: 'Abrir chat',
+          icon: Icons.chat_bubble_outline_rounded,
+          onPressed: recording != null && recording.isReady
+              ? () => context.go('/recordings/$recordingId/chat')
+              : null,
         ),
       ],
       child: recording == null
@@ -42,64 +44,188 @@ class RecordingDetailScreen extends StatelessWidget {
           : ListView(
               padding: const EdgeInsets.only(bottom: 24),
               children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
+                _SummaryHero(recording: recording),
+                const SizedBox(height: 16),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 980;
+                    final insights = _InsightsPanel(recording: recording);
+                    final actions = _ActionsPanel(recording: recording);
+
+                    if (!wide) {
+                      return Column(
+                        children: [
+                          insights,
+                          const SizedBox(height: 16),
+                          actions,
+                        ],
+                      );
+                    }
+
+                    return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(recording.noteArtifact?.title ?? recording.title, style: Theme.of(context).textTheme.headlineMedium),
-                        const SizedBox(height: 10),
-                        Text(recording.summary?.overview ?? 'Esta nota ainda está passando pelo pipeline de processamento.'),
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            Chip(label: Text(recording.status.label)),
-                            Chip(label: Text(DateFormat('dd/MM/yyyy • HH:mm').format(recording.createdAt.toLocal()))),
-                            Chip(label: Text('Projeto ${recording.projectId}')),
-                            Chip(label: Text('Autor ${recording.createdByUserId}')),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        _InfoBlock(
-                          title: 'Destaques',
-                          items: recording.noteArtifact?.highlights ?? const [],
-                          emptyLabel: 'Nenhum destaque estruturado ainda.',
-                        ),
-                        const SizedBox(height: 16),
-                        _InfoBlock(
-                          title: 'Itens de ação',
-                          items: recording.noteArtifact?.actionItems ?? const [],
-                          emptyLabel: 'Nenhum item de ação estruturado ainda.',
-                        ),
+                        Expanded(flex: 8, child: insights),
+                        const SizedBox(width: 16),
+                        Expanded(flex: 5, child: actions),
                       ],
-                    ),
-                  ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: _TranscriptSection(recording: recording),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: _ActionsSection(recording: recording),
-                  ),
-                ),
+                _TranscriptPanel(recording: recording),
               ],
             ),
     );
   }
 }
 
-class _InfoBlock extends StatelessWidget {
-  const _InfoBlock({
+class _SummaryHero extends StatelessWidget {
+  const _SummaryHero({required this.recording});
+
+  final RecordingNote recording;
+
+  @override
+  Widget build(BuildContext context) {
+    final format = DateFormat('dd/MM/yyyy · HH:mm');
+    return BrandPanel(
+      highlight: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              BrandStatusPill(
+                label: recording.status.label,
+                tone: _toneForStatus(recording.status),
+              ),
+              _MetaPill(
+                icon: Icons.schedule_rounded,
+                label: format.format(recording.createdAt.toLocal()),
+              ),
+              _MetaPill(
+                icon: Icons.workspaces_outline,
+                label: 'Projeto ${recording.projectId}',
+              ),
+              _MetaPill(
+                icon: Icons.person_outline_rounded,
+                label: 'Autor ${recording.createdByUserId}',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            recording.noteArtifact?.title ?? recording.title,
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            recording.summary?.overview ??
+                'Esta nota ainda está passando pelo pipeline de processamento.',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          if (recording.summary?.chapters case final chapters?
+              when chapters.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: chapters
+                  .map(
+                    (chapter) => SizedBox(
+                      width: 280,
+                      child: BrandPanel(
+                        backgroundColor: BrandColors.surfaceMuted,
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              chapter.heading,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              chapter.body,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InsightsPanel extends StatelessWidget {
+  const _InsightsPanel({required this.recording});
+
+  final RecordingNote recording;
+
+  @override
+  Widget build(BuildContext context) {
+    return BrandPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Insights estruturados',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Destaques, tags e itens acionáveis derivados da gravação.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 18),
+          _InsightBlock(
+            title: 'Highlights',
+            items: recording.noteArtifact?.highlights ?? const [],
+            emptyLabel: 'Nenhum highlight estruturado ainda.',
+          ),
+          const SizedBox(height: 16),
+          _InsightBlock(
+            title: 'Action items',
+            items: recording.noteArtifact?.actionItems ?? const [],
+            emptyLabel: 'Nenhum item de ação estruturado ainda.',
+          ),
+          if (recording.noteArtifact?.tags case final tags?
+              when tags.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Tags operacionais',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: tags
+                  .map(
+                    (tag) => BrandStatusPill(
+                      label: tag,
+                      tone: BrandStatusTone.neutral,
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InsightBlock extends StatelessWidget {
+  const _InsightBlock({
     required this.title,
     required this.items,
     required this.emptyLabel,
@@ -114,79 +240,115 @@ class _InfoBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleLarge),
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
         if (items.isEmpty)
-          Text(emptyLabel)
+          BrandPanel(
+            backgroundColor: BrandColors.surfaceMuted,
+            child: Text(
+              emptyLabel,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          )
         else
-          ...items.map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 6),
-                    child: Icon(Icons.circle, size: 8),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(item)),
-                ],
+          for (final item in items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: BrandPanel(
+                backgroundColor: BrandColors.surfaceMuted,
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      margin: const EdgeInsets.only(top: 6),
+                      decoration: const BoxDecoration(
+                        color: BrandColors.accent,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        item,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
       ],
     );
   }
 }
 
-class _TranscriptSection extends StatelessWidget {
-  const _TranscriptSection({required this.recording});
+class _TranscriptPanel extends StatelessWidget {
+  const _TranscriptPanel({required this.recording});
 
   final RecordingNote recording;
 
   @override
   Widget build(BuildContext context) {
-    if (recording.transcriptSegments.isEmpty) {
-      return Column(
+    return BrandPanel(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Transcript', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text('A transcrição ainda não está disponível para esta nota.'),
-        ],
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Transcript', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 14),
-        ...recording.transcriptSegments.map(
-          (segment) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8F4EE),
-                borderRadius: BorderRadius.circular(20),
+          Text(
+            'Transcript contextual',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Leitura cronológica com speaker, timestamp e contraste alto para revisão rápida.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 18),
+          if (recording.transcriptSegments.isEmpty)
+            BrandPanel(
+              backgroundColor: BrandColors.surfaceMuted,
+              child: Text(
+                'A transcrição ainda não está disponível para esta nota.',
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${segment.speakerLabel} • ${_timestamp(segment.startMs)}',
-                    style: Theme.of(context).textTheme.labelLarge,
+            )
+          else
+            ...recording.transcriptSegments.map(
+              (segment) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: BrandPanel(
+                  backgroundColor: BrandColors.surfaceMuted,
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            segment.speakerLabel,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(width: 10),
+                          BrandStatusPill(
+                            label: _timestamp(segment.startMs),
+                            tone: BrandStatusTone.info,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        segment.text,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(segment.text),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -198,8 +360,8 @@ class _TranscriptSection extends StatelessWidget {
   }
 }
 
-class _ActionsSection extends StatelessWidget {
-  const _ActionsSection({required this.recording});
+class _ActionsPanel extends StatelessWidget {
+  const _ActionsPanel({required this.recording});
 
   final RecordingNote recording;
 
@@ -209,41 +371,101 @@ class _ActionsSection extends StatelessWidget {
     final canPlay = controller.isPlayable(recording.audioPath);
     final isPlaying = controller.isCurrentlyPlaying(recording.audioPath);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Ações', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 12),
-        FilledButton.icon(
-          onPressed: controller.isProcessing(recording.id) ? null : () => controller.processRecording(recording.id),
-          icon: const Icon(Icons.auto_awesome_rounded),
-          label: Text(controller.isProcessing(recording.id) ? 'Processando' : 'Processar novamente'),
-        ),
-        const SizedBox(height: 10),
-        OutlinedButton.icon(
-          onPressed: recording.isReady ? () => context.go('/recordings/${recording.id}/chat') : null,
-          icon: const Icon(Icons.chat_bubble_outline_rounded),
-          label: const Text('Abrir chat'),
-        ),
-        const SizedBox(height: 10),
-        OutlinedButton.icon(
-          onPressed: canPlay ? () => controller.togglePlayback(recording.audioPath!) : null,
-          icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow_rounded),
-          label: Text(isPlaying ? 'Pausar áudio local' : 'Reproduzir áudio local'),
-        ),
-        if (recording.lastError case final String error) ...[
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFECE6),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Text(error),
+    return BrandPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Ações do operador',
+            style: Theme.of(context).textTheme.titleLarge,
           ),
+          const SizedBox(height: 6),
+          Text(
+            'Retry, chat e reprodução local com feedback claro de estado.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 18),
+          BrandButton(
+            label: controller.isProcessing(recording.id)
+                ? 'Processando'
+                : 'Processar novamente',
+            icon: Icons.auto_awesome_rounded,
+            onPressed: controller.isProcessing(recording.id)
+                ? null
+                : () => controller.processRecording(recording.id),
+            expanded: true,
+          ),
+          const SizedBox(height: 12),
+          BrandButton(
+            label: 'Abrir chat contextual',
+            icon: Icons.chat_bubble_outline_rounded,
+            variant: BrandButtonVariant.secondary,
+            onPressed: recording.isReady
+                ? () => context.go('/recordings/${recording.id}/chat')
+                : null,
+            expanded: true,
+          ),
+          const SizedBox(height: 12),
+          BrandButton(
+            label: isPlaying ? 'Pausar áudio local' : 'Reproduzir áudio local',
+            icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            variant: BrandButtonVariant.ghost,
+            onPressed: canPlay
+                ? () => controller.togglePlayback(recording.audioPath!)
+                : null,
+            expanded: true,
+          ),
+          if (recording.lastError case final String error) ...[
+            const SizedBox(height: 18),
+            BrandPanel(
+              backgroundColor: BrandColors.warning.withValues(alpha: 0.12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Último erro do pipeline',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    error,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: BrandColors.text),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
+    );
+  }
+}
+
+class _MetaPill extends StatelessWidget {
+  const _MetaPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: BrandColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(BrandRadius.pill),
+        border: Border.all(color: BrandColors.stroke),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: BrandColors.shell),
+          const SizedBox(width: 8),
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        ],
+      ),
     );
   }
 }
@@ -256,28 +478,47 @@ class _MissingState extends StatelessWidget {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Gravação não encontrada', style: Theme.of(context).textTheme.headlineMedium),
-                const SizedBox(height: 8),
-                const Text('A rota aponta para um item que não está no projeto ativo ou não existe mais.'),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: () => context.go('/library'),
-                  icon: const Icon(Icons.library_books_rounded),
-                  label: const Text('Voltar para a biblioteca'),
-                ),
-              ],
-            ),
+        child: BrandPanel(
+          highlight: true,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Gravação não encontrada',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'A rota aponta para um item fora do projeto ativo ou que já não existe mais.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              BrandButton(
+                label: 'Voltar para a biblioteca',
+                icon: Icons.library_books_rounded,
+                onPressed: () => context.go('/library'),
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+}
+
+BrandStatusTone _toneForStatus(ProcessingStatus status) {
+  switch (status) {
+    case ProcessingStatus.ready:
+      return BrandStatusTone.success;
+    case ProcessingStatus.failed:
+      return BrandStatusTone.warning;
+    case ProcessingStatus.indexing:
+      return BrandStatusTone.info;
+    case ProcessingStatus.processingTranscript:
+    case ProcessingStatus.processingSummary:
+    case ProcessingStatus.uploaded:
+      return BrandStatusTone.accent;
   }
 }
 

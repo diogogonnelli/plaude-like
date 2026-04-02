@@ -11,14 +11,14 @@ import '../ui/recording_detail_screen.dart';
 import '../ui/settings_screen.dart';
 import 'theme.dart';
 
-class PlaudeApp extends StatefulWidget {
-  const PlaudeApp({super.key});
+class GravacaoApp extends StatefulWidget {
+  const GravacaoApp({super.key});
 
   @override
-  State<PlaudeApp> createState() => _PlaudeAppState();
+  State<GravacaoApp> createState() => _GravacaoAppState();
 }
 
-class _PlaudeAppState extends State<PlaudeApp> {
+class _GravacaoAppState extends State<GravacaoApp> {
   GoRouter? _router;
 
   @override
@@ -30,9 +30,9 @@ class _PlaudeAppState extends State<PlaudeApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Plaude Like',
+      title: 'GravAção',
       debugShowCheckedModeBanner: false,
-      theme: buildPlaudeTheme(),
+      theme: buildGravacaoTheme(),
       routerConfig: _router!,
       locale: const Locale('pt', 'BR'),
     );
@@ -66,14 +66,8 @@ GoRouter _buildRouter(PlaudeController controller) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: '/home',
-        builder: (context, state) => const HomeScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
       GoRoute(
         path: '/library',
         builder: (context, state) => const LibraryScreen(),
@@ -86,9 +80,8 @@ GoRouter _buildRouter(PlaudeController controller) {
       ),
       GoRoute(
         path: '/recordings/:recordingId/chat',
-        builder: (context, state) => ChatScreen(
-          recordingId: state.pathParameters['recordingId']!,
-        ),
+        builder: (context, state) =>
+            ChatScreen(recordingId: state.pathParameters['recordingId']!),
       ),
       GoRoute(
         path: '/settings',
@@ -98,7 +91,7 @@ GoRouter _buildRouter(PlaudeController controller) {
     errorBuilder: (context, state) => Scaffold(
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
+          constraints: const BoxConstraints(maxWidth: 580),
           child: Card(
             child: Padding(
               padding: const EdgeInsets.all(28),
@@ -106,7 +99,10 @@ GoRouter _buildRouter(PlaudeController controller) {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Página indisponível', style: Theme.of(context).textTheme.headlineMedium),
+                  Text(
+                    'Página indisponível',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     state.error == null
@@ -121,7 +117,7 @@ GoRouter _buildRouter(PlaudeController controller) {
                       FilledButton.icon(
                         onPressed: () => context.go('/home'),
                         icon: const Icon(Icons.home_rounded),
-                        label: const Text('Ir para a home'),
+                        label: const Text('Ir para o cockpit'),
                       ),
                       OutlinedButton.icon(
                         onPressed: () => context.go('/library'),
