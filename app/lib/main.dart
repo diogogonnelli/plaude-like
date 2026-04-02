@@ -20,7 +20,13 @@ Future<void> main() async {
   runApp(
     ChangeNotifierProvider(
       create: (_) => PlaudeController(
-        api: PlaudeApi(baseUrl: AppConfig.backendBaseUrl),
+        api: PlaudeApi(
+          baseUrl: AppConfig.backendBaseUrl,
+          accessTokenProvider: () async => AppConfig.hasSupabase
+              ? Supabase.instance.client.auth.currentSession?.accessToken
+              : null,
+        ),
+        supabaseClient: AppConfig.hasSupabase ? Supabase.instance.client : null,
       )..bootstrap(),
       child: const PlaudeApp(),
     ),

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../data/models.dart';
 import '../state/plaude_controller.dart';
 import 'app_shell.dart';
 
@@ -38,158 +37,132 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return AppShell(
       title: 'Chat contextual',
-      navigationIndex: 0,
-      onNavigationSelected: (index) => context.go(index == 0 ? '/' : '/settings'),
+      subtitle: 'Perguntas sugeridas e respostas ancoradas apenas na gravação atual.',
+      navigationIndex: 1,
+      onNavigationSelected: (index) => _goToIndex(context, index),
       actions: [
         OutlinedButton.icon(
-          onPressed: recording != null && isReady
-              ? () async {
-                  try {
-                    final export = await controller.exportRecording(recording.id, 'md');
-                    if (!context.mounted) {
-                      return;
-                    }
-                    await showDialog<void>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text(export.fileName),
-                        content: SizedBox(
-                          width: 560,
-                          child: SingleChildScrollView(child: SelectableText(export.body)),
-                        ),
-                      ),
-                    );
-                  } catch (error) {
-                    if (!context.mounted) {
-                      return;
-                    }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Falha ao exportar: $error')),
-                    );
-                  }
-                }
-              : null,
-          icon: const Icon(Icons.download_rounded),
-          label: const Text('Exportar nota'),
+          onPressed: () => context.go('/recordings/${widget.recordingId}'),
+          icon: const Icon(Icons.article_outlined),
+          label: const Text('Voltar ao detalhe'),
         ),
       ],
       child: recording == null
-          ? _MissingChatState(onBack: () => context.go('/'))
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                final wide = constraints.maxWidth >= 980;
-
-                return Column(
-                  children: [
-                    if (wide) ...[
-                      _ChatContextCard(
-                        recordingId: recording.id,
-                        title: recording.title,
-                        status: recording.status.label,
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                    if (!isReady)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF4D6),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Text(
-                            recording.status == ProcessingStatus.failed
-                                ? 'A transcricao falhou. Corrija o erro e tente novamente antes de usar o chat.'
-                                : 'A nota ainda esta em processamento. O chat sera liberado quando a transcricao e o resumo forem concluidos.',
+          ? const _MissingChatState()
+          : Column(
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(recording.title, style: Theme.of(context).textTheme.titleLarge),
+                              const SizedBox(height: 6),
+                              Text('Projeto ${recording.projectId} • ${recording.status.label}'),
+                            ],
                           ),
                         ),
-                      ),
-                    Expanded(
-                      child: messages.isEmpty
-                          ? _ChatEmptyState(
-                              recordingTitle: recording.title,
-                              enabled: isReady,
-                              onPromptTap: (prompt) => _submitPrompt(controller, prompt),
-                            )
-                          : ListView.separated(
-                              controller: _scrollController,
-                              padding: const EdgeInsets.only(bottom: 16),
-                              itemCount: messages.length,
-                              separatorBuilder: (_, _) => const SizedBox(height: 12),
-                              itemBuilder: (context, index) {
-                                final message = messages[index];
-                                final isUser = message.role == 'user';
-                                return Align(
-                                  alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(maxWidth: 760),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(18),
-                                      decoration: BoxDecoration(
-                                        color: isUser ? const Color(0xFF2E2521) : Colors.white,
-                                        borderRadius: BorderRadius.circular(24),
-                                        border: Border.all(
-                                          color: isUser ? const Color(0xFF2E2521) : const Color(0xFFD8CFC2),
-                                        ),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            isUser ? 'Voce' : 'Assistente',
-                                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                                  color: isUser ? Colors.white70 : null,
-                                                ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            message.content,
-                                            style: TextStyle(color: isUser ? Colors.white : null),
-                                          ),
-                                          if (message.citations.isNotEmpty) ...[
-                                            const SizedBox(height: 12),
-                                            Wrap(
-                                              spacing: 8,
-                                              runSpacing: 8,
-                                              children: message.citations
-                                                  .map(
-                                                    (citation) => Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                                      decoration: BoxDecoration(
-                                                        color: isUser
-                                                            ? Colors.white.withValues(alpha: 0.08)
-                                                            : const Color(0xFFF8F4EE),
-                                                        borderRadius: BorderRadius.circular(16),
-                                                      ),
-                                                      child: Text(citation.quote),
-                                                    ),
-                                                  )
-                                                  .toList(),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
+                        Chip(label: Text(recording.status.label)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (!isReady)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF4D6),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Text(
+                      'O chat será liberado quando a gravação atingir o estado ready.',
+                    ),
+                  ),
+                if (!isReady) const SizedBox(height: 16),
+                Expanded(
+                  child: messages.isEmpty
+                      ? _ChatEmptyState(
+                          recordingTitle: recording.title,
+                          enabled: isReady,
+                          onPromptTap: (prompt) => _submitPrompt(controller, prompt),
+                        )
+                      : ListView.separated(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.only(bottom: 16),
+                          itemCount: messages.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final message = messages[index];
+                            final isUser = message.role == 'user';
+                            return Align(
+                              alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 760),
+                                child: Container(
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(
+                                    color: isUser ? const Color(0xFF2E2521) : Colors.white,
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(
+                                      color: isUser ? const Color(0xFF2E2521) : const Color(0xFFD8CFC2),
                                     ),
                                   ),
-                                );
-                              },
-                            ),
-                    ),
-                    const SizedBox(height: 16),
-                    _Composer(
-                      controller: _textController,
-                      disabled: controller.isChatBusy(widget.recordingId) || !isReady,
-                      onSend: (question) => _submitPrompt(controller, question),
-                    ),
-                    if (controller.notice case final String notice) ...[
-                      const SizedBox(height: 12),
-                      _InlineStatus(message: notice, remote: controller.backendAvailable),
-                    ],
-                  ],
-                );
-              },
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isUser ? 'Você' : 'Assistente',
+                                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                              color: isUser ? Colors.white70 : null,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        message.content,
+                                        style: TextStyle(color: isUser ? Colors.white : null),
+                                      ),
+                                      if (message.citations.isNotEmpty) ...[
+                                        const SizedBox(height: 12),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: message.citations
+                                              .map(
+                                                (citation) => Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                  decoration: BoxDecoration(
+                                                    color: isUser
+                                                        ? Colors.white.withValues(alpha: 0.08)
+                                                        : const Color(0xFFF8F4EE),
+                                                    borderRadius: BorderRadius.circular(16),
+                                                  ),
+                                                  child: Text(citation.quote),
+                                                ),
+                                              )
+                                              .toList(),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(height: 16),
+                _Composer(
+                  controller: _textController,
+                  disabled: controller.isChatBusy(widget.recordingId) || !isReady,
+                  onSend: (question) => _submitPrompt(controller, question),
+                ),
+              ],
             ),
     );
   }
@@ -212,42 +185,6 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     }
-  }
-}
-
-class _ChatContextCard extends StatelessWidget {
-  const _ChatContextCard({
-    required this.recordingId,
-    required this.title,
-    required this.status,
-  });
-
-  final String recordingId;
-  final String title;
-  final String status;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 6),
-                  Text('ID da gravacao: $recordingId'),
-                ],
-              ),
-            ),
-            Chip(label: Text(status)),
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -274,17 +211,16 @@ class _ChatEmptyState extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               enabled
-                  ? 'Use o assistente para perguntar sobre decisoes, participantes, riscos ou proximos passos com base apenas nesta nota.'
-                  : 'Aguarde a conclusao da transcricao para usar o chat contextual.',
+                  ? 'Use o assistente para perguntar sobre decisões, participantes, riscos ou próximos passos.'
+                  : 'Aguarde a conclusão da transcrição para usar o chat contextual.',
             ),
             const SizedBox(height: 18),
             Wrap(
               spacing: 12,
               runSpacing: 12,
               children: [
-                _PromptChip(label: 'Quais sao os proximos passos?', enabled: enabled, onTap: onPromptTap),
-                _PromptChip(label: 'Resuma as principais decisoes.', enabled: enabled, onTap: onPromptTap),
-                _PromptChip(label: 'Qual foi a responsabilidade do Participante 2?', enabled: enabled, onTap: onPromptTap),
+                _PromptChip(label: 'Quais são os próximos passos?', enabled: enabled, onTap: onPromptTap),
+                _PromptChip(label: 'Resuma as principais decisões.', enabled: enabled, onTap: onPromptTap),
                 _PromptChip(label: 'Quais riscos foram mencionados?', enabled: enabled, onTap: onPromptTap),
               ],
             ),
@@ -340,7 +276,7 @@ class _Composer extends StatelessWidget {
                 minLines: 1,
                 maxLines: 4,
                 decoration: const InputDecoration(
-                  hintText: 'Pergunte sobre decisoes, participantes ou itens de acao',
+                  hintText: 'Pergunte sobre decisões, participantes ou itens de ação',
                 ),
                 onSubmitted: onSend,
               ),
@@ -348,7 +284,7 @@ class _Composer extends StatelessWidget {
             const SizedBox(width: 12),
             FilledButton(
               onPressed: disabled ? null : () => onSend(controller.text),
-              child: Text(disabled ? 'Indisponivel' : 'Enviar'),
+              child: Text(disabled ? 'Indisponível' : 'Enviar'),
             ),
           ],
         ),
@@ -357,33 +293,8 @@ class _Composer extends StatelessWidget {
   }
 }
 
-class _InlineStatus extends StatelessWidget {
-  const _InlineStatus({
-    required this.message,
-    required this.remote,
-  });
-
-  final String message;
-  final bool remote;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: remote ? const Color(0xFFE8F3E4) : const Color(0xFFFFF4D6),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Text(message),
-    );
-  }
-}
-
 class _MissingChatState extends StatelessWidget {
-  const _MissingChatState({required this.onBack});
-
-  final VoidCallback onBack;
+  const _MissingChatState();
 
   @override
   Widget build(BuildContext context) {
@@ -397,13 +308,13 @@ class _MissingChatState extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Chat indisponivel', style: Theme.of(context).textTheme.headlineMedium),
+                Text('Chat indisponível', style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 8),
-                const Text('A gravacao nao foi encontrada ou a rota aponta para dados antigos. Volte para a biblioteca e tente novamente.'),
+                const Text('A gravação não foi encontrada ou a rota aponta para dados antigos.'),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: onBack,
-                  icon: const Icon(Icons.arrow_back_rounded),
+                  onPressed: () => context.go('/library'),
+                  icon: const Icon(Icons.library_books_rounded),
                   label: const Text('Voltar para a biblioteca'),
                 ),
               ],
@@ -412,5 +323,19 @@ class _MissingChatState extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+void _goToIndex(BuildContext context, int index) {
+  switch (index) {
+    case 0:
+      context.go('/home');
+      return;
+    case 1:
+      context.go('/library');
+      return;
+    case 2:
+      context.go('/settings');
+      return;
   }
 }

@@ -7,63 +7,63 @@ class PlaudeTypography {
   const PlaudeTypography._();
 
   static TextTheme textTheme() {
-    final base = GoogleFonts.spaceGroteskTextTheme();
-    return GoogleFonts.dmSansTextTheme(base).copyWith(
-      displayLarge: GoogleFonts.spaceGrotesk(
+    final base = GoogleFonts.plusJakartaSansTextTheme();
+    return GoogleFonts.plusJakartaSansTextTheme(base).copyWith(
+      displayLarge: GoogleFonts.plusJakartaSans(
         fontSize: 56,
         height: 0.95,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
         color: PlaudeColors.ink,
       ),
-      displayMedium: GoogleFonts.spaceGrotesk(
+      displayMedium: GoogleFonts.plusJakartaSans(
         fontSize: 44,
         height: 1,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
         color: PlaudeColors.ink,
       ),
-      headlineLarge: GoogleFonts.spaceGrotesk(
+      headlineLarge: GoogleFonts.plusJakartaSans(
         fontSize: 32,
         height: 1.05,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
         color: PlaudeColors.ink,
       ),
-      headlineMedium: GoogleFonts.spaceGrotesk(
+      headlineMedium: GoogleFonts.plusJakartaSans(
         fontSize: 24,
         height: 1.1,
         fontWeight: FontWeight.w700,
         color: PlaudeColors.ink,
       ),
-      titleLarge: GoogleFonts.spaceGrotesk(
+      titleLarge: GoogleFonts.plusJakartaSans(
         fontSize: 18,
         height: 1.15,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
         color: PlaudeColors.ink,
       ),
-      titleMedium: GoogleFonts.spaceGrotesk(
+      titleMedium: GoogleFonts.plusJakartaSans(
         fontSize: 16,
         height: 1.2,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
         color: PlaudeColors.ink,
       ),
-      bodyLarge: GoogleFonts.dmSans(
+      bodyLarge: GoogleFonts.plusJakartaSans(
         fontSize: 16,
         height: 1.45,
         color: PlaudeColors.ink,
       ),
-      bodyMedium: GoogleFonts.dmSans(
+      bodyMedium: GoogleFonts.plusJakartaSans(
         fontSize: 14,
         height: 1.45,
         color: PlaudeColors.ink,
       ),
-      labelLarge: GoogleFonts.spaceGrotesk(
+      labelLarge: GoogleFonts.plusJakartaSans(
         fontSize: 14,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
         letterSpacing: 0.2,
         color: PlaudeColors.ink,
       ),
-      labelMedium: GoogleFonts.spaceGrotesk(
+      labelMedium: GoogleFonts.plusJakartaSans(
         fontSize: 12,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
         letterSpacing: 0.3,
         color: PlaudeColors.smoke,
       ),

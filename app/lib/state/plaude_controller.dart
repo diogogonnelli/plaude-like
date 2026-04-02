@@ -6,7 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../app/app_config.dart';
 import '../data/demo_content.dart';
 import '../data/models.dart';
 import '../data/plaude_api.dart';
@@ -14,26 +16,41 @@ import '../data/plaude_api.dart';
 class PlaudeController extends ChangeNotifier {
   PlaudeController({
     required this.api,
-  });
+    this.supabaseClient,
+    bool? authRequiredOverride,
+  }) : _authRequired = authRequiredOverride ?? AppConfig.hasSupabase;
 
   final PlaudeApi api;
+  final SupabaseClient? supabaseClient;
+  final bool _authRequired;
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _player = AudioPlayer();
+  StreamSubscription<AuthState>? _authSubscription;
 
   List<Project> _projects = const [];
   List<RecordingNote> _recordings = [];
   bool _isLoading = true;
   bool _backendAvailable = false;
   bool _isRecording = false;
+  bool _authReady = false;
+  bool _authBusy = false;
   String _searchQuery = '';
   String? _recordingPath;
   String? _currentlyPlayingPath;
   String? _notice;
   String? _activeProjectId;
+  Session? _session;
   final Set<String> _processingIds = <String>{};
   final Set<String> _chatBusyIds = <String>{};
 
+  bool get requiresAuth => _authRequired;
+  bool get authReady => _authReady;
+  bool get authBusy => _authBusy;
+  bool get isAuthenticated => !_authRequired || _session != null;
+  String? get sessionEmail => _session?.user.email;
+  String? get accessToken => _session?.accessToken;
   List<Project> get projects => _projects;
+  List<RecordingNote> get allRecordings => List.unmodifiable(_recordings);
   bool get isLoading => _isLoading;
   bool get backendAvailable => _backendAvailable;
   bool get isRecording => _isRecording;
@@ -48,15 +65,88 @@ class PlaudeController extends ChangeNotifier {
     return null;
   }
 
-  List<RecordingNote> get recordings {
-    return _filteredRecordings();
-  }
+  List<RecordingNote> get recordings => _filteredRecordings();
+
+  List<RecordingNote> get processingRecordings => recordings
+      .where((recording) => recording.status != ProcessingStatus.ready && recording.status != ProcessingStatus.failed)
+      .toList();
+
+  List<RecordingNote> get readyRecordings =>
+      recordings.where((recording) => recording.status == ProcessingStatus.ready).toList();
+
+  List<RecordingNote> get failedRecordings =>
+      recordings.where((recording) => recording.status == ProcessingStatus.failed).toList();
 
   Future<void> bootstrap() async {
+    if (_authRequired && supabaseClient != null) {
+      _session = supabaseClient!.auth.currentSession;
+      _authReady = true;
+      _authSubscription ??= supabaseClient!.auth.onAuthStateChange.listen((event) {
+        _session = event.session;
+        if (_session == null) {
+          _clearSignedOutState();
+        } else {
+          unawaited(refresh());
+        }
+        notifyListeners();
+      });
+
+      if (_session != null) {
+        await refresh();
+      } else {
+        _isLoading = false;
+        notifyListeners();
+      }
+      return;
+    }
+
+    _authReady = true;
     await refresh();
   }
 
+  Future<void> signIn(String email, String password) async {
+    if (supabaseClient == null) {
+      throw StateError('Supabase Auth não está configurado.');
+    }
+
+    _authBusy = true;
+    _notice = null;
+    notifyListeners();
+
+    try {
+      final response = await supabaseClient!.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      _session = response.session;
+      _notice = 'Sessão iniciada.';
+      await refresh();
+    } finally {
+      _authBusy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> signOut() async {
+    _authBusy = true;
+    notifyListeners();
+    try {
+      await supabaseClient?.auth.signOut();
+      _session = null;
+      _clearSignedOutState();
+    } finally {
+      _authBusy = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> refresh() async {
+    if (_authRequired && _session == null) {
+      _isLoading = false;
+      notifyListeners();
+      return;
+    }
+
     _isLoading = true;
     notifyListeners();
 
@@ -72,16 +162,31 @@ class PlaudeController extends ChangeNotifier {
         _notice = 'Conectado ao backend.';
       } else {
         _loadDemoData();
-        _notice = 'Executando em modo de demonstracao. Inicie o backend para usar a integracao HTTP real.';
+        _notice = 'Executando em modo de demonstração. Inicie o backend para usar a integração HTTP real.';
       }
     } catch (_) {
       _backendAvailable = false;
-      _loadDemoData();
-      _notice = 'Backend indisponivel. Exibindo dados locais de demonstracao.';
+      if (_authRequired) {
+        _projects = const [];
+        _recordings = const [];
+        _notice = 'Não foi possível carregar os dados do backend autenticado.';
+      } else {
+        _loadDemoData();
+        _notice = 'Backend indisponível. Exibindo dados locais de demonstração.';
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  void _clearSignedOutState() {
+    _projects = const [];
+    _recordings = const [];
+    _backendAvailable = false;
+    _activeProjectId = null;
+    _notice = null;
+    _isLoading = false;
   }
 
   void setSearchQuery(String value) {
@@ -687,6 +792,7 @@ class PlaudeController extends ChangeNotifier {
 
   @override
   void dispose() {
+    unawaited(_authSubscription?.cancel());
     unawaited(_recorder.dispose());
     unawaited(_player.dispose());
     super.dispose();

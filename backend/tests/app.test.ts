@@ -4,11 +4,13 @@ import { describe, expect, it } from 'vitest';
 import type { AiProcessingResult, AiProvider, ChatAnswer } from '../src/domain/contracts.js';
 import type { ProcessRecordingInput, Recording } from '../src/domain/types.js';
 import { buildApp } from '../src/http/build-app.js';
+import type { RequestAuth, RequestAuthProvider } from '../src/http/request-auth.js';
 import { MemoryRecordingRepository } from '../src/repositories/memory-recording-repository.js';
 import { demoRecordings, demoUserId } from '../src/seed/demo-recordings.js';
 import { PlainTextExportProvider } from '../src/services/export-provider.js';
 import { MockAiProvider } from '../src/services/mock-ai-provider.js';
 import { RecordingService } from '../src/services/recording-service.js';
+import { ServiceError } from '../src/services/service-errors.js';
 
 class FlakyAiProvider implements AiProvider {
   public processCalls = 0;
@@ -53,6 +55,34 @@ const repository = new MemoryRecordingRepository(demoRecordings);
 const service = new RecordingService(repository, new MockAiProvider(), new PlainTextExportProvider());
 const app = buildApp(service);
 
+class TestAuthProvider implements RequestAuthProvider {
+  constructor(
+    private readonly auth: RequestAuth,
+    private readonly options: {
+      enforced?: boolean;
+      admin?: boolean;
+    } = {},
+  ) {}
+
+  isAuthEnforced(): boolean {
+    return this.options.enforced ?? true;
+  }
+
+  async getRequestAuth(request: { header(name: string): string | undefined }): Promise<RequestAuth> {
+    if (this.isAuthEnforced() && request.header('authorization') !== 'Bearer test-token') {
+      throw new ServiceError('Authorization bearer token is required.', 401, 'auth_token_required');
+    }
+
+    return this.auth;
+  }
+
+  async ensureAdmin(): Promise<void> {
+    if (!this.options.admin) {
+      throw new ServiceError('Admin access denied.', 403, 'admin_access_denied');
+    }
+  }
+}
+
 describe('recordings api', () => {
   it('serves the OpenAPI document and Swagger UI', async () => {
     const jsonResponse = await request(app).get('/openapi.json');
@@ -80,6 +110,64 @@ describe('recordings api', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data[0].id).toBe('project-demo');
+  });
+
+  it('rejects protected routes without a bearer token when auth is enforced', async () => {
+    const guardedApp = buildApp(service, {
+      authProvider: new TestAuthProvider(
+        {
+          userId: '11111111-1111-4111-8111-111111111111',
+          email: 'user@example.com',
+          source: 'supabase',
+        },
+        { enforced: true, admin: false },
+      ),
+    });
+
+    const response = await request(guardedApp).get('/projects');
+
+    expect(response.status).toBe(401);
+    expect(response.body.code).toBe('auth_token_required');
+  });
+
+  it('rejects admin routes for authenticated non-admin users', async () => {
+    const guardedApp = buildApp(service, {
+      authProvider: new TestAuthProvider(
+        {
+          userId: '11111111-1111-4111-8111-111111111111',
+          email: 'user@example.com',
+          source: 'supabase',
+        },
+        { enforced: true, admin: false },
+      ),
+    });
+
+    const response = await request(guardedApp)
+      .get('/admin/dashboard')
+      .set('authorization', 'Bearer test-token');
+
+    expect(response.status).toBe(403);
+    expect(response.body.code).toBe('admin_access_denied');
+  });
+
+  it('allows admin routes globally without requiring project membership', async () => {
+    const guardedApp = buildApp(service, {
+      authProvider: new TestAuthProvider(
+        {
+          userId: '22222222-2222-4222-8222-222222222222',
+          email: 'operator@example.com',
+          source: 'supabase',
+        },
+        { enforced: true, admin: true },
+      ),
+    });
+
+    const response = await request(guardedApp)
+      .get(`/admin/recordings/${demoRecordings[0]!.id}`)
+      .set('authorization', 'Bearer test-token');
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.id).toBe(demoRecordings[0]!.id);
   });
 
   it('rejects invalid create payloads', async () => {
@@ -113,6 +201,23 @@ describe('recordings api', () => {
 
     expect(listMembers.status).toBe(200);
     expect(listMembers.body.data.length).toBeGreaterThan(1);
+  });
+
+  it('filters admin projects by status and query', async () => {
+    const created = await request(app)
+      .post('/admin/projects')
+      .send({ name: 'Projeto filtravel' });
+
+    await request(app)
+      .patch(`/admin/projects/${created.body.data.id}`)
+      .send({ status: 'archived' });
+
+    const response = await request(app)
+      .get('/admin/projects')
+      .query({ status: 'archived', query: 'filtrav' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.some((project: { id: string }) => project.id === created.body.data.id)).toBe(true);
   });
 
   it('creates and processes a recording', async () => {

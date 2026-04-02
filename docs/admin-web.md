@@ -1,34 +1,74 @@
 # Admin Web
 
-Aplicacao web separada para backoffice em `admin-web/`.
+Aplicação separada em `admin-web/`, agora com autenticação Supabase e rotas reais de backoffice.
 
-Objetivos do scaffold inicial:
-
-- dashboard operacional
-- CRUD de projetos
-- visualizacao de membros por projeto
-- listagem de gravacoes
-- listagem de jobs de transcricao
-- base desktop-first para evolucao do backoffice
-
-Stack inicial:
+## Stack
 
 - `React`
 - `TypeScript`
 - `Vite`
+- `react-router-dom`
+- `@supabase/supabase-js`
 
-Pontos de integracao planejados:
+## Variáveis de ambiente
 
-- `GET /admin/dashboard`
-- `GET /admin/projects`
-- `POST /admin/projects`
-- `PATCH /admin/projects/:id`
-- `GET /admin/projects/:id/members`
-- `POST /admin/projects/:id/members`
-- `DELETE /admin/projects/:id/members/:userId`
-- `GET /admin/recordings`
-- `GET /admin/recordings/:id`
-- `POST /admin/recordings/:id/reprocess`
-- `GET /admin/jobs`
-- `GET /admin/providers`
-- `PATCH /admin/providers`
+- `VITE_API_BASE_URL`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+## Fluxo de autenticação
+
+1. O usuário faz login com email e senha via Supabase Auth.
+2. O `admin-web` envia `Authorization: Bearer <access_token>` para o backend.
+3. O backend valida o token e verifica se o `user_id` existe em `public.admin_users`.
+4. Se a conta não estiver allowlisted, a UI mostra tela de acesso negado.
+
+## Rotas
+
+- `/login`
+- `/projects`
+- `/projects/:id/members`
+- `/recordings`
+- `/recordings/:id`
+- `/jobs`
+- `/providers`
+
+## Superfícies operacionais
+
+### Projetos
+
+- listagem com filtro por `query` e `status`
+- criação por modal
+- edição de `name`, `slug` e `status`
+- CTA direto para membros por projeto
+
+### Membros
+
+- seletor de projeto por rota
+- listagem de `userId`, `role` e `createdAt`
+- adição por `userId` bruto e `role`
+- remoção com confirmação visual
+
+### Gravações
+
+- filtros reais por `query`, `projectId`, `status` e `userId`
+- clique na linha abre detalhe administrativo
+- detalhe mostra metadados, transcript, summary, highlights, action items e `lastError`
+- ação explícita de reprocessamento
+
+### Jobs
+
+- espelho operacional de `/admin/jobs`
+- deep link para `/recordings/:id`
+- filtros reaproveitados para diagnóstico rápido
+
+### Providers
+
+- leitura da configuração exposta pelo backend
+- útil para validação de ambiente em operação
+
+## Observações
+
+- a experiência visual segue paleta creme + âmbar + texto escuro com `Plus Jakarta Sans`
+- o uso de transparência fica restrito ao shell e aos painéis principais
+- a aplicação prioriza densidade operacional, contraste e legibilidade sobre decoração

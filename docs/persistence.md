@@ -1,65 +1,58 @@
 # Persistence And Deploy
 
-## Target Setup
+## Target setup
 
-The backend now supports two persistence modes:
+Modos de persistência do backend:
 
-- `memory`: local development fallback
-- `supabase`: real persistence using Supabase tables and RPC functions
-- `auto`: uses Supabase when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are present, otherwise falls back to memory
+- `memory`: fallback local
+- `supabase`: persistência real
+- `auto`: usa Supabase quando `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` estão presentes
 
-For test deployments, use `SUPABASE_PERSISTENCE_MODE=supabase`.
+Para validar a stack real, use:
 
-## Required Environment
+```text
+SUPABASE_PERSISTENCE_MODE=supabase
+```
 
-Set these variables in the backend environment:
+## Variáveis obrigatórias
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_PERSISTENCE_MODE=supabase`
 - `SUPABASE_STORAGE_BUCKET=recordings`
 
-Optional:
+## Bootstrap do banco
 
-- `OPENAI_API_KEY`
-- `AI_PROVIDER=openai`
-
-## Database Bootstrap
-
-Apply the migrations in order:
+Aplicar as migrations em ordem:
 
 1. `supabase/migrations/0001_init.sql`
 2. `supabase/migrations/0002_recording_graph_rpc.sql`
+3. `supabase/migrations/0003_transcription_metadata.sql`
+4. `supabase/migrations/0004_projects_and_memberships.sql`
+5. `supabase/migrations/0005_admin_users.sql`
 
-The first migration creates the tables, RLS policies, storage bucket and `updated_at` trigger.
-The second migration adds RPC helpers used by the backend repository to persist and load a complete recording graph atomically.
+## Storage layout
 
-## Storage Layout
+Os objetos de áudio ficam em:
 
-Audio objects should be stored with a prefix that starts with the authenticated user id.
-When the hybrid repository receives a real filesystem path for the uploaded audio, it uploads the original file to a stable bucket path before the temp file is deleted:
+```text
+{project-id}/{recording-id}/{file-name}
+```
 
-`{user-id}/{recording-id}/{file-name}`
+Isso mantém o storage alinhado com o contexto de projeto e com a surface administrativa.
 
-That keeps the storage policy aligned with the bucket rule in the migration.
+## Auth e admin
 
-The recording graph also persists transcription job metadata at the top level:
+- usuários finais entram via Supabase Auth
+- o backend valida Bearer JWT nas rotas do produto e do admin
+- `public.admin_users` guarda a allowlist de administradores globais
 
-- `transcriptionProvider`
-- `transcriptionJobId`
-- `transcriptionStartedAt`
-- `transcriptionCompletedAt`
+## Fluxo recomendado de deploy
 
-## Deploy Test Flow
-
-1. Create a Supabase project for test validation.
-2. Apply both migrations.
-3. Set the backend environment variables above.
-4. Start the backend with Supabase mode enabled.
-5. Use a real UUID as the request `x-user-id` if you want the Supabase rows to line up with auth-owned data.
-
-## Notes
-
-- The repository keeps the in-memory fallback for local smoke tests.
-- The Supabase path is now the default when credentials are present and the mode is `auto`.
-- The repository uses RPC helpers instead of ad hoc multi-table writes, so the full recording graph is persisted as one database operation.
+1. Criar projeto Supabase.
+2. Aplicar as migrations.
+3. Provisionar usuários no Auth.
+4. Inserir admins em `public.admin_users`.
+5. Subir backend com `SUPABASE_PERSISTENCE_MODE=supabase`.
+6. Configurar `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e `VITE_API_BASE_URL` no `admin-web`.
+7. Configurar `BACKEND_BASE_URL`, `SUPABASE_URL` e `SUPABASE_ANON_KEY` no app Flutter.

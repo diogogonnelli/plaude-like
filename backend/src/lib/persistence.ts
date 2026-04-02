@@ -62,7 +62,7 @@ export function deserializeRecordingGraph(
 
   return {
     id: String(raw.id),
-    userId: fallbackUserId,
+    userId: raw.userId == null ? fallbackUserId : String(raw.userId),
     createdByUserId: raw.createdByUserId == null ? fallbackUserId : String(raw.createdByUserId),
     projectId: String(raw.projectId),
     title: String(raw.title),

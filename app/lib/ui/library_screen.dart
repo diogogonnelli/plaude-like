@@ -13,23 +13,23 @@ class LibraryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<PlaudeController>();
-    final notes = controller.recordings;
-    final activeProject = controller.activeProject;
 
     return AppShell(
-      title: 'Inicio',
-      navigationIndex: 0,
-      onNavigationSelected: (index) => context.go(index == 0 ? '/' : '/settings'),
+      title: 'Biblioteca',
+      subtitle: 'Busca, filtros por projeto ativo e agrupamento por estado em uma superfície mobile-first.',
+      navigationIndex: 1,
+      showCaptureFab: true,
+      interceptBackToPrimary: true,
+      onNavigationSelected: (index) => _goToIndex(context, index),
       actions: [
         if (controller.projects.isNotEmpty)
           SizedBox(
-            width: 180,
+            width: 220,
             child: DropdownButtonFormField<String>(
+              key: ValueKey(controller.activeProjectId),
               initialValue: controller.activeProjectId,
               isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Projeto',
-              ),
+              decoration: const InputDecoration(labelText: 'Projeto'),
               items: controller.projects
                   .map((project) => DropdownMenuItem(
                         value: project.id,
@@ -39,16 +39,6 @@ class LibraryScreen extends StatelessWidget {
               onChanged: controller.changeActiveProject,
             ),
           ),
-        FilledButton.icon(
-          onPressed: controller.isRecording ? controller.stopRecordingAndProcess : controller.startRecording,
-          icon: Icon(controller.isRecording ? Icons.stop_circle_outlined : Icons.mic_none_rounded),
-          label: Text(controller.isRecording ? 'Parar gravacao' : 'Gravar'),
-        ),
-        OutlinedButton.icon(
-          onPressed: controller.pickAudioFile,
-          icon: const Icon(Icons.upload_file_rounded),
-          label: const Text('Enviar audio'),
-        ),
       ],
       child: RefreshIndicator(
         onRefresh: controller.refresh,
@@ -56,20 +46,13 @@ class LibraryScreen extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 24),
           children: [
-            _HeroPanel(
-              projectName: activeProject?.name ?? 'Sem projeto ativo',
-              backendAvailable: controller.backendAvailable,
-              totalCount: notes.length,
-              processingCount: notes.where((note) => !note.isReady && note.status != ProcessingStatus.failed).length,
-            ),
-            const SizedBox(height: 16),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(16),
                 child: TextField(
                   onChanged: controller.setSearchQuery,
                   decoration: const InputDecoration(
-                    hintText: 'Buscar por tema, resumo ou transcricao',
+                    hintText: 'Buscar por título, resumo ou transcript',
                     prefixIcon: Icon(Icons.search_rounded),
                   ),
                 ),
@@ -79,13 +62,9 @@ class LibraryScreen extends StatelessWidget {
             if (controller.notice case final String notice)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: controller.backendAvailable ? const Color(0xFFE8F3E4) : const Color(0xFFFFF4D6),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: Text(notice),
+                child: _Banner(
+                  text: notice,
+                  positive: controller.backendAvailable,
                 ),
               ),
             if (controller.isLoading)
@@ -95,36 +74,54 @@ class LibraryScreen extends StatelessWidget {
                   child: CircularProgressIndicator(),
                 ),
               )
-            else if (notes.isEmpty)
-              _EmptyState(
-                projectName: activeProject?.name,
-                onRecord: controller.startRecording,
-                onUpload: controller.pickAudioFile,
-              )
+            else if (controller.recordings.isEmpty)
+              const _EmptyState()
             else ...[
-              Text('Em andamento', style: Theme.of(context).textTheme.titleLarge),
+              _SectionTitle(title: 'Em andamento', count: controller.processingRecordings.length),
               const SizedBox(height: 12),
-              ...notes
-                  .where((note) => note.status != ProcessingStatus.ready && note.status != ProcessingStatus.failed)
-                  .map((note) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _RecordingCard(
-                          note: note,
-                          onTap: () => context.go('/recordings/${note.id}'),
-                        ),
-                      )),
+              if (controller.processingRecordings.isEmpty)
+                const _InlineEmptyState(label: 'Nenhuma gravação em andamento.')
+              else
+                ...controller.processingRecordings.map(
+                  (recording) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _RecordingCard(
+                      note: recording,
+                      compact: true,
+                      onTap: () => context.go('/recordings/${recording.id}'),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              _SectionTitle(title: 'Prontas', count: controller.readyRecordings.length),
               const SizedBox(height: 12),
-              Text('Recentes', style: Theme.of(context).textTheme.titleLarge),
+              if (controller.readyRecordings.isEmpty)
+                const _InlineEmptyState(label: 'Nenhuma nota pronta para consulta.')
+              else
+                ...controller.readyRecordings.map(
+                  (recording) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _RecordingCard(
+                      note: recording,
+                      onTap: () => context.go('/recordings/${recording.id}'),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              _SectionTitle(title: 'Falharam', count: controller.failedRecordings.length),
               const SizedBox(height: 12),
-              ...notes
-                  .where((note) => note.status == ProcessingStatus.ready || note.status == ProcessingStatus.failed)
-                  .map((note) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _RecordingCard(
-                          note: note,
-                          onTap: () => context.go('/recordings/${note.id}'),
-                        ),
-                      )),
+              if (controller.failedRecordings.isEmpty)
+                const _InlineEmptyState(label: 'Nenhuma falha registrada no projeto ativo.')
+              else
+                ...controller.failedRecordings.map(
+                  (recording) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _RecordingCard(
+                      note: recording,
+                      onTap: () => context.go('/recordings/${recording.id}'),
+                    ),
+                  ),
+                ),
             ],
           ],
         ),
@@ -133,110 +130,66 @@ class LibraryScreen extends StatelessWidget {
   }
 }
 
-class _HeroPanel extends StatelessWidget {
-  const _HeroPanel({
-    required this.projectName,
-    required this.backendAvailable,
-    required this.totalCount,
-    required this.processingCount,
+class _Banner extends StatelessWidget {
+  const _Banner({
+    required this.text,
+    required this.positive,
   });
 
-  final String projectName;
-  final bool backendAvailable;
-  final int totalCount;
-  final int processingCount;
+  final String text;
+  final bool positive;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF231B18),
-            Color(0xFF4A372E),
-            Color(0xFFB25F2B),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: positive ? const Color(0xFFE8F3E4) : const Color(0xFFFFF4D6),
+        borderRadius: BorderRadius.circular(22),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Captura primeiro',
-            style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: Colors.white),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Projeto ativo: $projectName',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            backendAvailable
-                ? 'Grave, envie e acompanhe as transcricoes do projeto em um unico fluxo.'
-                : 'O backend esta offline. Voce pode continuar testando com dados locais.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _MetricPill(label: 'Notas', value: '$totalCount'),
-              _MetricPill(label: 'Em andamento', value: '$processingCount'),
-              _MetricPill(label: 'Modo', value: backendAvailable ? 'HTTP' : 'Demo'),
-            ],
-          ),
-        ],
-      ),
+      child: Text(text),
     );
   }
 }
 
-class _MetricPill extends StatelessWidget {
-  const _MetricPill({
-    required this.label,
-    required this.value,
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({
+    required this.title,
+    required this.count,
   });
+
+  final String title;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Text(title, style: Theme.of(context).textTheme.titleLarge)),
+        Text('$count', style: Theme.of(context).textTheme.bodyMedium),
+      ],
+    );
+  }
+}
+
+class _InlineEmptyState extends StatelessWidget {
+  const _InlineEmptyState({required this.label});
 
   final String label;
-  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white70)),
-          const SizedBox(height: 4),
-          Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
-        ],
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Text(label),
       ),
     );
   }
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.projectName,
-    required this.onRecord,
-    required this.onUpload,
-  });
-
-  final String? projectName;
-  final Future<void> Function() onRecord;
-  final Future<void> Function() onUpload;
+  const _EmptyState();
 
   @override
   Widget build(BuildContext context) {
@@ -247,33 +200,9 @@ class _EmptyState extends StatelessWidget {
           children: [
             const Icon(Icons.auto_awesome_outlined, size: 40),
             const SizedBox(height: 12),
-            Text(
-              projectName == null ? 'Nenhum projeto selecionado' : 'Nenhuma nota ainda',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
+            Text('Nenhuma nota ainda', style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 8),
-            Text(
-              projectName == null
-                  ? 'Escolha um projeto para comecar.'
-                  : 'Comece gravando uma nota de voz ou enviando um audio existente para $projectName.',
-            ),
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                FilledButton.icon(
-                  onPressed: onRecord,
-                  icon: const Icon(Icons.mic_none_rounded),
-                  label: const Text('Gravar'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onUpload,
-                  icon: const Icon(Icons.upload_file_rounded),
-                  label: const Text('Enviar audio'),
-                ),
-              ],
-            ),
+            const Text('Use o FAB para gravar ou enviar áudio e começar a preencher a biblioteca do projeto ativo.'),
           ],
         ),
       ),
@@ -285,35 +214,35 @@ class _RecordingCard extends StatelessWidget {
   const _RecordingCard({
     required this.note,
     required this.onTap,
+    this.compact = false,
   });
 
   final RecordingNote note;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final format = DateFormat('dd/MM/yyyy - HH:mm');
+    final format = DateFormat('dd/MM/yyyy • HH:mm');
 
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(28),
       child: Card(
         child: Padding(
-          padding: const EdgeInsets.all(22),
+          padding: EdgeInsets.all(compact ? 18 : 22),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Expanded(
-                    child: Text(note.title, style: Theme.of(context).textTheme.titleLarge),
-                  ),
+                  Expanded(child: Text(note.title, style: Theme.of(context).textTheme.titleLarge)),
                   Chip(label: Text(note.status.label)),
                 ],
               ),
-              const SizedBox(height: 10),
-              Text(note.summary?.overview ?? 'Aguardando transcricao ou resumo.'),
-              const SizedBox(height: 14),
+              const SizedBox(height: 8),
+              Text(note.summary?.overview ?? 'Aguardando transcript ou resumo.'),
+              const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -357,5 +286,19 @@ class _MiniMeta extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+void _goToIndex(BuildContext context, int index) {
+  switch (index) {
+    case 0:
+      context.go('/home');
+      return;
+    case 1:
+      context.go('/library');
+      return;
+    case 2:
+      context.go('/settings');
+      return;
   }
 }

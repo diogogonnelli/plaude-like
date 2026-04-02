@@ -21,315 +21,147 @@ class RecordingDetailScreen extends StatelessWidget {
     final recording = controller.findById(recordingId);
 
     return AppShell(
-      title: 'Detalhe da gravacao',
-      navigationIndex: 0,
-      onNavigationSelected: (index) => context.go(index == 0 ? '/' : '/settings'),
+      title: 'Detalhe',
+      subtitle: 'Resumo executivo, destaques, itens de ação e transcript por speaker.',
+      navigationIndex: 1,
+      onNavigationSelected: (index) => _goToIndex(context, index),
       actions: [
         OutlinedButton.icon(
-          onPressed: recording != null && recording.isReady
-              ? () => context.go('/recordings/$recordingId/chat')
-              : null,
+          onPressed: () => context.go('/library'),
+          icon: const Icon(Icons.arrow_back_rounded),
+          label: const Text('Biblioteca'),
+        ),
+        OutlinedButton.icon(
+          onPressed: recording != null && recording.isReady ? () => context.go('/recordings/$recordingId/chat') : null,
           icon: const Icon(Icons.chat_bubble_outline_rounded),
           label: const Text('Abrir chat'),
         ),
       ],
       child: recording == null
-          ? _RecoveryPanel(
-              controller: controller,
-              onBack: () => context.go('/'),
-            )
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                final wide = constraints.maxWidth >= 980;
-                final summary = _SummaryColumn(recording: recording);
-                final actions = _ActionsColumn(
-                  recording: recording,
-                  controller: controller,
-                  onChat: () => context.go('/recordings/$recordingId/chat'),
-                );
-                final transcript = _TranscriptColumn(recording: recording);
-
-                return ListView(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  children: [
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: wide
-                            ? Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(flex: 3, child: summary),
-                                  const SizedBox(width: 24),
-                                  SizedBox(width: 320, child: actions),
-                                ],
-                              )
-                            : Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  summary,
-                                  const SizedBox(height: 24),
-                                  actions,
-                                ],
-                              ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: transcript,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-    );
-  }
-}
-
-class _RecoveryPanel extends StatelessWidget {
-  const _RecoveryPanel({
-    required this.controller,
-    required this.onBack,
-  });
-
-  final PlaudeController controller;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ? const _MissingState()
+          : ListView(
+              padding: const EdgeInsets.only(bottom: 24),
               children: [
-                Text('Gravacao nao encontrada', style: Theme.of(context).textTheme.headlineMedium),
-                const SizedBox(height: 8),
-                const Text(
-                  'Isso pode acontecer quando uma nota foi filtrada, removida na origem ou a rota aponta para dados antigos.',
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(recording.noteArtifact?.title ?? recording.title, style: Theme.of(context).textTheme.headlineMedium),
+                        const SizedBox(height: 10),
+                        Text(recording.summary?.overview ?? 'Esta nota ainda está passando pelo pipeline de processamento.'),
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            Chip(label: Text(recording.status.label)),
+                            Chip(label: Text(DateFormat('dd/MM/yyyy • HH:mm').format(recording.createdAt.toLocal()))),
+                            Chip(label: Text('Projeto ${recording.projectId}')),
+                            Chip(label: Text('Autor ${recording.createdByUserId}')),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        _InfoBlock(
+                          title: 'Destaques',
+                          items: recording.noteArtifact?.highlights ?? const [],
+                          emptyLabel: 'Nenhum destaque estruturado ainda.',
+                        ),
+                        const SizedBox(height: 16),
+                        _InfoBlock(
+                          title: 'Itens de ação',
+                          items: recording.noteArtifact?.actionItems ?? const [],
+                          emptyLabel: 'Nenhum item de ação estruturado ainda.',
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
-                if (!controller.backendAvailable)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF4D6),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: const Text('O backend esta offline, entao voce esta vendo apenas dados locais de demonstracao.'),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: _TranscriptSection(recording: recording),
                   ),
+                ),
                 const SizedBox(height: 16),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: onBack,
-                      icon: const Icon(Icons.arrow_back_rounded),
-                      label: const Text('Voltar para a biblioteca'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: controller.pickAudioFile,
-                      icon: const Icon(Icons.upload_file_rounded),
-                      label: const Text('Enviar audio'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: controller.isRecording ? controller.stopRecordingAndProcess : controller.startRecording,
-                      icon: Icon(controller.isRecording ? Icons.stop_circle_outlined : Icons.mic_none_rounded),
-                      label: Text(controller.isRecording ? 'Parar gravacao' : 'Gravar'),
-                    ),
-                  ],
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: _ActionsSection(recording: recording),
+                  ),
                 ),
               ],
             ),
-          ),
-        ),
-      ),
     );
   }
 }
 
-class _SummaryColumn extends StatelessWidget {
-  const _SummaryColumn({required this.recording});
+class _InfoBlock extends StatelessWidget {
+  const _InfoBlock({
+    required this.title,
+    required this.items,
+    required this.emptyLabel,
+  });
 
-  final RecordingNote recording;
+  final String title;
+  final List<String> items;
+  final String emptyLabel;
 
   @override
   Widget build(BuildContext context) {
-    final format = DateFormat('dd/MM/yyyy - HH:mm');
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(recording.noteArtifact?.title ?? recording.title, style: Theme.of(context).textTheme.headlineMedium),
+        Text(title, style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 10),
-        Text(recording.summary?.overview ?? 'Esta nota ainda esta passando pelo pipeline de processamento.'),
-        const SizedBox(height: 14),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            Chip(label: Text(recording.status.label)),
-            Chip(label: Text(format.format(recording.createdAt.toLocal()))),
-            Chip(label: Text('Projeto ${recording.projectId}')),
-            Chip(label: Text('Autor ${recording.createdByUserId}')),
-            Chip(label: Text(recording.sourceType)),
-          ],
-        ),
-        if (recording.noteArtifact case final artifact?) ...[
-          const SizedBox(height: 22),
-          Text('Destaques', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          ...artifact.highlights.map(
+        if (items.isEmpty)
+          Text(emptyLabel)
+        else
+          ...items.map(
             (item) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: _BulletLine(text: item),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Icon(Icons.circle, size: 8),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(item)),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          Text('Itens de acao', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          ...artifact.actionItems.map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _BulletLine(text: item),
-            ),
-          ),
-        ],
       ],
     );
   }
 }
 
-class _ActionsColumn extends StatelessWidget {
-  const _ActionsColumn({
-    required this.recording,
-    required this.controller,
-    required this.onChat,
-  });
-
-  final RecordingNote recording;
-  final PlaudeController controller;
-  final VoidCallback onChat;
-
-  @override
-  Widget build(BuildContext context) {
-    final canPlay = controller.isPlayable(recording.audioPath);
-    final isPlaying = controller.isCurrentlyPlaying(recording.audioPath);
-    final isReady = recording.isReady;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F4EE),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE2D7C8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Acoes', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: controller.isProcessing(recording.id) ? null : () => controller.processRecording(recording.id),
-            icon: const Icon(Icons.auto_awesome_rounded),
-            label: Text(controller.isProcessing(recording.id) ? 'Processando' : 'Processar novamente'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: isReady ? onChat : null,
-            icon: const Icon(Icons.chat_bubble_outline_rounded),
-            label: const Text('Abrir chat'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: canPlay ? () => controller.togglePlayback(recording.audioPath!) : null,
-            icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow_rounded),
-            label: Text(isPlaying ? 'Pausar audio local' : 'Reproduzir audio local'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: !isReady
-                ? null
-                : () async {
-                    try {
-                      final export = await controller.exportRecording(recording.id, 'md');
-                      if (!context.mounted) {
-                        return;
-                      }
-                      await showDialog<void>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: Text(export.fileName),
-                          content: SizedBox(
-                            width: 560,
-                            child: SingleChildScrollView(child: SelectableText(export.body)),
-                          ),
-                        ),
-                      );
-                    } catch (error) {
-                      if (!context.mounted) {
-                        return;
-                      }
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Falha ao exportar: $error')),
-                      );
-                    }
-                  },
-            icon: const Icon(Icons.download_rounded),
-            label: const Text('Exportar markdown'),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            !isReady
-                ? 'A transcricao ainda esta em processamento. Chat e exportacao serao liberados quando a nota ficar pronta.'
-                : canPlay
-                    ? 'O audio pode ser reproduzido localmente nas versoes desktop e mobile.'
-                    : 'A reproducao esta desativada para esta origem. Envie um arquivo local para testar o player.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          if (recording.lastError case final String error) ...[
-            const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFECE6),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Text(error),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _TranscriptColumn extends StatelessWidget {
-  const _TranscriptColumn({required this.recording});
+class _TranscriptSection extends StatelessWidget {
+  const _TranscriptSection({required this.recording});
 
   final RecordingNote recording;
 
   @override
   Widget build(BuildContext context) {
     if (recording.transcriptSegments.isEmpty) {
-      return _TranscriptEmptyState(
-        recordingStatus: recording.status.label,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Transcript', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text('A transcrição ainda não está disponível para esta nota.'),
+        ],
       );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Transcricao', style: Theme.of(context).textTheme.titleLarge),
+        Text('Transcript', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 14),
         ...recording.transcriptSegments.map(
           (segment) => Padding(
@@ -366,52 +198,99 @@ class _TranscriptColumn extends StatelessWidget {
   }
 }
 
-class _TranscriptEmptyState extends StatelessWidget {
-  const _TranscriptEmptyState({required this.recordingStatus});
+class _ActionsSection extends StatelessWidget {
+  const _ActionsSection({required this.recording});
 
-  final String recordingStatus;
+  final RecordingNote recording;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F4EE),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE2D7C8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Transcricao indisponivel', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            'Esta nota ainda esta em "$recordingStatus" ou foi criada localmente sem conteudo de transcricao.',
+    final controller = context.watch<PlaudeController>();
+    final canPlay = controller.isPlayable(recording.audioPath);
+    final isPlaying = controller.isCurrentlyPlaying(recording.audioPath);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Ações', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: controller.isProcessing(recording.id) ? null : () => controller.processRecording(recording.id),
+          icon: const Icon(Icons.auto_awesome_rounded),
+          label: Text(controller.isProcessing(recording.id) ? 'Processando' : 'Processar novamente'),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: recording.isReady ? () => context.go('/recordings/${recording.id}/chat') : null,
+          icon: const Icon(Icons.chat_bubble_outline_rounded),
+          label: const Text('Abrir chat'),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: canPlay ? () => controller.togglePlayback(recording.audioPath!) : null,
+          icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow_rounded),
+          label: Text(isPlaying ? 'Pausar áudio local' : 'Reproduzir áudio local'),
+        ),
+        if (recording.lastError case final String error) ...[
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFECE6),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Text(error),
           ),
         ],
+      ],
+    );
+  }
+}
+
+class _MissingState extends StatelessWidget {
+  const _MissingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Gravação não encontrada', style: Theme.of(context).textTheme.headlineMedium),
+                const SizedBox(height: 8),
+                const Text('A rota aponta para um item que não está no projeto ativo ou não existe mais.'),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => context.go('/library'),
+                  icon: const Icon(Icons.library_books_rounded),
+                  label: const Text('Voltar para a biblioteca'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
-class _BulletLine extends StatelessWidget {
-  const _BulletLine({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 6),
-          child: Icon(Icons.circle, size: 8),
-        ),
-        const SizedBox(width: 10),
-        Expanded(child: Text(text)),
-      ],
-    );
+void _goToIndex(BuildContext context, int index) {
+  switch (index) {
+    case 0:
+      context.go('/home');
+      return;
+    case 1:
+      context.go('/library');
+      return;
+    case 2:
+      context.go('/settings');
+      return;
   }
 }

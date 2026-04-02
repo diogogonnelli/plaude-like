@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 ThemeData buildPlaudeTheme() {
-  const background = Color(0xFFF4EFE7);
+  const background = Color(0xFFF7F0E5);
   const surface = Color(0xFFFFFBF6);
-  const ink = Color(0xFF1D1B1A);
-  const accent = Color(0xFFDA6B2D);
-  const olive = Color(0xFF53624B);
+  const ink = Color(0xFF221B16);
+  const accent = Color(0xFFD97706);
+  const secondary = Color(0xFF6B7280);
 
   final scheme = ColorScheme.fromSeed(
     seedColor: accent,
@@ -14,57 +14,61 @@ ThemeData buildPlaudeTheme() {
     surface: surface,
   ).copyWith(
     primary: accent,
-    secondary: olive,
+    secondary: secondary,
     onPrimary: Colors.white,
     surface: surface,
     onSurface: ink,
     outline: const Color(0xFFD8CFC2),
   );
 
-  final baseText = GoogleFonts.spaceGroteskTextTheme();
-  final bodyText = GoogleFonts.dmSansTextTheme(baseText);
+  final textTheme = GoogleFonts.plusJakartaSansTextTheme().copyWith(
+    displayLarge: GoogleFonts.plusJakartaSans(
+      fontSize: 52,
+      fontWeight: FontWeight.w800,
+      color: ink,
+    ),
+    headlineLarge: GoogleFonts.plusJakartaSans(
+      fontSize: 34,
+      fontWeight: FontWeight.w800,
+      color: ink,
+    ),
+    headlineMedium: GoogleFonts.plusJakartaSans(
+      fontSize: 24,
+      fontWeight: FontWeight.w700,
+      color: ink,
+    ),
+    titleLarge: GoogleFonts.plusJakartaSans(
+      fontSize: 18,
+      fontWeight: FontWeight.w700,
+      color: ink,
+    ),
+    titleMedium: GoogleFonts.plusJakartaSans(
+      fontSize: 16,
+      fontWeight: FontWeight.w700,
+      color: ink,
+    ),
+    bodyLarge: GoogleFonts.plusJakartaSans(
+      fontSize: 16,
+      color: ink,
+      height: 1.45,
+    ),
+    bodyMedium: GoogleFonts.plusJakartaSans(
+      fontSize: 14,
+      color: ink,
+      height: 1.45,
+    ),
+    labelLarge: GoogleFonts.plusJakartaSans(
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      color: ink,
+    ),
+  );
 
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: background,
-    textTheme: bodyText.copyWith(
-      displayLarge: GoogleFonts.spaceGrotesk(
-        fontSize: 56,
-        fontWeight: FontWeight.w700,
-        color: ink,
-      ),
-      headlineLarge: GoogleFonts.spaceGrotesk(
-        fontSize: 34,
-        fontWeight: FontWeight.w700,
-        color: ink,
-      ),
-      headlineMedium: GoogleFonts.spaceGrotesk(
-        fontSize: 24,
-        fontWeight: FontWeight.w700,
-        color: ink,
-      ),
-      titleLarge: GoogleFonts.spaceGrotesk(
-        fontSize: 18,
-        fontWeight: FontWeight.w600,
-        color: ink,
-      ),
-      bodyLarge: GoogleFonts.dmSans(
-        fontSize: 16,
-        color: ink,
-        height: 1.45,
-      ),
-      bodyMedium: GoogleFonts.dmSans(
-        fontSize: 14,
-        color: ink,
-        height: 1.45,
-      ),
-      labelLarge: GoogleFonts.spaceGrotesk(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.2,
-      ),
-    ),
+    textTheme: textTheme,
     cardTheme: CardThemeData(
       elevation: 0,
       color: surface,
@@ -78,9 +82,9 @@ ThemeData buildPlaudeTheme() {
       backgroundColor: Colors.white,
       side: const BorderSide(color: Color(0xFFD8CFC2)),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-      labelStyle: GoogleFonts.spaceGrotesk(
+      labelStyle: GoogleFonts.plusJakartaSans(
         fontSize: 12,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
         color: ink,
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

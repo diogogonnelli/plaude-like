@@ -8,17 +8,13 @@ import 'models.dart';
 class PlaudeApi {
   PlaudeApi({
     required this.baseUrl,
+    this.accessTokenProvider,
     http.Client? client,
   }) : _client = client ?? http.Client();
 
   final String baseUrl;
+  final Future<String?> Function()? accessTokenProvider;
   final http.Client _client;
-  final Map<String, String> _headers = const {
-    'content-type': 'application/json',
-    'x-user-id': 'demo-user',
-    'cache-control': 'no-cache',
-    'pragma': 'no-cache',
-  };
 
   Uri _uri(String path, [Map<String, String>? query]) {
     return Uri.parse(baseUrl).replace(
@@ -27,12 +23,32 @@ class PlaudeApi {
     );
   }
 
+  Future<Map<String, String>> _headers({bool includeJsonContentType = true}) async {
+    final headers = <String, String>{
+      'cache-control': 'no-cache',
+      'pragma': 'no-cache',
+    };
+
+    if (includeJsonContentType) {
+      headers['content-type'] = 'application/json';
+    }
+
+    final token = await accessTokenProvider?.call();
+    if (token != null && token.isNotEmpty) {
+      headers['authorization'] = 'Bearer $token';
+    } else {
+      headers['x-user-id'] = 'demo-user';
+    }
+
+    return headers;
+  }
+
   Future<bool> isHealthy() async {
     final response = await _client.get(
       _uri('/health', {
         '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
       }),
-      headers: _headers,
+      headers: await _headers(),
     );
     return response.statusCode >= 200 && response.statusCode < 300;
   }
@@ -50,7 +66,7 @@ class PlaudeApi {
 
     final response = await _client.get(
       _uri('/recordings', requestQuery),
-      headers: _headers,
+      headers: await _headers(),
     );
     final payload = _decode(response);
     final raw = payload['data'] as List<dynamic>;
@@ -62,7 +78,7 @@ class PlaudeApi {
       _uri('/projects', {
         '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
       }),
-      headers: _headers,
+      headers: await _headers(),
     );
     final payload = _decode(response);
     final raw = payload['data'] as List<dynamic>;
@@ -90,7 +106,7 @@ class PlaudeApi {
 
     final response = await _client.post(
       _uri('/recordings'),
-      headers: _headers,
+      headers: await _headers(),
       body: jsonEncode(requestPayload),
     );
     final payload = _decode(response);
@@ -105,7 +121,7 @@ class PlaudeApi {
     int? durationMs,
   }) async {
     final request = http.MultipartRequest('POST', _uri('/recordings/upload'));
-    request.headers['x-user-id'] = _headers['x-user-id']!;
+    request.headers.addAll(await _headers(includeJsonContentType: false));
     request.fields['title'] = title;
     request.fields['projectId'] = projectId;
     request.fields['sourceType'] = sourceType;
@@ -150,7 +166,7 @@ class PlaudeApi {
 
     final response = await _client.post(
       _uri('/recordings/$recordingId/process'),
-      headers: _headers,
+      headers: await _headers(),
       body: jsonEncode(requestPayload),
     );
     final payload = _decode(response);
@@ -162,7 +178,7 @@ class PlaudeApi {
       _uri('/recordings/$recordingId', {
         '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
       }),
-      headers: _headers,
+      headers: await _headers(),
     );
     final payload = _decode(response);
     return RecordingNote.fromJson(payload['data'] as Map<String, dynamic>);
@@ -174,7 +190,7 @@ class PlaudeApi {
   }) async {
     final response = await _client.post(
       _uri('/recordings/$recordingId/chat'),
-      headers: _headers,
+      headers: await _headers(),
       body: jsonEncode({'question': question}),
     );
     final payload = _decode(response);
@@ -187,7 +203,7 @@ class PlaudeApi {
   }) async {
     final response = await _client.post(
       _uri('/recordings/$recordingId/export'),
-      headers: _headers,
+      headers: await _headers(),
       body: jsonEncode({'format': format}),
     );
     final payload = _decode(response);

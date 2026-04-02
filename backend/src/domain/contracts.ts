@@ -13,10 +13,13 @@ import type {
 export interface RecordingRepository {
   list(userId: string, filters?: { query?: string; tag?: string; projectId?: string }): Promise<Recording[]>;
   getById(recordingId: string, userId: string): Promise<Recording | null>;
+  getAnyById(recordingId: string): Promise<Recording | null>;
   create(userId: string, input: CreateRecordingInput): Promise<Recording>;
   update(recording: Recording): Promise<Recording>;
   listProjects(userId: string): Promise<Project[]>;
+  listAllProjects(filters?: { query?: string; status?: Project['status'] }): Promise<Project[]>;
   getProject(projectId: string, userId: string): Promise<Project | null>;
+  getProjectById(projectId: string): Promise<Project | null>;
   createProject(userId: string, input: { name: string; slug: string }): Promise<Project>;
   updateProject(
     userId: string,
@@ -24,12 +27,18 @@ export interface RecordingRepository {
     input: { name?: string; slug?: string; status?: Project['status'] },
   ): Promise<Project>;
   listProjectMembers(requesterUserId: string, projectId: string): Promise<ProjectMember[]>;
+  listProjectMembersAdmin(projectId: string): Promise<ProjectMember[]>;
   addProjectMember(
     requesterUserId: string,
     projectId: string,
     member: { userId: string; role: ProjectMemberRole },
   ): Promise<ProjectMember>;
+  addProjectMemberAdmin(
+    projectId: string,
+    member: { userId: string; role: ProjectMemberRole },
+  ): Promise<ProjectMember>;
   removeProjectMember(requesterUserId: string, projectId: string, memberUserId: string): Promise<void>;
+  removeProjectMemberAdmin(projectId: string, memberUserId: string): Promise<void>;
   listAllRecordings(filters?: {
     query?: string;
     projectId?: string;

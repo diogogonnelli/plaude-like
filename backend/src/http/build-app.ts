@@ -9,6 +9,11 @@ import { config } from '../lib/config.js';
 import { ServiceError, isServiceError } from '../services/service-errors.js';
 import type { RecordingService } from '../services/recording-service.js';
 import { buildOpenApiDocument } from './openapi.js';
+import {
+  SupabaseRequestAuthProvider,
+  type RequestAuth,
+  type RequestAuthProvider,
+} from './request-auth.js';
 
 const userHeader = 'x-user-id';
 
@@ -98,6 +103,10 @@ function getUserId(request: express.Request) {
   return request.header(userHeader) ?? 'demo-user';
 }
 
+function setRequestAuth(request: express.Request, auth: RequestAuth) {
+  (request as express.Request & { auth?: RequestAuth }).auth = auth;
+}
+
 function parseError(error: unknown) {
   if (error instanceof z.ZodError) {
     return {
@@ -164,8 +173,13 @@ function slugify(value: string) {
     .slice(0, 60) || 'project';
 }
 
-export function buildApp(recordingService: RecordingService) {
+export interface BuildAppOptions {
+  authProvider?: RequestAuthProvider;
+}
+
+export function buildApp(recordingService: RecordingService, options: BuildAppOptions = {}) {
   const app = express();
+  const authProvider = options.authProvider ?? new SupabaseRequestAuthProvider();
   const openApiDocument = buildOpenApiDocument(config.APP_BASE_URL);
   const upload = multer({
     dest: tmpdir(),
@@ -175,6 +189,23 @@ export function buildApp(recordingService: RecordingService) {
   });
   app.use(cors());
   app.use(express.json({ limit: '8mb' }));
+
+  const withAuth = (
+    handler: (
+      request: express.Request,
+      response: express.Response,
+      auth: RequestAuth,
+    ) => Promise<void>,
+    routeOptions: { admin?: boolean } = {},
+  ) =>
+    asyncRoute(async (request, response) => {
+      const auth = await authProvider.getRequestAuth(request);
+      setRequestAuth(request, auth);
+      if (routeOptions.admin) {
+        await authProvider.ensureAdmin(auth);
+      }
+      await handler(request, response, auth);
+    });
 
   app.get('/openapi.json', (_request, response) => {
     response.json(openApiDocument);
@@ -198,7 +229,7 @@ export function buildApp(recordingService: RecordingService) {
 
   app.get(
     '/recordings',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response, auth) => {
       const query = z
         .object({
           query: z.string().min(1).optional(),
@@ -209,37 +240,37 @@ export function buildApp(recordingService: RecordingService) {
         .strict()
         .parse(request.query);
 
-      const recordings = await recordingService.list(getUserId(request), query);
+      const recordings = await recordingService.list(auth.userId, query);
       response.json({ data: recordings });
     }),
   );
 
   app.get(
     '/projects',
-    asyncRoute(async (request, response) => {
-      const projects = await recordingService.listProjects(getUserId(request));
+    withAuth(async (_request, response, auth) => {
+      const projects = await recordingService.listProjects(auth.userId);
       response.json({ data: projects });
     }),
   );
 
   app.get(
     '/projects/:id',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response, auth) => {
       const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
-      const project = await recordingService.getProjectOrThrow(params.id, getUserId(request));
+      const project = await recordingService.getProjectOrThrow(params.id, auth.userId);
       response.json({ data: project });
     }),
   );
 
   app.post(
     '/recordings',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response, auth) => {
       const body = createRecordingSchema.parse(request.body ?? {});
-      const recording = await recordingService.create(getUserId(request), body);
+      const recording = await recordingService.create(auth.userId, body);
       response.status(201).json({
         data: recording,
         upload: {
-          bucket: 'recordings',
+          bucket: config.SUPABASE_STORAGE_BUCKET,
           objectPath: recording.audioPath ?? `${recording.id}.m4a`,
         },
       });
@@ -249,14 +280,14 @@ export function buildApp(recordingService: RecordingService) {
   app.post(
     '/recordings/upload',
     upload.single('file'),
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response, auth) => {
       const file = request.file;
       if (!file) {
         throw new ServiceError('Arquivo de audio nao enviado.', 400, 'audio_file_missing');
       }
 
       const body = uploadRecordingSchema.parse(request.body ?? {});
-      const recording = await recordingService.uploadAndStartTranscription(getUserId(request), {
+      const recording = await recordingService.uploadAndStartTranscription(auth.userId, {
         title: body.title,
         projectId: body.projectId,
         sourceType: body.sourceType,
@@ -272,7 +303,7 @@ export function buildApp(recordingService: RecordingService) {
 
   app.post(
     '/recordings/:id/process',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response, auth) => {
       const params = z
         .object({
           id: z.string().min(1),
@@ -280,28 +311,28 @@ export function buildApp(recordingService: RecordingService) {
         .strict()
         .parse(request.params);
       const body = processRecordingSchema.parse(request.body ?? {});
-      const recording = await recordingService.process(params.id, getUserId(request), body);
+      const recording = await recordingService.process(params.id, auth.userId, body);
       response.json({ data: recording });
     }),
   );
 
   app.get(
     '/recordings/:id',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response, auth) => {
       const params = z
         .object({
           id: z.string().min(1),
         })
         .strict()
         .parse(request.params);
-      const recording = await recordingService.getOrThrow(params.id, getUserId(request));
+      const recording = await recordingService.getOrThrow(params.id, auth.userId);
       response.json({ data: recording });
     }),
   );
 
   app.post(
     '/recordings/:id/chat',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response, auth) => {
       const params = z
         .object({
           id: z.string().min(1),
@@ -309,14 +340,14 @@ export function buildApp(recordingService: RecordingService) {
         .strict()
         .parse(request.params);
       const body = chatSchema.parse(request.body ?? {});
-      const payload = await recordingService.answerQuestion(params.id, getUserId(request), body.question);
+      const payload = await recordingService.answerQuestion(params.id, auth.userId, body.question);
       response.json(payload);
     }),
   );
 
   app.post(
     '/recordings/:id/export',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response, auth) => {
       const params = z
         .object({
           id: z.string().min(1),
@@ -324,7 +355,7 @@ export function buildApp(recordingService: RecordingService) {
         .strict()
         .parse(request.params);
       const body = exportSchema.parse(request.body ?? {});
-      const artifact = await recordingService.export(params.id, getUserId(request), body.format);
+      const artifact = await recordingService.export(params.id, auth.userId, body.format);
       response.json({ data: artifact });
     }),
   );
@@ -398,7 +429,7 @@ export function buildApp(recordingService: RecordingService) {
 
   app.get(
     '/admin/dashboard',
-    asyncRoute(async (_request, response) => {
+    withAuth(async (_request, response) => {
       const recordings = await recordingService.listAdminRecordings();
       response.json({
         data: {
@@ -408,61 +439,94 @@ export function buildApp(recordingService: RecordingService) {
           ready: recordings.filter((item) => item.status === 'ready').length,
         },
       });
-    }),
+    }, { admin: true }),
+  );
+
+  app.get(
+    '/admin/me',
+    withAuth(async (_request, response, auth) => {
+      response.json({
+        data: {
+          userId: auth.userId,
+          email: auth.email,
+          source: auth.source,
+          authEnforced: authProvider.isAuthEnforced(),
+          isAdmin: true,
+        },
+      });
+    }, { admin: true }),
   );
 
   app.get(
     '/admin/projects',
-    asyncRoute(async (_request, response) => {
-      const projects = await recordingService.listProjects('demo-user');
+    withAuth(async (request, response) => {
+      const query = z
+        .object({
+          query: z.string().min(1).optional(),
+          status: z.enum(['active', 'archived']).optional(),
+        })
+        .strict()
+        .parse(request.query);
+      const projects = await recordingService.listAdminProjects(query);
       response.json({ data: projects });
-    }),
+    }, { admin: true }),
+  );
+
+  app.get(
+    '/admin/projects/:id',
+    withAuth(async (request, response) => {
+      const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
+      const project = await recordingService.getAdminProjectOrThrow(params.id);
+      response.json({ data: project });
+    }, { admin: true }),
   );
 
   app.post(
     '/admin/projects',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response, auth) => {
       const body = projectSchema.parse(request.body ?? {});
-      const project = await recordingService.createProject('demo-user', {
+      const project = await recordingService.createProject(auth.userId, {
         name: body.name,
         slug: body.slug ?? slugify(body.name),
       });
       response.status(201).json({ data: project });
-    }),
+    }, { admin: true }),
   );
 
   app.patch(
     '/admin/projects/:id',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response, auth) => {
       const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
       const body = projectPatchSchema.parse(request.body ?? {});
-      const project = await recordingService.updateProject('demo-user', params.id, body);
+      const project = await recordingService.updateProject(auth.userId, params.id, body);
       response.json({ data: project });
-    }),
+    }, { admin: true }),
   );
 
   app.get(
     '/admin/projects/:id/members',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response) => {
       const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
-      const members = await recordingService.listProjectMembers('demo-user', params.id);
+      await recordingService.getAdminProjectOrThrow(params.id);
+      const members = await recordingService.listProjectMembersAdmin(params.id);
       response.json({ data: members });
-    }),
+    }, { admin: true }),
   );
 
   app.post(
     '/admin/projects/:id/members',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response) => {
       const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
       const body = projectMemberSchema.parse(request.body ?? {});
-      const member = await recordingService.addProjectMember('demo-user', params.id, body);
+      await recordingService.getAdminProjectOrThrow(params.id);
+      const member = await recordingService.addProjectMemberAdmin(params.id, body);
       response.status(201).json({ data: member });
-    }),
+    }, { admin: true }),
   );
 
   app.delete(
     '/admin/projects/:id/members/:userId',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response) => {
       const params = z
         .object({
           id: z.string().min(1),
@@ -470,14 +534,15 @@ export function buildApp(recordingService: RecordingService) {
         })
         .strict()
         .parse(request.params);
-      await recordingService.removeProjectMember('demo-user', params.id, params.userId);
+      await recordingService.getAdminProjectOrThrow(params.id);
+      await recordingService.removeProjectMemberAdmin(params.id, params.userId);
       response.status(204).send();
-    }),
+    }, { admin: true }),
   );
 
   app.get(
     '/admin/recordings',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response) => {
       const query = z
         .object({
           query: z.string().min(1).optional(),
@@ -489,31 +554,40 @@ export function buildApp(recordingService: RecordingService) {
         .parse(request.query);
       const recordings = await recordingService.listAdminRecordings(query);
       response.json({ data: recordings });
-    }),
+    }, { admin: true }),
   );
 
   app.get(
     '/admin/recordings/:id',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response) => {
       const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
-      const recording = await recordingService.getOrThrow(params.id, 'demo-user');
+      const recording = await recordingService.getAdminRecordingOrThrow(params.id);
       response.json({ data: recording });
-    }),
+    }, { admin: true }),
   );
 
   app.post(
     '/admin/recordings/:id/reprocess',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response) => {
       const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
-      const recording = await recordingService.process(params.id, 'demo-user');
+      const recording = await recordingService.processAdmin(params.id);
       response.json({ data: recording });
-    }),
+    }, { admin: true }),
   );
 
   app.get(
     '/admin/jobs',
-    asyncRoute(async (_request, response) => {
-      const recordings = await recordingService.listAdminRecordings();
+    withAuth(async (request, response) => {
+      const query = z
+        .object({
+          query: z.string().min(1).optional(),
+          projectId: z.string().min(1).optional(),
+          userId: z.string().min(1).optional(),
+          status: z.enum(['uploaded', 'processing_transcript', 'processing_summary', 'indexing', 'ready', 'failed']).optional(),
+        })
+        .strict()
+        .parse(request.query);
+      const recordings = await recordingService.listAdminRecordings(query);
       response.json({
         data: recordings.map((recording) => ({
           recordingId: recording.id,
@@ -527,12 +601,12 @@ export function buildApp(recordingService: RecordingService) {
           lastError: recording.lastError,
         })),
       });
-    }),
+    }, { admin: true }),
   );
 
   app.get(
     '/admin/providers',
-    asyncRoute(async (_request, response) => {
+    withAuth(async (_request, response) => {
       response.json({
         data: {
           aiProvider: config.AI_PROVIDER,
@@ -542,12 +616,12 @@ export function buildApp(recordingService: RecordingService) {
           supabaseStorageBucket: config.SUPABASE_STORAGE_BUCKET,
         },
       });
-    }),
+    }, { admin: true }),
   );
 
   app.patch(
     '/admin/providers',
-    asyncRoute(async (request, response) => {
+    withAuth(async (request, response) => {
       const body = z
         .object({
           aiProvider: z.enum(['mock', 'openai']).optional(),
@@ -562,7 +636,7 @@ export function buildApp(recordingService: RecordingService) {
           requested: body,
         },
       });
-    }),
+    }, { admin: true }),
   );
 
   app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {

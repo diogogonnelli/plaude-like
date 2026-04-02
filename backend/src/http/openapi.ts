@@ -4,7 +4,8 @@ export function buildOpenApiDocument(baseUrl: string) {
     info: {
       title: 'Plaude Like API',
       version: '1.0.0',
-      description: 'API HTTP para ingestao, transcricao, resumo, chat e exportacao de notas de audio.',
+      description:
+        'API HTTP autenticada para projetos, gravações, chat e superfícies administrativas operacionais.',
     },
     servers: [
       {
@@ -18,13 +19,19 @@ export function buildOpenApiDocument(baseUrl: string) {
       { name: 'Chat', description: 'Perguntas sobre uma nota pronta' },
       { name: 'Export', description: 'Exportacao textual da nota' },
       { name: 'Webhooks', description: 'Callbacks de provedores externos' },
-      { name: 'Admin', description: 'Superficie administrativa e operacional' },
+      { name: 'Admin', description: 'Superficie administrativa e operacional para contas allowlisted em admin_users' },
+    ],
+    security: [
+      {
+        bearerAuth: [],
+      },
     ],
     paths: {
       '/health': {
         get: {
           tags: ['System'],
           summary: 'Healthcheck do backend',
+          security: [],
           responses: {
             '200': {
               description: 'Servico disponivel',
@@ -49,13 +56,6 @@ export function buildOpenApiDocument(baseUrl: string) {
           tags: ['Recordings'],
           summary: 'Lista gravacoes do usuario atual',
           parameters: [
-            {
-              in: 'header',
-              name: 'x-user-id',
-              required: false,
-              schema: { type: 'string' },
-              description: 'Identificador do usuario. Em dev, o padrao e demo-user.',
-            },
             {
               in: 'query',
               name: 'query',
@@ -393,6 +393,7 @@ export function buildOpenApiDocument(baseUrl: string) {
         post: {
           tags: ['Webhooks'],
           summary: 'Webhook generico de transcricao',
+          security: [],
           responses: {
             '202': {
               description: 'Webhook aceito',
@@ -404,6 +405,7 @@ export function buildOpenApiDocument(baseUrl: string) {
         post: {
           tags: ['Webhooks'],
           summary: 'Webhook especifico do AssemblyAI',
+          security: [],
           parameters: [
             {
               in: 'query',
@@ -432,10 +434,21 @@ export function buildOpenApiDocument(baseUrl: string) {
           responses: { '200': { description: 'Dashboard operacional' } },
         },
       },
+      '/admin/me': {
+        get: {
+          tags: ['Admin'],
+          summary: 'Valida a sessao administrativa atual',
+          responses: { '200': { description: 'Sessao admin validada' } },
+        },
+      },
       '/admin/projects': {
         get: {
           tags: ['Admin'],
           summary: 'Lista projetos para o admin',
+          parameters: [
+            { in: 'query', name: 'query', required: false, schema: { type: 'string' } },
+            { in: 'query', name: 'status', required: false, schema: { type: 'string', enum: ['active', 'archived'] } },
+          ],
           responses: { '200': { description: 'Lista de projetos admin' } },
         },
         post: {
@@ -445,6 +458,14 @@ export function buildOpenApiDocument(baseUrl: string) {
         },
       },
       '/admin/projects/{id}': {
+        get: {
+          tags: ['Admin'],
+          summary: 'Busca um projeto por id para o admin',
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+          ],
+          responses: { '200': { description: 'Projeto encontrado' } },
+        },
         patch: {
           tags: ['Admin'],
           summary: 'Atualiza projeto',
@@ -487,6 +508,20 @@ export function buildOpenApiDocument(baseUrl: string) {
         get: {
           tags: ['Admin'],
           summary: 'Lista gravacoes para o backoffice',
+          parameters: [
+            { in: 'query', name: 'query', required: false, schema: { type: 'string' } },
+            { in: 'query', name: 'projectId', required: false, schema: { type: 'string' } },
+            { in: 'query', name: 'userId', required: false, schema: { type: 'string' } },
+            {
+              in: 'query',
+              name: 'status',
+              required: false,
+              schema: {
+                type: 'string',
+                enum: ['uploaded', 'processing_transcript', 'processing_summary', 'indexing', 'ready', 'failed'],
+              },
+            },
+          ],
           responses: { '200': { description: 'Lista de gravacoes admin' } },
         },
       },
@@ -514,6 +549,19 @@ export function buildOpenApiDocument(baseUrl: string) {
         get: {
           tags: ['Admin'],
           summary: 'Lista jobs operacionais de transcricao',
+          parameters: [
+            { in: 'query', name: 'query', required: false, schema: { type: 'string' } },
+            { in: 'query', name: 'projectId', required: false, schema: { type: 'string' } },
+            {
+              in: 'query',
+              name: 'status',
+              required: false,
+              schema: {
+                type: 'string',
+                enum: ['uploaded', 'processing_transcript', 'processing_summary', 'indexing', 'ready', 'failed'],
+              },
+            },
+          ],
           responses: { '200': { description: 'Lista de jobs' } },
         },
       },
@@ -531,6 +579,15 @@ export function buildOpenApiDocument(baseUrl: string) {
       },
     },
     components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description:
+            'Use o access token do Supabase Auth. O header x-user-id fica apenas como fallback de desenvolvimento quando auth nao estiver configurada.',
+        },
+      },
       responses: {
         ValidationError: {
           description: 'Erro de validacao',

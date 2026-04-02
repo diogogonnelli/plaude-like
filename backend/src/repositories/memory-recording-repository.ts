@@ -99,6 +99,15 @@ export class MemoryRecordingRepository implements RecordingRepository {
     return structuredClone(recording);
   }
 
+  async getAnyById(recordingId: string): Promise<Recording | null> {
+    if (this.persistenceMode === 'supabase') {
+      return this.fetchGraph(recordingId, 'admin');
+    }
+
+    const recording = this.recordings.get(recordingId);
+    return recording ? structuredClone(recording) : null;
+  }
+
   async create(userId: string, input: CreateRecordingInput): Promise<Recording> {
     if (!input.projectId) {
       throw new ServiceError('projectId is required.', 400, 'project_id_required');
@@ -166,6 +175,17 @@ export class MemoryRecordingRepository implements RecordingRepository {
       .map((project) => structuredClone(project));
   }
 
+  async listAllProjects(filters?: { query?: string; status?: Project['status'] }): Promise<Project[]> {
+    if (this.persistenceMode === 'supabase') {
+      return this.listAllProjectsFromSupabase(filters);
+    }
+
+    return [...this.projects.values()]
+      .filter((project) => matchesProjectFilters(project, filters))
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .map((project) => structuredClone(project));
+  }
+
   async getProject(projectId: string, userId: string): Promise<Project | null> {
     if (this.persistenceMode === 'supabase') {
       return this.getProjectFromSupabase(projectId, userId);
@@ -182,6 +202,15 @@ export class MemoryRecordingRepository implements RecordingRepository {
     }
 
     return structuredClone(project);
+  }
+
+  async getProjectById(projectId: string): Promise<Project | null> {
+    if (this.persistenceMode === 'supabase') {
+      return this.getProjectByIdFromSupabase(projectId);
+    }
+
+    const project = this.projects.get(projectId);
+    return project ? structuredClone(project) : null;
   }
 
   async createProject(userId: string, input: { name: string; slug: string }): Promise<Project> {
@@ -245,6 +274,14 @@ export class MemoryRecordingRepository implements RecordingRepository {
     return structuredClone(this.projectMembers.get(projectId) ?? []);
   }
 
+  async listProjectMembersAdmin(projectId: string): Promise<ProjectMember[]> {
+    if (this.persistenceMode === 'supabase') {
+      return this.listProjectMembersAdminFromSupabase(projectId);
+    }
+
+    return structuredClone(this.projectMembers.get(projectId) ?? []);
+  }
+
   async addProjectMember(
     requesterUserId: string,
     projectId: string,
@@ -272,6 +309,31 @@ export class MemoryRecordingRepository implements RecordingRepository {
     return structuredClone(projectMember);
   }
 
+  async addProjectMemberAdmin(
+    projectId: string,
+    member: { userId: string; role: ProjectMemberRole },
+  ): Promise<ProjectMember> {
+    if (this.persistenceMode === 'supabase') {
+      return this.addProjectMemberAdminInSupabase(projectId, member);
+    }
+
+    const members = this.projectMembers.get(projectId) ?? [];
+    const existing = members.find((current) => current.userId === member.userId);
+    if (existing) {
+      return structuredClone(existing);
+    }
+
+    const projectMember: ProjectMember = {
+      projectId,
+      userId: member.userId,
+      role: member.role,
+      createdAt: nowIso(),
+    };
+    members.push(projectMember);
+    this.projectMembers.set(projectId, members);
+    return structuredClone(projectMember);
+  }
+
   async removeProjectMember(requesterUserId: string, projectId: string, memberUserId: string): Promise<void> {
     if (this.persistenceMode === 'supabase') {
       await this.removeProjectMemberFromSupabase(requesterUserId, projectId, memberUserId);
@@ -279,6 +341,19 @@ export class MemoryRecordingRepository implements RecordingRepository {
     }
 
     await this.ensureProjectOwner(requesterUserId, projectId);
+    const members = this.projectMembers.get(projectId) ?? [];
+    this.projectMembers.set(
+      projectId,
+      members.filter((member) => member.userId !== memberUserId),
+    );
+  }
+
+  async removeProjectMemberAdmin(projectId: string, memberUserId: string): Promise<void> {
+    if (this.persistenceMode === 'supabase') {
+      await this.removeProjectMemberAdminFromSupabase(projectId, memberUserId);
+      return;
+    }
+
     const members = this.projectMembers.get(projectId) ?? [];
     this.projectMembers.set(
       projectId,
@@ -519,9 +594,66 @@ export class MemoryRecordingRepository implements RecordingRepository {
       .sort((left, right) => left.name.localeCompare(right.name));
   }
 
+  private async listAllProjectsFromSupabase(filters?: {
+    query?: string;
+    status?: Project['status'];
+  }): Promise<Project[]> {
+    const supabase = this.ensureSupabaseClient();
+    let query = supabase
+      .from('projects')
+      .select('id,name,slug,status,created_at,updated_at')
+      .order('name', { ascending: true });
+
+    if (filters?.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      throw wrapSupabaseError('Falha ao listar projetos admin.', error);
+    }
+
+    return (data ?? [])
+      .map((project) => ({
+        id: String(project.id),
+        name: String(project.name),
+        slug: String(project.slug),
+        status: project.status as Project['status'],
+        createdAt: String(project.created_at),
+        updatedAt: String(project.updated_at),
+      }))
+      .filter((project) => matchesProjectFilters(project, filters));
+  }
+
   private async getProjectFromSupabase(projectId: string, userId: string): Promise<Project | null> {
     const projects = await this.listProjectsFromSupabase(userId);
     return projects.find((project) => project.id === projectId) ?? null;
+  }
+
+  private async getProjectByIdFromSupabase(projectId: string): Promise<Project | null> {
+    const supabase = this.ensureSupabaseClient();
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id,name,slug,status,created_at,updated_at')
+      .eq('id', projectId)
+      .maybeSingle();
+
+    if (error) {
+      throw wrapSupabaseError('Falha ao buscar projeto admin.', error);
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    return {
+      id: String(data.id),
+      name: String(data.name),
+      slug: String(data.slug),
+      status: data.status as Project['status'],
+      createdAt: String(data.created_at),
+      updatedAt: String(data.updated_at),
+    };
   }
 
   private async createProjectInSupabase(userId: string, input: { name: string; slug: string }): Promise<Project> {
@@ -597,6 +729,10 @@ export class MemoryRecordingRepository implements RecordingRepository {
 
   private async listProjectMembersFromSupabase(requesterUserId: string, projectId: string): Promise<ProjectMember[]> {
     await this.ensureProjectMembership(requesterUserId, projectId);
+    return this.listProjectMembersAdminFromSupabase(projectId);
+  }
+
+  private async listProjectMembersAdminFromSupabase(projectId: string): Promise<ProjectMember[]> {
     const supabase = this.ensureSupabaseClient();
     const { data, error } = await supabase
       .from('project_members')
@@ -622,6 +758,13 @@ export class MemoryRecordingRepository implements RecordingRepository {
     member: { userId: string; role: ProjectMemberRole },
   ): Promise<ProjectMember> {
     await this.ensureProjectOwner(requesterUserId, projectId);
+    return this.addProjectMemberAdminInSupabase(projectId, member);
+  }
+
+  private async addProjectMemberAdminInSupabase(
+    projectId: string,
+    member: { userId: string; role: ProjectMemberRole },
+  ): Promise<ProjectMember> {
     const supabase = this.ensureSupabaseClient();
     const { data, error } = await supabase
       .from('project_members')
@@ -651,6 +794,13 @@ export class MemoryRecordingRepository implements RecordingRepository {
     memberUserId: string,
   ): Promise<void> {
     await this.ensureProjectOwner(requesterUserId, projectId);
+    await this.removeProjectMemberAdminFromSupabase(projectId, memberUserId);
+  }
+
+  private async removeProjectMemberAdminFromSupabase(
+    projectId: string,
+    memberUserId: string,
+  ): Promise<void> {
     const supabase = this.ensureSupabaseClient();
     const { error } = await supabase
       .from('project_members')
@@ -756,6 +906,26 @@ function matchesFilters(
   }
 
   return true;
+}
+
+function matchesProjectFilters(
+  project: Project,
+  filters?: { query?: string; status?: Project['status'] },
+): boolean {
+  if (!filters) {
+    return true;
+  }
+
+  if (filters.status && project.status !== filters.status) {
+    return false;
+  }
+
+  const query = filters.query?.trim().toLowerCase();
+  if (!query) {
+    return true;
+  }
+
+  return [project.name, project.slug, project.id].some((value) => value.toLowerCase().includes(query));
 }
 
 function wrapSupabaseError(message: string, error: unknown): ServiceError {

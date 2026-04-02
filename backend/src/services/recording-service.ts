@@ -11,7 +11,6 @@ import type {
   Recording,
 } from '../domain/types.js';
 import { config } from '../lib/config.js';
-import { resolveStorageUserId } from '../lib/persistence.js';
 import { hasSupabasePersistenceConfig, uploadAudioToStorage } from '../lib/supabase-admin.js';
 import { AssemblyAiTranscriptionProvider } from './assemblyai-transcription-provider.js';
 import { ServiceError, isRetryableError, withRetries } from './service-errors.js';
@@ -75,8 +74,21 @@ export class RecordingService {
     return this.repository.listProjects(userId);
   }
 
+  listAdminProjects(filters?: { query?: string; status?: Project['status'] }) {
+    return this.repository.listAllProjects(filters);
+  }
+
   async getProjectOrThrow(projectId: string, userId: string): Promise<Project> {
     const project = await this.repository.getProject(projectId, userId);
+    if (!project) {
+      throw new ServiceError('Project not found', 404, 'project_not_found', { projectId });
+    }
+
+    return project;
+  }
+
+  async getAdminProjectOrThrow(projectId: string): Promise<Project> {
+    const project = await this.repository.getProjectById(projectId);
     if (!project) {
       throw new ServiceError('Project not found', 404, 'project_not_found', { projectId });
     }
@@ -100,6 +112,10 @@ export class RecordingService {
     return this.repository.listProjectMembers(userId, projectId);
   }
 
+  listProjectMembersAdmin(projectId: string) {
+    return this.repository.listProjectMembersAdmin(projectId);
+  }
+
   addProjectMember(
     userId: string,
     projectId: string,
@@ -108,8 +124,19 @@ export class RecordingService {
     return this.repository.addProjectMember(userId, projectId, member);
   }
 
+  addProjectMemberAdmin(
+    projectId: string,
+    member: { userId: string; role: ProjectMemberRole },
+  ) {
+    return this.repository.addProjectMemberAdmin(projectId, member);
+  }
+
   removeProjectMember(userId: string, projectId: string, memberUserId: string) {
     return this.repository.removeProjectMember(userId, projectId, memberUserId);
+  }
+
+  removeProjectMemberAdmin(projectId: string, memberUserId: string) {
+    return this.repository.removeProjectMemberAdmin(projectId, memberUserId);
   }
 
   listAdminRecordings(filters?: {
@@ -119,6 +146,17 @@ export class RecordingService {
     status?: Recording['status'];
   }) {
     return this.repository.listAllRecordings(filters);
+  }
+
+  async getAdminRecordingOrThrow(recordingId: string): Promise<Recording> {
+    const recording = await this.repository.getAnyById(recordingId);
+    if (!recording) {
+      throw new ServiceError('Recording not found', 404, 'recording_not_found', {
+        recordingId,
+      });
+    }
+
+    return recording;
   }
 
   async getOrThrow(recordingId: string, userId: string): Promise<Recording> {
@@ -166,7 +204,7 @@ export class RecordingService {
       }
 
       try {
-        const objectPath = buildAudioObjectPath(userId, recording.id, input.fileName);
+        const objectPath = buildAudioObjectPath(recording.projectId, recording.id, input.fileName);
         await uploadAudioToStorage({
           objectPath,
           filePath: input.filePath,
@@ -208,6 +246,15 @@ export class RecordingService {
 
   async process(recordingId: string, userId: string, input?: ProcessRecordingInput): Promise<Recording> {
     let recording = await this.getOrThrow(recordingId, userId);
+    return this.processLoadedRecording(recording, input);
+  }
+
+  async processAdmin(recordingId: string, input?: ProcessRecordingInput): Promise<Recording> {
+    const recording = await this.getAdminRecordingOrThrow(recordingId);
+    return this.processLoadedRecording(recording, input);
+  }
+
+  private async processLoadedRecording(recording: Recording, input?: ProcessRecordingInput): Promise<Recording> {
     const transcriptText = input?.transcriptText?.trim() || extractTranscriptText(recording);
 
     if (!transcriptText) {
@@ -377,7 +424,7 @@ export class RecordingService {
   }
 }
 
-function buildAudioObjectPath(userId: string, recordingId: string, fileName: string): string {
+function buildAudioObjectPath(projectId: string, recordingId: string, fileName: string): string {
   const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-  return `${resolveStorageUserId(userId)}/${recordingId}/${safeFileName}`;
+  return `${projectId}/${recordingId}/${safeFileName}`;
 }
