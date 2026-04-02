@@ -9,10 +9,12 @@ import 'package:plaude_like/state/plaude_controller.dart';
 import 'package:plaude_like/ui/app_shell.dart';
 
 Widget buildApp() {
+  final controller = PlaudeController(
+    api: PlaudeApi(baseUrl: 'http://localhost:8787'),
+  )..bootstrap();
+
   return ChangeNotifierProvider(
-    create: (_) => PlaudeController(
-      api: PlaudeApi(baseUrl: 'http://localhost:8787'),
-    ),
+    create: (_) => controller,
     child: const PlaudeApp(),
   );
 }
@@ -25,9 +27,10 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(buildApp());
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('Biblioteca de voz'), findsOneWidget);
+    expect(find.text('Inicio'), findsOneWidget);
     expect(find.text('Gravar'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
   });
@@ -39,10 +42,11 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(buildApp());
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(seconds: 1));
 
     expect(find.byType(NavigationRail), findsOneWidget);
-    expect(find.text('Enviar áudio'), findsOneWidget);
+    expect(find.text('Enviar audio'), findsOneWidget);
   });
 
   testWidgets('shows the route recovery state for unknown pages', (WidgetTester tester) async {

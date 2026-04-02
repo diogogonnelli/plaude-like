@@ -179,6 +179,8 @@ class _SummaryColumn extends StatelessWidget {
           children: [
             Chip(label: Text(recording.status.label)),
             Chip(label: Text(format.format(recording.createdAt.toLocal()))),
+            Chip(label: Text('Projeto ${recording.projectId}')),
+            Chip(label: Text('Autor ${recording.createdByUserId}')),
             Chip(label: Text(recording.sourceType)),
           ],
         ),

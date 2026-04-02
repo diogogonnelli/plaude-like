@@ -5,11 +5,14 @@ import type { Recording } from '../domain/types.js';
 export const demoUserId = 'demo-user';
 
 const recordingId = randomUUID();
+const projectId = 'project-demo';
 
 export const demoRecordings: Recording[] = [
   {
     id: recordingId,
     userId: demoUserId,
+    createdByUserId: demoUserId,
+    projectId,
     title: 'Sincronização de planejamento do lançamento',
     sourceType: 'upload',
     status: 'ready',

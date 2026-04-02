@@ -1,0 +1,161 @@
+:root {
+  color-scheme: light;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  background: #f6f3ee;
+  color: #1e1a18;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(180deg, #f8f4ef 0%, #eee6da 100%);
+}
+
+button {
+  font: inherit;
+}
+
+.admin-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  border-right: 1px solid #e5d7c6;
+  background: rgba(255, 251, 246, 0.9);
+  padding: 24px 18px;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.brand p {
+  margin: 8px 0 0;
+  color: #736b65;
+}
+
+.nav {
+  display: grid;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.nav-item {
+  border: 1px solid #ddceb9;
+  border-radius: 16px;
+  background: white;
+  padding: 14px 16px;
+  text-align: left;
+}
+
+.nav-item.active {
+  background: #2e2521;
+  color: white;
+  border-color: #2e2521;
+}
+
+.content {
+  padding: 24px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.topbar h2 {
+  margin: 0;
+  font-size: 32px;
+}
+
+.topbar p {
+  margin: 8px 0 0;
+  color: #6d645d;
+}
+
+.primary {
+  border: none;
+  border-radius: 999px;
+  background: #d97706;
+  color: white;
+  padding: 12px 18px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card,
+.panel {
+  border: 1px solid #e2d7c8;
+  border-radius: 24px;
+  background: rgba(255, 251, 246, 0.92);
+  padding: 18px;
+}
+
+.panel.error {
+  border-color: #f0b6a8;
+  background: #fff1ed;
+}
+
+.stat-card span {
+  display: block;
+  color: #776f67;
+  margin-bottom: 8px;
+}
+
+.stat-card strong {
+  font-size: 32px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.panel-header h3 {
+  margin: 0;
+}
+
+.panel-header button {
+  border: 1px solid #d9c9b3;
+  background: white;
+  border-radius: 999px;
+  padding: 8px 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  text-align: left;
+  padding: 12px 10px;
+  border-bottom: 1px solid #ece2d4;
+}
+
+th {
+  color: #6a625b;
+  font-weight: 600;
+}

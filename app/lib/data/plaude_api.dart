@@ -37,12 +37,15 @@ class PlaudeApi {
     return response.statusCode >= 200 && response.statusCode < 300;
   }
 
-  Future<List<RecordingNote>> listRecordings({String? query}) async {
+  Future<List<RecordingNote>> listRecordings({String? query, String? projectId}) async {
     final requestQuery = <String, String>{
       '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
     };
     if (query != null && query.isNotEmpty) {
       requestQuery['query'] = query;
+    }
+    if (projectId != null && projectId.isNotEmpty) {
+      requestQuery['projectId'] = projectId;
     }
 
     final response = await _client.get(
@@ -54,14 +57,28 @@ class PlaudeApi {
     return raw.map((item) => RecordingNote.fromJson(item as Map<String, dynamic>)).toList();
   }
 
+  Future<List<Project>> listProjects() async {
+    final response = await _client.get(
+      _uri('/projects', {
+        '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
+      }),
+      headers: _headers,
+    );
+    final payload = _decode(response);
+    final raw = payload['data'] as List<dynamic>;
+    return raw.map((item) => Project.fromJson(item as Map<String, dynamic>)).toList();
+  }
+
   Future<RecordingNote> createRecording({
     required String title,
+    required String projectId,
     required String sourceType,
     String? audioPath,
     int? durationMs,
   }) async {
     final requestPayload = <String, dynamic>{
       'title': title,
+      'projectId': projectId,
       'sourceType': sourceType,
     };
     if (audioPath != null) {
@@ -83,12 +100,14 @@ class PlaudeApi {
   Future<RecordingNote> uploadRecording({
     required PlatformFile file,
     required String title,
+    required String projectId,
     String sourceType = 'upload',
     int? durationMs,
   }) async {
     final request = http.MultipartRequest('POST', _uri('/recordings/upload'));
     request.headers['x-user-id'] = _headers['x-user-id']!;
     request.fields['title'] = title;
+    request.fields['projectId'] = projectId;
     request.fields['sourceType'] = sourceType;
     if (durationMs != null) {
       request.fields['durationMs'] = durationMs.toString();

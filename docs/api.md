@@ -58,6 +58,8 @@ Exemplo resumido:
 {
   "id": "uuid",
   "userId": "demo-user",
+  "createdByUserId": "demo-user",
+  "projectId": "project-demo",
   "title": "Audio curto",
   "sourceType": "upload",
   "status": "processing_transcript",
@@ -82,6 +84,29 @@ Exemplo resumido:
 ```
 
 ## Endpoints
+
+### `GET /projects`
+
+Lista os projetos do usuario atual.
+
+Resposta `200`:
+
+```json
+{
+  "data": [
+    {
+      "id": "project-demo",
+      "name": "Projeto demo",
+      "slug": "projeto-demo",
+      "status": "active"
+    }
+  ]
+}
+```
+
+### `GET /projects/:id`
+
+Busca um projeto especifico ao qual o usuario pertence.
 
 ### `GET /health`
 
@@ -136,6 +161,7 @@ Body:
 ```json
 {
   "title": "Nome da gravacao",
+  "projectId": "project-demo",
   "sourceType": "upload",
   "durationMs": 180000,
   "audioPath": "opcional"
@@ -168,6 +194,7 @@ Campos:
 
 - `file` obrigatorio
 - `title` obrigatorio
+- `projectId` obrigatorio
 - `sourceType` opcional, `upload` ou `microphone`
 - `durationMs` opcional
 
@@ -394,6 +421,26 @@ SUPABASE_PERSISTENCE_MODE=supabase
 SUPABASE_STORAGE_BUCKET=recordings
 APP_BASE_URL=https://seu-backend.up.railway.app
 ```
+
+## Endpoints administrativos
+
+Superficie administrativa atual:
+
+- `GET /admin/dashboard`
+- `GET /admin/projects`
+- `POST /admin/projects`
+- `PATCH /admin/projects/:id`
+- `GET /admin/projects/:id/members`
+- `POST /admin/projects/:id/members`
+- `DELETE /admin/projects/:id/members/:userId`
+- `GET /admin/recordings`
+- `GET /admin/recordings/:id`
+- `POST /admin/recordings/:id/reprocess`
+- `GET /admin/jobs`
+- `GET /admin/providers`
+- `PATCH /admin/providers`
+
+Esses endpoints foram pensados para o `admin-web/`.
 
 ## Observacoes
 

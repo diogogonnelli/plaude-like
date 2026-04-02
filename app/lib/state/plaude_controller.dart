@@ -20,6 +20,7 @@ class PlaudeController extends ChangeNotifier {
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _player = AudioPlayer();
 
+  List<Project> _projects = const [];
   List<RecordingNote> _recordings = [];
   bool _isLoading = true;
   bool _backendAvailable = false;
@@ -28,32 +29,28 @@ class PlaudeController extends ChangeNotifier {
   String? _recordingPath;
   String? _currentlyPlayingPath;
   String? _notice;
+  String? _activeProjectId;
   final Set<String> _processingIds = <String>{};
   final Set<String> _chatBusyIds = <String>{};
 
-  List<RecordingNote> get recordings {
-    if (_searchQuery.isEmpty) {
-      return _recordings;
-    }
-
-    final query = _searchQuery.toLowerCase();
-    return _recordings.where((recording) {
-      final haystack = [
-        recording.title,
-        recording.summary?.overview ?? '',
-        recording.noteArtifact?.tags.join(' ') ?? '',
-        recording.transcriptSegments.map((segment) => segment.text).join(' '),
-      ].join(' ').toLowerCase();
-
-      return haystack.contains(query);
-    }).toList();
-  }
-
+  List<Project> get projects => _projects;
   bool get isLoading => _isLoading;
   bool get backendAvailable => _backendAvailable;
   bool get isRecording => _isRecording;
   String? get notice => _notice;
   String get searchQuery => _searchQuery;
+  String? get activeProjectId => _activeProjectId;
+  Project? get activeProject {
+    if (_activeProjectId == null) return null;
+    for (final project in _projects) {
+      if (project.id == _activeProjectId) return project;
+    }
+    return null;
+  }
+
+  List<RecordingNote> get recordings {
+    return _filteredRecordings();
+  }
 
   Future<void> bootstrap() async {
     await refresh();
@@ -65,14 +62,22 @@ class PlaudeController extends ChangeNotifier {
 
     try {
       _backendAvailable = await api.isHealthy();
-      _recordings = _backendAvailable ? await api.listRecordings() : demoNotes;
-      _notice = _backendAvailable
-          ? 'Conectado ao backend.'
-          : 'Executando em modo de demonstração. Inicie o backend para usar a integração HTTP real.';
+      if (_backendAvailable) {
+        _projects = await api.listProjects();
+        _activeProjectId ??= _projects.isNotEmpty ? _projects.first.id : null;
+        _recordings = await api.listRecordings(
+          projectId: _activeProjectId,
+          query: _searchQuery.trim().isEmpty ? null : _searchQuery.trim(),
+        );
+        _notice = 'Conectado ao backend.';
+      } else {
+        _loadDemoData();
+        _notice = 'Executando em modo de demonstracao. Inicie o backend para usar a integracao HTTP real.';
+      }
     } catch (_) {
       _backendAvailable = false;
-      _recordings = demoNotes;
-      _notice = 'Backend indisponível. Exibindo dados locais de demonstração.';
+      _loadDemoData();
+      _notice = 'Backend indisponivel. Exibindo dados locais de demonstracao.';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -82,6 +87,14 @@ class PlaudeController extends ChangeNotifier {
   void setSearchQuery(String value) {
     _searchQuery = value;
     notifyListeners();
+  }
+
+  Future<void> changeActiveProject(String? projectId) async {
+    _activeProjectId = projectId;
+    notifyListeners();
+    if (_backendAvailable) {
+      await refresh();
+    }
   }
 
   RecordingNote? findById(String id) {
@@ -100,14 +113,20 @@ class PlaudeController extends ChangeNotifier {
 
   Future<void> startRecording() async {
     if (kIsWeb) {
-      _notice = 'A captura por microfone está disponível nas versões mobile e desktop. Na web, use o envio de áudio.';
+      _notice = 'A captura por microfone esta disponivel nas versoes mobile e desktop. Na web, use o envio de audio.';
+      notifyListeners();
+      return;
+    }
+
+    if (_activeProjectId == null) {
+      _notice = 'Selecione um projeto antes de gravar.';
       notifyListeners();
       return;
     }
 
     final hasPermission = await _recorder.hasPermission();
     if (!hasPermission) {
-      _notice = 'A permissão de microfone foi negada.';
+      _notice = 'A permissao de microfone foi negada.';
       notifyListeners();
       return;
     }
@@ -117,7 +136,7 @@ class PlaudeController extends ChangeNotifier {
     await _recorder.start(const RecordConfig(), path: path);
     _recordingPath = path;
     _isRecording = true;
-    _notice = 'Gravação em andamento.';
+    _notice = 'Gravacao em andamento.';
     notifyListeners();
   }
 
@@ -132,7 +151,14 @@ class PlaudeController extends ChangeNotifier {
     notifyListeners();
 
     if (_recordingPath == null) {
-      _notice = 'A gravação terminou sem gerar um arquivo de saída.';
+      _notice = 'A gravacao terminou sem gerar um arquivo de saida.';
+      notifyListeners();
+      return;
+    }
+
+    final projectId = _activeProjectId;
+    if (projectId == null) {
+      _notice = 'Selecione um projeto antes de enviar a gravacao.';
       notifyListeners();
       return;
     }
@@ -148,6 +174,7 @@ class PlaudeController extends ChangeNotifier {
       await _uploadAndWatch(
         platformFile: platformFile,
         title: 'Nota de voz ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+        projectId: projectId,
         sourceType: 'microphone',
       );
       return;
@@ -155,6 +182,7 @@ class PlaudeController extends ChangeNotifier {
 
     await _createAndProcessRecording(
       title: 'Nota de voz ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+      projectId: projectId,
       sourceType: 'microphone',
       audioPath: _recordingPath,
       durationMs: null,
@@ -162,14 +190,22 @@ class PlaudeController extends ChangeNotifier {
   }
 
   Future<void> pickAudioFile() async {
-    final result = await FilePicker.platform.pickFiles(
+    final file = (await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['mp3', 'wav', 'm4a', 'aac', 'mp4'],
       withData: kIsWeb,
-    );
+    ))
+        ?.files
+        .singleOrNull;
 
-    final file = result?.files.singleOrNull;
     if (file == null) {
+      return;
+    }
+
+    final projectId = _activeProjectId;
+    if (projectId == null) {
+      _notice = 'Selecione um projeto antes de enviar um audio.';
+      notifyListeners();
       return;
     }
 
@@ -177,6 +213,7 @@ class PlaudeController extends ChangeNotifier {
       await _uploadAndWatch(
         platformFile: file,
         title: file.name,
+        projectId: projectId,
         sourceType: 'upload',
       );
       return;
@@ -184,6 +221,7 @@ class PlaudeController extends ChangeNotifier {
 
     await _createAndProcessRecording(
       title: file.name,
+      projectId: projectId,
       sourceType: 'upload',
       audioPath: file.path ?? file.name,
       durationMs: null,
@@ -192,6 +230,7 @@ class PlaudeController extends ChangeNotifier {
 
   Future<void> _createAndProcessRecording({
     required String title,
+    required String projectId,
     required String sourceType,
     String? audioPath,
     int? durationMs,
@@ -200,6 +239,7 @@ class PlaudeController extends ChangeNotifier {
     try {
       created = await _createRecording(
         title: title,
+        projectId: projectId,
         sourceType: sourceType,
         audioPath: audioPath,
         durationMs: durationMs,
@@ -217,20 +257,22 @@ class PlaudeController extends ChangeNotifier {
   Future<void> _uploadAndWatch({
     required PlatformFile platformFile,
     required String title,
+    required String projectId,
     required String sourceType,
   }) async {
     try {
       final created = await api.uploadRecording(
         file: platformFile,
         title: title,
+        projectId: projectId,
         sourceType: sourceType,
       );
       _recordings = [created, ..._recordings.where((recording) => recording.id != created.id)];
-      _notice = 'Arquivo enviado. A transcrição será processada em segundo plano.';
+      _notice = 'Arquivo enviado. A transcricao sera processada em segundo plano.';
       notifyListeners();
       unawaited(_watchRecordingUntilSettled(created.id));
     } catch (error) {
-      _notice = 'Falha ao enviar o áudio: $error';
+      _notice = 'Falha ao enviar o audio: $error';
       notifyListeners();
     }
   }
@@ -243,28 +285,29 @@ class PlaudeController extends ChangeNotifier {
         final refreshed = await api.getRecording(recordingId);
         _replaceRecording(refreshed);
         if (refreshed.status == ProcessingStatus.ready) {
-          _notice = 'Transcrição concluída e nota pronta.';
+          _notice = 'Transcricao concluida e nota pronta.';
           notifyListeners();
           return;
         }
         if (refreshed.status == ProcessingStatus.failed) {
-          _notice = refreshed.lastError ?? 'A transcrição falhou.';
+          _notice = refreshed.lastError ?? 'A transcricao falhou.';
           notifyListeners();
           return;
         }
       } catch (_) {
-        _notice = 'Não foi possível acompanhar o status da transcrição.';
+        _notice = 'Nao foi possivel acompanhar o status da transcricao.';
         notifyListeners();
         return;
       }
     }
 
-    _notice = 'O processamento ainda está em andamento. Atualize a biblioteca em alguns instantes.';
+    _notice = 'O processamento ainda esta em andamento. Atualize a biblioteca em alguns instantes.';
     notifyListeners();
   }
 
   Future<RecordingNote> _createRecording({
     required String title,
+    required String projectId,
     required String sourceType,
     String? audioPath,
     int? durationMs,
@@ -273,23 +316,26 @@ class PlaudeController extends ChangeNotifier {
       try {
         final created = await api.createRecording(
           title: title,
+          projectId: projectId,
           sourceType: sourceType,
           audioPath: audioPath,
           durationMs: durationMs,
         );
         _recordings = [created, ..._recordings];
-        _notice = 'Gravação registrada. Processamento iniciado.';
+        _notice = 'Gravacao registrada. Processamento iniciado.';
         notifyListeners();
         return created;
       } catch (_) {
-        _notice = 'Falha ao criar a gravação no backend.';
+        _notice = 'Falha ao criar a gravacao no backend.';
         notifyListeners();
-        throw StateError('Falha ao criar a gravação no backend.');
+        throw StateError('Falha ao criar a gravacao no backend.');
       }
     }
 
     final created = RecordingNote(
       id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+      projectId: projectId,
+      createdByUserId: 'demo-user',
       title: title,
       sourceType: sourceType,
       status: ProcessingStatus.uploaded,
@@ -306,7 +352,7 @@ class PlaudeController extends ChangeNotifier {
     );
 
     _recordings = [created, ..._recordings];
-    _notice = 'Criado localmente em modo de demonstração.';
+    _notice = 'Criado localmente em modo de demonstracao.';
     notifyListeners();
     return created;
   }
@@ -332,10 +378,10 @@ class PlaudeController extends ChangeNotifier {
           transcriptText: transcriptText,
         );
         _replaceRecording(processed);
-        _notice = 'Processamento concluído.';
+        _notice = 'Processamento concluido.';
         return;
       } catch (_) {
-        _notice = 'Falha ao processar a gravação no backend.';
+        _notice = 'Falha ao processar a gravacao no backend.';
         return;
       } finally {
         _processingIds.remove(recordingId);
@@ -353,7 +399,7 @@ class PlaudeController extends ChangeNotifier {
     final processed = _buildLocalProcessedRecording(current, transcriptText ?? _mockTranscriptFor(current.title));
     _replaceRecording(processed);
     _processingIds.remove(recordingId);
-    _notice = 'Processado localmente em modo de demonstração.';
+    _notice = 'Processado localmente em modo de demonstracao.';
     notifyListeners();
   }
 
@@ -416,7 +462,7 @@ class PlaudeController extends ChangeNotifier {
         ),
       );
     } catch (_) {
-      _notice = 'A solicitação de chat falhou.';
+      _notice = 'A solicitacao de chat falhou.';
     } finally {
       _chatBusyIds.remove(recordingId);
       notifyListeners();
@@ -426,7 +472,7 @@ class PlaudeController extends ChangeNotifier {
   Future<ExportArtifact> exportRecording(String recordingId, String format) async {
     final current = findById(recordingId);
     if (current == null) {
-      throw StateError('Gravação não encontrada');
+      throw StateError('Gravacao nao encontrada');
     }
 
     if (_backendAvailable) {
@@ -454,10 +500,10 @@ class PlaudeController extends ChangeNotifier {
             '## Destaques',
             ...highlights.map((item) => '- $item'),
             '',
-            '## Itens de ação',
+            '## Itens de acao',
             ...actionItems.map((item) => '- $item'),
             '',
-            '## Transcrição',
+            '## Transcricao',
             '```text',
             transcript,
             '```',
@@ -480,7 +526,7 @@ class PlaudeController extends ChangeNotifier {
 
   Future<void> togglePlayback(String path) async {
     if (!isPlayable(path)) {
-      _notice = 'A reprodução está disponível apenas para gravações locais em mobile ou desktop.';
+      _notice = 'A reproducao esta disponivel apenas para gravacoes locais em mobile ou desktop.';
       notifyListeners();
       return;
     }
@@ -530,15 +576,15 @@ class PlaudeController extends ChangeNotifier {
       updatedAt: DateTime.now(),
       transcriptSegments: segments,
       summary: RecordingSummary(
-        overview: 'Nota processada localmente com resumo estruturado, transcrição pesquisável e contexto pronto para chat.',
+        overview: 'Nota processada localmente com resumo estruturado, transcricao pesquisavel e contexto pronto para chat.',
         chapters: [
           SummaryChapter(
             heading: 'Contexto',
             body: highlights.isNotEmpty ? highlights.first : 'Nenhum contexto principal detectado.',
           ),
           SummaryChapter(
-            heading: 'Execução',
-            body: actionItems.isNotEmpty ? actionItems.first : 'Nenhum item de ação explícito foi detectado.',
+            heading: 'Execucao',
+            body: actionItems.isNotEmpty ? actionItems.first : 'Nenhum item de acao explicito foi detectado.',
           ),
         ],
       ),
@@ -570,13 +616,13 @@ class PlaudeController extends ChangeNotifier {
       );
     }).toList();
 
-    final actionItems = recording.noteArtifact?.actionItems.join('; ') ?? 'Nenhum item de ação foi extraído ainda.';
+    final actionItems = recording.noteArtifact?.actionItems.join('; ') ?? 'Nenhum item de acao foi extraido ainda.';
     final lowerQuestion = question.toLowerCase();
-    final answerText = lowerQuestion.contains('ação') ||
+    final answerText = lowerQuestion.contains('acao') ||
             lowerQuestion.contains('next') ||
-            lowerQuestion.contains('próximo')
-        ? 'Os próximos passos detectados são: $actionItems'
-        : 'A nota indica: ${recording.summary?.overview ?? 'Ainda não há resumo disponível.'}';
+            lowerQuestion.contains('proximo')
+        ? 'Os proximos passos detectados sao: $actionItems'
+        : 'A nota indica: ${recording.summary?.overview ?? 'Ainda nao ha resumo disponivel.'}';
 
     return ChatMessage(
       id: 'assistant-${DateTime.now().microsecondsSinceEpoch}',
@@ -590,9 +636,45 @@ class PlaudeController extends ChangeNotifier {
   String _mockTranscriptFor(String title) {
     return [
       'Speaker 1: Esta nota chamada $title precisa consolidar o contexto da conversa.',
-      'Speaker 2: Vamos registrar responsáveis, riscos e próximos passos para o produto.',
-      'Speaker 1: Precisamos manter busca, resumo estruturado e chat contextual no lançamento.',
+      'Speaker 2: Vamos registrar responsaveis, riscos e proximos passos para o produto.',
+      'Speaker 1: Precisamos manter busca, resumo estruturado e chat contextual no lancamento.',
     ].join('\n');
+  }
+
+  List<RecordingNote> _filteredRecordings() {
+    return _recordings.where((recording) {
+      if (_activeProjectId != null && recording.projectId != _activeProjectId) {
+        return false;
+      }
+      if (_searchQuery.isEmpty) {
+        return true;
+      }
+
+      final query = _searchQuery.toLowerCase();
+      final haystack = [
+        recording.title,
+        recording.summary?.overview ?? '',
+        recording.noteArtifact?.tags.join(' ') ?? '',
+        recording.transcriptSegments.map((segment) => segment.text).join(' '),
+      ].join(' ').toLowerCase();
+
+      return haystack.contains(query);
+    }).toList();
+  }
+
+  void _loadDemoData() {
+      _projects = [
+        Project(
+          id: 'project-demo',
+          name: 'Projeto demo',
+          slug: 'projeto-demo',
+          status: 'active',
+          createdAt: DateTime(2026, 3, 26, 10, 0, 0),
+          updatedAt: DateTime(2026, 3, 26, 10, 0, 0),
+        ),
+      ];
+    _activeProjectId ??= 'project-demo';
+    _recordings = demoNotes;
   }
 
   void _replaceRecording(RecordingNote next) {

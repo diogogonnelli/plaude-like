@@ -6,6 +6,25 @@ export type ProcessingStatus =
   | 'ready'
   | 'failed';
 
+export type ProjectStatus = 'active' | 'archived';
+export type ProjectMemberRole = 'owner' | 'member';
+
+export interface Project {
+  id: string;
+  name: string;
+  slug: string;
+  status: ProjectStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectMember {
+  projectId: string;
+  userId: string;
+  role: ProjectMemberRole;
+  createdAt: string;
+}
+
 export interface TranscriptSegment {
   id: string;
   recordingId: string;
@@ -61,6 +80,8 @@ export interface ExportArtifact {
 export interface Recording {
   id: string;
   userId: string;
+  createdByUserId: string;
+  projectId: string;
   title: string;
   sourceType: 'microphone' | 'upload';
   status: ProcessingStatus;
@@ -81,9 +102,11 @@ export interface Recording {
 
 export interface CreateRecordingInput {
   title: string;
+  projectId: string;
   sourceType: Recording['sourceType'];
   durationMs?: number;
   audioPath?: string;
+  createdByUserId?: string;
   transcriptionProvider?: Recording['transcriptionProvider'];
   transcriptionJobId?: string;
   transcriptionStartedAt?: string;

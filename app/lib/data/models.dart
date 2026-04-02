@@ -200,6 +200,8 @@ class ChatSession {
 class RecordingNote {
   const RecordingNote({
     required this.id,
+    required this.projectId,
+    required this.createdByUserId,
     required this.title,
     required this.sourceType,
     required this.status,
@@ -215,6 +217,8 @@ class RecordingNote {
   });
 
   final String id;
+  final String projectId;
+  final String createdByUserId;
   final String title;
   final String sourceType;
   final ProcessingStatus status;
@@ -244,6 +248,8 @@ class RecordingNote {
   }) {
     return RecordingNote(
       id: id,
+      projectId: projectId,
+      createdByUserId: createdByUserId,
       title: title ?? this.title,
       sourceType: sourceType,
       status: status ?? this.status,
@@ -263,6 +269,8 @@ class RecordingNote {
     final rawSegments = (json['transcriptSegments'] as List<dynamic>? ?? json['transcript_segments'] as List<dynamic>? ?? const []);
     return RecordingNote(
       id: json['id'] as String,
+      projectId: json['projectId'] as String? ?? json['project_id'] as String? ?? 'project-demo',
+      createdByUserId: json['createdByUserId'] as String? ?? json['created_by_user_id'] as String? ?? json['userId'] as String? ?? 'demo-user',
       title: json['title'] as String,
       sourceType: json['sourceType'] as String? ?? json['source_type'] as String,
       status: ProcessingStatus.fromApi(json['status'] as String),
@@ -281,6 +289,35 @@ class RecordingNote {
           ? null
           : ChatSession.fromJson(json['chatSession'] as Map<String, dynamic>),
       lastError: json['lastError'] as String? ?? json['last_error'] as String?,
+    );
+  }
+}
+
+class Project {
+  const Project({
+    required this.id,
+    required this.name,
+    required this.slug,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String name;
+  final String slug;
+  final String status;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  factory Project.fromJson(Map<String, dynamic> json) {
+    return Project(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      slug: json['slug'] as String,
+      status: json['status'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String? ?? json['created_at'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String? ?? json['updated_at'] as String),
     );
   }
 }

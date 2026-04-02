@@ -2,7 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { unlink } from 'node:fs/promises';
 
 import type { AiProvider, ExportProvider, RecordingRepository, UploadAudioInput } from '../domain/contracts.js';
-import type { ChatMessage, CreateRecordingInput, ProcessRecordingInput, Recording } from '../domain/types.js';
+import type {
+  ChatMessage,
+  CreateRecordingInput,
+  ProcessRecordingInput,
+  Project,
+  ProjectMemberRole,
+  Recording,
+} from '../domain/types.js';
 import { config } from '../lib/config.js';
 import { resolveStorageUserId } from '../lib/persistence.js';
 import { hasSupabasePersistenceConfig, uploadAudioToStorage } from '../lib/supabase-admin.js';
@@ -60,8 +67,58 @@ export class RecordingService {
     private readonly exportProvider: ExportProvider,
   ) {}
 
-  list(userId: string, filters?: { query?: string; tag?: string }) {
+  list(userId: string, filters?: { query?: string; tag?: string; projectId?: string }) {
     return this.repository.list(userId, filters);
+  }
+
+  listProjects(userId: string) {
+    return this.repository.listProjects(userId);
+  }
+
+  async getProjectOrThrow(projectId: string, userId: string): Promise<Project> {
+    const project = await this.repository.getProject(projectId, userId);
+    if (!project) {
+      throw new ServiceError('Project not found', 404, 'project_not_found', { projectId });
+    }
+
+    return project;
+  }
+
+  createProject(userId: string, input: { name: string; slug: string }) {
+    return this.repository.createProject(userId, input);
+  }
+
+  updateProject(
+    userId: string,
+    projectId: string,
+    input: { name?: string; slug?: string; status?: Project['status'] },
+  ) {
+    return this.repository.updateProject(userId, projectId, input);
+  }
+
+  listProjectMembers(userId: string, projectId: string) {
+    return this.repository.listProjectMembers(userId, projectId);
+  }
+
+  addProjectMember(
+    userId: string,
+    projectId: string,
+    member: { userId: string; role: ProjectMemberRole },
+  ) {
+    return this.repository.addProjectMember(userId, projectId, member);
+  }
+
+  removeProjectMember(userId: string, projectId: string, memberUserId: string) {
+    return this.repository.removeProjectMember(userId, projectId, memberUserId);
+  }
+
+  listAdminRecordings(filters?: {
+    query?: string;
+    projectId?: string;
+    userId?: string;
+    status?: Recording['status'];
+  }) {
+    return this.repository.listAllRecordings(filters);
   }
 
   async getOrThrow(recordingId: string, userId: string): Promise<Recording> {
@@ -83,9 +140,11 @@ export class RecordingService {
     const startedAt = new Date().toISOString();
     let recording = await this.repository.create(userId, {
       title: input.title,
+      projectId: input.projectId,
       sourceType: input.sourceType,
       durationMs: input.durationMs,
       audioPath: input.fileName,
+      createdByUserId: userId,
       transcriptionProvider: config.TRANSCRIPTION_PROVIDER === 'assemblyai' ? 'assemblyai' : 'mock',
       transcriptionStartedAt: startedAt,
     });

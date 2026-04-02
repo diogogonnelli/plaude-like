@@ -14,75 +14,119 @@ class LibraryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<PlaudeController>();
     final notes = controller.recordings;
-    final readyCount = notes.where((note) => note.isReady).length;
-    final hasQuery = controller.searchQuery.trim().isNotEmpty;
+    final activeProject = controller.activeProject;
 
     return AppShell(
-      title: 'Biblioteca de voz',
+      title: 'Inicio',
       navigationIndex: 0,
       onNavigationSelected: (index) => context.go(index == 0 ? '/' : '/settings'),
       actions: [
+        if (controller.projects.isNotEmpty)
+          SizedBox(
+            width: 180,
+            child: DropdownButtonFormField<String>(
+              initialValue: controller.activeProjectId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Projeto',
+              ),
+              items: controller.projects
+                  .map((project) => DropdownMenuItem(
+                        value: project.id,
+                        child: Text(project.name),
+                      ))
+                  .toList(),
+              onChanged: controller.changeActiveProject,
+            ),
+          ),
         FilledButton.icon(
           onPressed: controller.isRecording ? controller.stopRecordingAndProcess : controller.startRecording,
           icon: Icon(controller.isRecording ? Icons.stop_circle_outlined : Icons.mic_none_rounded),
-          label: Text(controller.isRecording ? 'Parar gravação' : 'Gravar'),
+          label: Text(controller.isRecording ? 'Parar gravacao' : 'Gravar'),
         ),
         OutlinedButton.icon(
           onPressed: controller.pickAudioFile,
           icon: const Icon(Icons.upload_file_rounded),
-          label: const Text('Enviar áudio'),
+          label: const Text('Enviar audio'),
         ),
       ],
       child: RefreshIndicator(
         onRefresh: controller.refresh,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 24),
-              children: [
-                _HeroPanel(
-                  controller: controller,
-                  totalCount: notes.length,
-                  readyCount: readyCount,
-                ),
-                const SizedBox(height: 16),
-                _SearchBar(
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(bottom: 24),
+          children: [
+            _HeroPanel(
+              projectName: activeProject?.name ?? 'Sem projeto ativo',
+              backendAvailable: controller.backendAvailable,
+              totalCount: notes.length,
+              processingCount: notes.where((note) => !note.isReady && note.status != ProcessingStatus.failed).length,
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: TextField(
                   onChanged: controller.setSearchQuery,
-                  onClear: controller.searchQuery.isEmpty ? null : () => controller.setSearchQuery(''),
+                  decoration: const InputDecoration(
+                    hintText: 'Buscar por tema, resumo ou transcricao',
+                    prefixIcon: Icon(Icons.search_rounded),
+                  ),
                 ),
-                const SizedBox(height: 16),
-                _ConnectionBanner(
-                  isRemote: controller.backendAvailable,
-                  message: controller.notice ??
-                      (controller.backendAvailable
-                          ? 'Conectado ao backend.'
-                          : 'Backend offline. Dados de demonstracao ativos.'),
-                  onRetry: controller.refresh,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (controller.notice case final String notice)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: controller.backendAvailable ? const Color(0xFFE8F3E4) : const Color(0xFFFFF4D6),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Text(notice),
                 ),
-                const SizedBox(height: 16),
-                if (controller.isLoading)
-                  _LoadingState(
-                    count: constraints.maxWidth >= 900 ? 3 : 2,
-                  )
-                else if (notes.isEmpty)
-                  _EmptyState(
-                    hasQuery: hasQuery,
-                    onClearSearch: hasQuery ? () => controller.setSearchQuery('') : null,
-                    onRecord: controller.startRecording,
-                    onUpload: controller.pickAudioFile,
-                  )
-                else
-                  ...notes.map((note) => Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
+              ),
+            if (controller.isLoading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.only(top: 48),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (notes.isEmpty)
+              _EmptyState(
+                projectName: activeProject?.name,
+                onRecord: controller.startRecording,
+                onUpload: controller.pickAudioFile,
+              )
+            else ...[
+              Text('Em andamento', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 12),
+              ...notes
+                  .where((note) => note.status != ProcessingStatus.ready && note.status != ProcessingStatus.failed)
+                  .map((note) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
                         child: _RecordingCard(
                           note: note,
                           onTap: () => context.go('/recordings/${note.id}'),
                         ),
                       )),
-              ],
-            );
-          },
+              const SizedBox(height: 12),
+              Text('Recentes', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 12),
+              ...notes
+                  .where((note) => note.status == ProcessingStatus.ready || note.status == ProcessingStatus.failed)
+                  .map((note) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _RecordingCard(
+                          note: note,
+                          onTap: () => context.go('/recordings/${note.id}'),
+                        ),
+                      )),
+            ],
+          ],
         ),
       ),
     );
@@ -91,24 +135,21 @@ class LibraryScreen extends StatelessWidget {
 
 class _HeroPanel extends StatelessWidget {
   const _HeroPanel({
-    required this.controller,
+    required this.projectName,
+    required this.backendAvailable,
     required this.totalCount,
-    required this.readyCount,
+    required this.processingCount,
   });
 
-  final PlaudeController controller;
+  final String projectName;
+  final bool backendAvailable;
   final int totalCount;
-  final int readyCount;
+  final int processingCount;
 
   @override
   Widget build(BuildContext context) {
-    final modeLabel = controller.backendAvailable ? 'Modo HTTP' : 'Modo demo';
-    final modeDetail = controller.backendAvailable
-        ? 'O backend está acessível e os fluxos de teste usarão HTTP real.'
-        : 'O backend está offline; ainda é possível testar a UX com dados locais de demonstração.';
-
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(32),
         gradient: const LinearGradient(
@@ -125,13 +166,20 @@ class _HeroPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Memória de reuniões sem trabalho manual',
+            'Captura primeiro',
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: Colors.white),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Projeto ativo: $projectName',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
           ),
           const SizedBox(height: 12),
           Text(
-            'Capture notas de voz, estruture a transcrição e mantenha um contexto pronto para chat em cada gravação.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white.withValues(alpha: 0.88)),
+            backendAvailable
+                ? 'Grave, envie e acompanhe as transcricoes do projeto em um unico fluxo.'
+                : 'O backend esta offline. Voce pode continuar testando com dados locais.',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
           ),
           const SizedBox(height: 20),
           Wrap(
@@ -139,8 +187,8 @@ class _HeroPanel extends StatelessWidget {
             runSpacing: 12,
             children: [
               _MetricPill(label: 'Notas', value: '$totalCount'),
-              _MetricPill(label: 'Prontas', value: '$readyCount'),
-              _ModePill(label: modeLabel, detail: modeDetail),
+              _MetricPill(label: 'Em andamento', value: '$processingCount'),
+              _MetricPill(label: 'Modo', value: backendAvailable ? 'HTTP' : 'Demo'),
             ],
           ),
         ],
@@ -172,222 +220,8 @@ class _MetricPill extends StatelessWidget {
         children: [
           Text(label, style: const TextStyle(color: Colors.white70)),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
-          ),
+          Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
         ],
-      ),
-    );
-  }
-}
-
-class _ModePill extends StatelessWidget {
-  const _ModePill({
-    required this.label,
-    required this.detail,
-  });
-
-  final String label;
-  final String detail;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minWidth: 210),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white70)),
-          const SizedBox(height: 4),
-          Text(
-            detail,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SearchBar extends StatelessWidget {
-  const _SearchBar({
-    required this.onChanged,
-    required this.onClear,
-  });
-  final ValueChanged<String> onChanged;
-  final VoidCallback? onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: TextField(
-          onChanged: onChanged,
-          decoration: InputDecoration(
-                  hintText: 'Buscar por tema, resumo ou transcrição',
-            prefixIcon: const Icon(Icons.search_rounded),
-            suffixIcon: onClear == null
-                ? null
-                : IconButton(
-                    onPressed: onClear,
-                    icon: const Icon(Icons.clear_rounded),
-                    tooltip: 'Limpar busca',
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ConnectionBanner extends StatelessWidget {
-  const _ConnectionBanner({
-    required this.isRemote,
-    required this.message,
-    required this.onRetry,
-  });
-
-  final bool isRemote;
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final background = isRemote ? const Color(0xFFE8F3E4) : const Color(0xFFFFF4D6);
-    final icon = isRemote ? Icons.cloud_done_outlined : Icons.cloud_off_outlined;
-    final label = isRemote ? 'Conectado' : 'Offline / demo';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 4),
-                Text(message),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          OutlinedButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Retry'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LoadingState extends StatelessWidget {
-  const _LoadingState({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: List.generate(
-        count,
-        (index) => Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: _LoadingCard(index: index),
-        ),
-      ),
-    );
-  }
-}
-
-class _LoadingCard extends StatelessWidget {
-  const _LoadingCard({required this.index});
-
-  final int index;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE9E1D6),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  width: 80,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0E8DC),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Container(
-              height: 16,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0E8DC),
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              height: 16,
-              width: index.isEven ? 260 : 330,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0E8DC),
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: List.generate(
-                3,
-                (_) => Container(
-                  width: 84,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF6EFE4),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -395,14 +229,12 @@ class _LoadingCard extends StatelessWidget {
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
-    required this.hasQuery,
-    required this.onClearSearch,
+    required this.projectName,
     required this.onRecord,
     required this.onUpload,
   });
 
-  final bool hasQuery;
-  final VoidCallback? onClearSearch;
+  final String? projectName;
   final Future<void> Function() onRecord;
   final Future<void> Function() onUpload;
 
@@ -410,32 +242,26 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(28),
         child: Column(
           children: [
-            const Icon(Icons.auto_awesome_outlined, size: 42),
-            const SizedBox(height: 14),
+            const Icon(Icons.auto_awesome_outlined, size: 40),
+            const SizedBox(height: 12),
             Text(
-              hasQuery ? 'Nenhuma nota corresponde à busca' : 'Nenhuma nota ainda',
+              projectName == null ? 'Nenhum projeto selecionado' : 'Nenhuma nota ainda',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: 8),
             Text(
-              hasQuery
-                  ? 'Tente uma palavra mais ampla ou limpe a busca para ver toda a biblioteca.'
-                  : 'Comece gravando uma nota de voz ou enviando um áudio existente.',
+              projectName == null
+                  ? 'Escolha um projeto para comecar.'
+                  : 'Comece gravando uma nota de voz ou enviando um audio existente para $projectName.',
             ),
             const SizedBox(height: 18),
             Wrap(
               spacing: 12,
               runSpacing: 12,
               children: [
-                if (onClearSearch != null)
-                  OutlinedButton.icon(
-                    onPressed: onClearSearch,
-                    icon: const Icon(Icons.clear_rounded),
-                    label: const Text('Limpar busca'),
-                  ),
                 FilledButton.icon(
                   onPressed: onRecord,
                   icon: const Icon(Icons.mic_none_rounded),
@@ -444,7 +270,7 @@ class _EmptyState extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: onUpload,
                   icon: const Icon(Icons.upload_file_rounded),
-                  label: const Text('Enviar áudio'),
+                  label: const Text('Enviar audio'),
                 ),
               ],
             ),
@@ -480,38 +306,23 @@ class _RecordingCard extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      note.title,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
+                    child: Text(note.title, style: Theme.of(context).textTheme.titleLarge),
                   ),
                   Chip(label: Text(note.status.label)),
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                note.summary?.overview ?? 'Enviado e aguardando transcrição e resumo.',
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
+              Text(note.summary?.overview ?? 'Aguardando transcricao ou resumo.'),
+              const SizedBox(height: 14),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
                   _MiniMeta(icon: Icons.schedule_rounded, label: format.format(note.createdAt.toLocal())),
-                  _MiniMeta(icon: Icons.graphic_eq_rounded, label: note.sourceType),
-                  _MiniMeta(icon: Icons.notes_rounded, label: '${note.transcriptSegments.length} trechos'),
+                  _MiniMeta(icon: Icons.work_outline_rounded, label: note.projectId),
+                  _MiniMeta(icon: Icons.person_outline_rounded, label: note.createdByUserId),
                 ],
               ),
-              if (note.noteArtifact case final artifact?) ...[
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: artifact.tags.map((tag) => Chip(label: Text(tag))).toList(),
-                ),
-              ],
             ],
           ),
         ),

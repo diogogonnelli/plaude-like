@@ -73,6 +73,15 @@ describe('recordings api', () => {
     expect(response.body.data).toHaveLength(1);
   });
 
+  it('lists projects for the current user', async () => {
+    const response = await request(app)
+      .get('/projects')
+      .set('x-user-id', demoUserId);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data[0].id).toBe('project-demo');
+  });
+
   it('rejects invalid create payloads', async () => {
     const response = await request(app)
       .post('/recordings')
@@ -85,12 +94,34 @@ describe('recordings api', () => {
     expect(response.body.code).toBe('validation_error');
   });
 
+  it('creates a project and manages members through admin endpoints', async () => {
+    const createProject = await request(app)
+      .post('/admin/projects')
+      .send({ name: 'Projeto de teste' });
+
+    expect(createProject.status).toBe(201);
+    const projectId = createProject.body.data.id as string;
+
+    const addMember = await request(app)
+      .post(`/admin/projects/${projectId}/members`)
+      .send({ userId: 'usuario-teste', role: 'member' });
+
+    expect(addMember.status).toBe(201);
+
+    const listMembers = await request(app)
+      .get(`/admin/projects/${projectId}/members`);
+
+    expect(listMembers.status).toBe(200);
+    expect(listMembers.body.data.length).toBeGreaterThan(1);
+  });
+
   it('creates and processes a recording', async () => {
     const createResponse = await request(app)
       .post('/recordings')
       .set('x-user-id', demoUserId)
       .send({
         title: 'Customer interview',
+        projectId: 'project-demo',
         sourceType: 'upload',
       });
 
@@ -114,6 +145,7 @@ describe('recordings api', () => {
       .post('/recordings/upload')
       .set('x-user-id', demoUserId)
       .field('title', 'Audio longo')
+      .field('projectId', 'project-demo')
       .field('sourceType', 'upload')
       .attach('file', Buffer.from('fake audio bytes'), 'audio-test.wav');
 
@@ -133,6 +165,7 @@ describe('recordings api', () => {
       .set('x-user-id', demoUserId)
       .send({
         title: 'Retry me',
+        projectId: 'project-demo',
         sourceType: 'upload',
       });
 

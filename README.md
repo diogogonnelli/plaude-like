@@ -25,6 +25,7 @@ Aplicativo `PLAUD Note`-like com `Flutter` para web/mobile, backend `TypeScript`
 ## Estrutura
 
 - [`app`](./app): cliente Flutter web/mobile
+- [`admin-web`](./admin-web): web administrativo separado
 - [`backend`](./backend): API HTTP e pipeline de processamento
 - [`supabase`](./supabase): schema SQL e documentação da camada gerenciada
 - [`docs`](./docs): arquitetura e decisões do v1

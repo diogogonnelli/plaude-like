@@ -13,10 +13,12 @@ export function buildOpenApiDocument(baseUrl: string) {
     ],
     tags: [
       { name: 'System', description: 'Healthcheck e metadata da API' },
+      { name: 'Projects', description: 'Projetos (jobs) e memberships' },
       { name: 'Recordings', description: 'Operacoes sobre gravacoes e notas' },
       { name: 'Chat', description: 'Perguntas sobre uma nota pronta' },
       { name: 'Export', description: 'Exportacao textual da nota' },
       { name: 'Webhooks', description: 'Callbacks de provedores externos' },
+      { name: 'Admin', description: 'Superficie administrativa e operacional' },
     ],
     paths: {
       '/health': {
@@ -68,6 +70,12 @@ export function buildOpenApiDocument(baseUrl: string) {
             },
             {
               in: 'query',
+              name: 'projectId',
+              required: false,
+              schema: { type: 'string' },
+            },
+            {
+              in: 'query',
               name: '_ts',
               required: false,
               schema: { type: 'string' },
@@ -105,11 +113,12 @@ export function buildOpenApiDocument(baseUrl: string) {
                   type: 'object',
                   properties: {
                     title: { type: 'string' },
+                    projectId: { type: 'string' },
                     sourceType: { type: 'string', enum: ['microphone', 'upload'] },
                     durationMs: { type: 'integer' },
                     audioPath: { type: 'string' },
                   },
-                  required: ['title', 'sourceType'],
+                  required: ['title', 'projectId', 'sourceType'],
                 },
               },
             },
@@ -152,10 +161,11 @@ export function buildOpenApiDocument(baseUrl: string) {
                   properties: {
                     file: { type: 'string', format: 'binary' },
                     title: { type: 'string' },
+                    projectId: { type: 'string' },
                     sourceType: { type: 'string', enum: ['microphone', 'upload'] },
                     durationMs: { type: 'integer' },
                   },
-                  required: ['file', 'title'],
+                  required: ['file', 'title', 'projectId'],
                 },
               },
             },
@@ -256,6 +266,37 @@ export function buildOpenApiDocument(baseUrl: string) {
                 },
               },
             },
+          },
+        },
+      },
+      '/projects': {
+        get: {
+          tags: ['Projects'],
+          summary: 'Lista projetos do usuario atual',
+          responses: {
+            '200': {
+              description: 'Lista de projetos',
+            },
+          },
+        },
+      },
+      '/projects/{id}': {
+        get: {
+          tags: ['Projects'],
+          summary: 'Busca um projeto por id',
+          parameters: [
+            {
+              in: 'path',
+              name: 'id',
+              required: true,
+              schema: { type: 'string' },
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'Projeto encontrado',
+            },
+            '404': { $ref: '#/components/responses/NotFoundError' },
           },
         },
       },
@@ -384,6 +425,110 @@ export function buildOpenApiDocument(baseUrl: string) {
           },
         },
       },
+      '/admin/dashboard': {
+        get: {
+          tags: ['Admin'],
+          summary: 'Resumo operacional do backoffice',
+          responses: { '200': { description: 'Dashboard operacional' } },
+        },
+      },
+      '/admin/projects': {
+        get: {
+          tags: ['Admin'],
+          summary: 'Lista projetos para o admin',
+          responses: { '200': { description: 'Lista de projetos admin' } },
+        },
+        post: {
+          tags: ['Admin'],
+          summary: 'Cria projeto',
+          responses: { '201': { description: 'Projeto criado' } },
+        },
+      },
+      '/admin/projects/{id}': {
+        patch: {
+          tags: ['Admin'],
+          summary: 'Atualiza projeto',
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+          ],
+          responses: { '200': { description: 'Projeto atualizado' } },
+        },
+      },
+      '/admin/projects/{id}/members': {
+        get: {
+          tags: ['Admin'],
+          summary: 'Lista membros do projeto',
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+          ],
+          responses: { '200': { description: 'Lista de membros' } },
+        },
+        post: {
+          tags: ['Admin'],
+          summary: 'Adiciona membro ao projeto',
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+          ],
+          responses: { '201': { description: 'Membro adicionado' } },
+        },
+      },
+      '/admin/projects/{id}/members/{userId}': {
+        delete: {
+          tags: ['Admin'],
+          summary: 'Remove membro do projeto',
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+            { in: 'path', name: 'userId', required: true, schema: { type: 'string' } },
+          ],
+          responses: { '204': { description: 'Membro removido' } },
+        },
+      },
+      '/admin/recordings': {
+        get: {
+          tags: ['Admin'],
+          summary: 'Lista gravacoes para o backoffice',
+          responses: { '200': { description: 'Lista de gravacoes admin' } },
+        },
+      },
+      '/admin/recordings/{id}': {
+        get: {
+          tags: ['Admin'],
+          summary: 'Busca detalhe de gravacao para o backoffice',
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+          ],
+          responses: { '200': { description: 'Detalhe da gravacao' } },
+        },
+      },
+      '/admin/recordings/{id}/reprocess': {
+        post: {
+          tags: ['Admin'],
+          summary: 'Reprocessa uma gravacao',
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+          ],
+          responses: { '200': { description: 'Gravacao reenfileirada/processada' } },
+        },
+      },
+      '/admin/jobs': {
+        get: {
+          tags: ['Admin'],
+          summary: 'Lista jobs operacionais de transcricao',
+          responses: { '200': { description: 'Lista de jobs' } },
+        },
+      },
+      '/admin/providers': {
+        get: {
+          tags: ['Admin'],
+          summary: 'Consulta configuracao de providers',
+          responses: { '200': { description: 'Providers atuais' } },
+        },
+        patch: {
+          tags: ['Admin'],
+          summary: 'Solicita alteracao de providers',
+          responses: { '200': { description: 'Solicitacao registrada' } },
+        },
+      },
     },
     components: {
       responses: {
@@ -497,6 +642,8 @@ export function buildOpenApiDocument(baseUrl: string) {
           properties: {
             id: { type: 'string' },
             userId: { type: 'string' },
+            createdByUserId: { type: 'string' },
+            projectId: { type: 'string' },
             title: { type: 'string' },
             sourceType: { type: 'string', enum: ['microphone', 'upload'] },
             status: {
@@ -541,6 +688,26 @@ export function buildOpenApiDocument(baseUrl: string) {
               ],
             },
             lastError: { type: 'string', nullable: true },
+          },
+        },
+        Project: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            name: { type: 'string' },
+            slug: { type: 'string' },
+            status: { type: 'string', enum: ['active', 'archived'] },
+            createdAt: { type: 'string' },
+            updatedAt: { type: 'string' },
+          },
+        },
+        ProjectMember: {
+          type: 'object',
+          properties: {
+            projectId: { type: 'string' },
+            userId: { type: 'string' },
+            role: { type: 'string', enum: ['owner', 'member'] },
+            createdAt: { type: 'string' },
           },
         },
       },

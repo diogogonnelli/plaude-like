@@ -167,7 +167,7 @@ begin
     );
   end loop;
 
-  if payload ? 'summary' and payload -> 'summary' is not null then
+  if jsonb_typeof(payload -> 'summary') = 'object' then
     insert into public.summaries (recording_id, overview, chapters)
     values (
       recording_uuid,
@@ -176,7 +176,7 @@ begin
     );
   end if;
 
-  if payload ? 'noteArtifact' and payload -> 'noteArtifact' is not null then
+  if jsonb_typeof(payload -> 'noteArtifact') = 'object' then
     insert into public.note_artifacts (recording_id, title, tags, highlights, action_items)
     values (
       recording_uuid,
@@ -188,7 +188,7 @@ begin
   end if;
 
   chat_session_item := payload -> 'chatSession';
-  if chat_session_item is not null then
+  if jsonb_typeof(chat_session_item) = 'object' then
     insert into public.chat_sessions (id, recording_id, created_at)
     values (
       (chat_session_item ->> 'id')::uuid,

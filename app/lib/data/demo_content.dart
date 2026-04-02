@@ -3,6 +3,8 @@ import 'models.dart';
 final demoNotes = <RecordingNote>[
   RecordingNote(
     id: 'demo-launch-sync',
+    projectId: 'project-demo',
+    createdByUserId: 'demo-user',
     title: 'Sincronizacao de planejamento do lancamento',
     sourceType: 'upload',
     status: ProcessingStatus.ready,
