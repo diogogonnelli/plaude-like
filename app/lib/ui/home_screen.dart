@@ -26,7 +26,7 @@ class HomeScreen extends StatelessWidget {
       actions: [
         if (controller.projects.isNotEmpty)
           SizedBox(
-            width: 220,
+            width: 200,
             child: DropdownButtonFormField<String>(
               key: ValueKey(controller.activeProjectId),
               initialValue: controller.activeProjectId,
@@ -133,10 +133,11 @@ class _HeroPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 420;
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(compact ? 18 : 22),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(compact ? 28 : 32),
         gradient: const LinearGradient(
           colors: [
             Color(0xFF201813),
@@ -152,24 +153,34 @@ class _HeroPanel extends StatelessWidget {
         children: [
           Text(
             'Captura primeiro',
-            style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: Colors.white),
+            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                  color: Colors.white,
+                  fontSize: compact ? 24 : 28,
+                  height: 1,
+                ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             'Projeto ativo: $activeProjectName',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontSize: compact ? 14 : 16,
+                ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Text(
             backendAvailable
                 ? 'Fluxo autenticado ativo. Grave, envie e acompanhe o pipeline do projeto em um shell mobile-first.'
                 : 'Modo local disponível para desenvolvimento quando o backend autenticado não estiver acessível.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontSize: compact ? 13 : 14,
+                ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
           Wrap(
-            spacing: 12,
-            runSpacing: 12,
+            spacing: 10,
+            runSpacing: 10,
             children: [
               _MetricPill(label: 'Notas', value: '$totalCount'),
               _MetricPill(label: 'Em andamento', value: '$processingCount'),
@@ -195,17 +206,27 @@ class _MetricPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      constraints: const BoxConstraints(minWidth: 86),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white70)),
-          const SizedBox(height: 4),
-          Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontSize: 15,
+                ),
+          ),
         ],
       ),
     );

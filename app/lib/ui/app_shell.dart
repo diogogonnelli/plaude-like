@@ -125,10 +125,13 @@ class _ShellHeader extends StatelessWidget {
     final compact = MediaQuery.sizeOf(context).width < 720;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 16 : 20,
+        vertical: compact ? 14 : 18,
+      ),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(compact ? 24 : 28),
         border: Border.all(color: const Color(0xFFDCCDBA)),
         boxShadow: const [
           BoxShadow(
@@ -144,8 +147,8 @@ class _ShellHeader extends StatelessWidget {
               children: [
                 _HeaderCopy(title: title, subtitle: subtitle),
                 if (actions.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Wrap(spacing: 12, runSpacing: 12, children: actions),
+                  const SizedBox(height: 12),
+                  Wrap(spacing: 10, runSpacing: 10, children: actions),
                 ],
               ],
             )
@@ -173,12 +176,25 @@ class _HeaderCopy extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 720;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 6),
-        Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+        Text(
+          title,
+          style: compact
+              ? Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 20)
+              : Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          maxLines: compact ? 2 : 3,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontSize: compact ? 13 : null,
+              ),
+        ),
       ],
     );
   }
