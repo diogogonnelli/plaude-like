@@ -34,7 +34,8 @@ void main() {
 
     expect(find.text('Cockpit de captação'), findsNothing);
     expect(find.textContaining('Grav'), findsWidgets);
-    expect(find.text('Nova captação'), findsOneWidget);
+    expect(find.text('Nova captação'), findsNothing);
+    expect(find.text('Iniciar captação'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
   });
 
