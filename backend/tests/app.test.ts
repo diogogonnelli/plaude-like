@@ -9,6 +9,7 @@ import { MemoryRecordingRepository } from '../src/repositories/memory-recording-
 import { demoRecordings, demoUserId } from '../src/seed/demo-recordings.js';
 import { PlainTextExportProvider } from '../src/services/export-provider.js';
 import { MockAiProvider } from '../src/services/mock-ai-provider.js';
+import type { PushDevicePlatform, PushNotificationServiceLike } from '../src/services/push-notification-service.js';
 import { RecordingService } from '../src/services/recording-service.js';
 import { ServiceError } from '../src/services/service-errors.js';
 
@@ -54,6 +55,24 @@ class FlakyAiProvider implements AiProvider {
 const repository = new MemoryRecordingRepository(demoRecordings);
 const service = new RecordingService(repository, new MockAiProvider(), new PlainTextExportProvider());
 const app = buildApp(service);
+
+class TestPushNotificationService implements PushNotificationServiceLike {
+  public readonly registered: Array<{ userId: string; token: string; platform: PushDevicePlatform }> = [];
+  public readonly unregistered: Array<{ userId: string; token: string }> = [];
+  public readonly notifiedRecordingIds: string[] = [];
+
+  async registerDevice(userId: string, token: string, platform: PushDevicePlatform): Promise<void> {
+    this.registered.push({ userId, token, platform });
+  }
+
+  async unregisterDevice(userId: string, token: string): Promise<void> {
+    this.unregistered.push({ userId, token });
+  }
+
+  async notifyRecordingReady(recording: Recording): Promise<void> {
+    this.notifiedRecordingIds.push(recording.id);
+  }
+}
 
 class TestAuthProvider implements RequestAuthProvider {
   constructor(
@@ -245,6 +264,45 @@ describe('recordings api', () => {
     expect(processResponse.body.data.summary.overview).toBeTruthy();
   });
 
+  it('registers and removes a push token for the authenticated user', async () => {
+    const pushService = new TestPushNotificationService();
+    const pushApp = buildApp(service, {
+      pushNotificationService: pushService,
+    });
+
+    const registerResponse = await request(pushApp)
+      .post('/me/push-devices')
+      .set('x-user-id', demoUserId)
+      .send({
+        token: 'fcm-token-12345678901234567890',
+        platform: 'android',
+      });
+
+    expect(registerResponse.status).toBe(204);
+    expect(pushService.registered).toEqual([
+      {
+        userId: demoUserId,
+        token: 'fcm-token-12345678901234567890',
+        platform: 'android',
+      },
+    ]);
+
+    const unregisterResponse = await request(pushApp)
+      .delete('/me/push-devices')
+      .set('x-user-id', demoUserId)
+      .send({
+        token: 'fcm-token-12345678901234567890',
+      });
+
+    expect(unregisterResponse.status).toBe(204);
+    expect(pushService.unregistered).toEqual([
+      {
+        userId: demoUserId,
+        token: 'fcm-token-12345678901234567890',
+      },
+    ]);
+  });
+
   it('accepts multipart audio upload and creates an async recording', async () => {
     const response = await request(app)
       .post('/recordings/upload')
@@ -308,6 +366,41 @@ describe('recordings api', () => {
     expect(response.body.accepted).toBe(true);
     expect(response.body.data.status).toBe('ready');
     expect(response.body.data.transcriptSegments).toHaveLength(2);
+  });
+
+  it('dispatches a push notification when a recording reaches ready', async () => {
+    const pushRepository = new MemoryRecordingRepository(demoRecordings);
+    const pushService = new TestPushNotificationService();
+    const pushRecordingService = new RecordingService(
+      pushRepository,
+      new MockAiProvider(),
+      new PlainTextExportProvider(),
+      pushService,
+    );
+    const pushApp = buildApp(pushRecordingService, {
+      pushNotificationService: pushService,
+    });
+
+    const createResponse = await request(pushApp)
+      .post('/recordings')
+      .set('x-user-id', demoUserId)
+      .send({
+        title: 'Notify me',
+        projectId: 'project-demo',
+        sourceType: 'upload',
+      });
+
+    const recordingId = createResponse.body.data.id as string;
+    const processResponse = await request(pushApp)
+      .post(`/recordings/${recordingId}/process`)
+      .set('x-user-id', demoUserId)
+      .send({
+        transcriptText: 'Speaker 1: Finish processing and notify the operator.',
+      });
+
+    expect(processResponse.status).toBe(200);
+    expect(processResponse.body.data.status).toBe('ready');
+    expect(pushService.notifiedRecordingIds).toContain(recordingId);
   });
 
   it('answers chat grounded in a note and exports markdown', async () => {

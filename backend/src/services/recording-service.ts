@@ -13,6 +13,7 @@ import type {
 import { config } from '../lib/config.js';
 import { hasSupabasePersistenceConfig, uploadAudioToStorage } from '../lib/supabase-admin.js';
 import { AssemblyAiTranscriptionProvider } from './assemblyai-transcription-provider.js';
+import { NoopPushNotificationService, type PushNotificationServiceLike } from './push-notification-service.js';
 import { ServiceError, isRetryableError, withRetries } from './service-errors.js';
 
 function extractTranscriptText(recording: Recording): string {
@@ -64,6 +65,7 @@ export class RecordingService {
     private readonly repository: RecordingRepository,
     private readonly aiProvider: AiProvider,
     private readonly exportProvider: ExportProvider,
+    private readonly pushNotifications: PushNotificationServiceLike = new NoopPushNotificationService(),
   ) {}
 
   list(userId: string, filters?: { query?: string; tag?: string; projectId?: string }) {
@@ -302,7 +304,13 @@ export class RecordingService {
 
       recording.status = 'ready';
       recording.lastError = undefined;
-      return this.repository.update(recording);
+      const readyRecording = await this.repository.update(recording);
+      try {
+        await this.pushNotifications.notifyRecordingReady(readyRecording);
+      } catch (notificationError) {
+        console.warn('Push notification dispatch failed:', notificationError);
+      }
+      return readyRecording;
     } catch (error) {
       recording.status = 'failed';
       recording.lastError = error instanceof Error ? error.message : 'Unknown processing error';

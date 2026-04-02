@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { config } from '../lib/config.js';
 import { ServiceError, isServiceError } from '../services/service-errors.js';
+import type { PushNotificationServiceLike } from '../services/push-notification-service.js';
 import type { RecordingService } from '../services/recording-service.js';
 import { buildOpenApiDocument } from './openapi.js';
 import {
@@ -99,6 +100,13 @@ const transcriptionWebhookSchema = z
   })
   .strict();
 
+const pushDeviceSchema = z
+  .object({
+    token: z.string().min(20),
+    platform: z.enum(['android', 'ios']),
+  })
+  .strict();
+
 function getUserId(request: express.Request) {
   return request.header(userHeader) ?? 'demo-user';
 }
@@ -175,11 +183,13 @@ function slugify(value: string) {
 
 export interface BuildAppOptions {
   authProvider?: RequestAuthProvider;
+  pushNotificationService?: PushNotificationServiceLike;
 }
 
 export function buildApp(recordingService: RecordingService, options: BuildAppOptions = {}) {
   const app = express();
   const authProvider = options.authProvider ?? new SupabaseRequestAuthProvider();
+  const pushNotificationService = options.pushNotificationService;
   const openApiDocument = buildOpenApiDocument(config.APP_BASE_URL);
   const upload = multer({
     dest: tmpdir(),
@@ -259,6 +269,34 @@ export function buildApp(recordingService: RecordingService, options: BuildAppOp
       const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
       const project = await recordingService.getProjectOrThrow(params.id, auth.userId);
       response.json({ data: project });
+    }),
+  );
+
+  app.post(
+    '/me/push-devices',
+    withAuth(async (request, response, auth) => {
+      if (!pushNotificationService) {
+        response.status(204).send();
+        return;
+      }
+
+      const body = pushDeviceSchema.parse(request.body ?? {});
+      await pushNotificationService.registerDevice(auth.userId, body.token, body.platform);
+      response.status(204).send();
+    }),
+  );
+
+  app.delete(
+    '/me/push-devices',
+    withAuth(async (request, response, auth) => {
+      if (!pushNotificationService) {
+        response.status(204).send();
+        return;
+      }
+
+      const body = z.object({ token: z.string().min(20) }).strict().parse(request.body ?? {});
+      await pushNotificationService.unregisterDevice(auth.userId, body.token);
+      response.status(204).send();
     }),
   );
 

@@ -14,6 +14,10 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SUPABASE_PERSISTENCE_MODE: z.enum(['auto', 'memory', 'supabase']).default('auto'),
   SUPABASE_STORAGE_BUCKET: z.string().default('recordings'),
+  FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  FIREBASE_PROJECT_ID: z.string().optional(),
+  FIREBASE_CLIENT_EMAIL: z.string().optional(),
+  FIREBASE_PRIVATE_KEY: z.string().optional(),
   AI_PROVIDER: z.enum(['mock', 'openai']).default('mock'),
 });
 

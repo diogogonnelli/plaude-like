@@ -9,6 +9,7 @@ import 'package:record/record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/app_config.dart';
+import '../app/push_notification_service.dart';
 import '../data/demo_content.dart';
 import '../data/models.dart';
 import '../data/plaude_api.dart';
@@ -16,11 +17,13 @@ import '../data/plaude_api.dart';
 class PlaudeController extends ChangeNotifier {
   PlaudeController({
     required this.api,
+    this.pushNotifications,
     this.supabaseClient,
     bool? authRequiredOverride,
   }) : _authRequired = authRequiredOverride ?? AppConfig.hasSupabase;
 
   final PlaudeApi api;
+  final PushNotificationService? pushNotifications;
   final SupabaseClient? supabaseClient;
   final bool _authRequired;
   final AudioRecorder _recorder = AudioRecorder();
@@ -92,8 +95,10 @@ class PlaudeController extends ChangeNotifier {
       ) {
         _session = event.session;
         if (_session == null) {
+          unawaited(pushNotifications?.clearRegistration());
           _clearSignedOutState();
         } else {
+          unawaited(_syncPushNotifications());
           unawaited(refresh());
         }
         notifyListeners();
@@ -101,6 +106,7 @@ class PlaudeController extends ChangeNotifier {
 
       if (_session != null) {
         await refresh();
+        await _syncPushNotifications();
       } else {
         _isLoading = false;
         notifyListeners();
@@ -110,6 +116,7 @@ class PlaudeController extends ChangeNotifier {
 
     _authReady = true;
     await refresh();
+    await _syncPushNotifications();
   }
 
   Future<void> signIn(String email, String password) async {
@@ -129,6 +136,7 @@ class PlaudeController extends ChangeNotifier {
       _session = response.session;
       _notice = 'Sessão iniciada.';
       await refresh();
+      await _syncPushNotifications();
     } finally {
       _authBusy = false;
       notifyListeners();
@@ -139,6 +147,7 @@ class PlaudeController extends ChangeNotifier {
     _authBusy = true;
     notifyListeners();
     try {
+      await pushNotifications?.clearRegistration();
       await supabaseClient?.auth.signOut();
       _session = null;
       _clearSignedOutState();
@@ -188,6 +197,19 @@ class PlaudeController extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> _syncPushNotifications() async {
+    if (pushNotifications == null || !_backendAvailable || !_authReady) {
+      return;
+    }
+
+    final userId = _session?.user.id;
+    if (_authRequired && (userId == null || userId.isEmpty)) {
+      return;
+    }
+
+    await pushNotifications!.syncRegistrationForUser(userId ?? 'demo-user');
   }
 
   void _clearSignedOutState() {
@@ -890,6 +912,7 @@ class PlaudeController extends ChangeNotifier {
     unawaited(_authSubscription?.cancel());
     unawaited(_recorder.dispose());
     unawaited(_player.dispose());
+    unawaited(pushNotifications?.dispose());
     super.dispose();
   }
 }
