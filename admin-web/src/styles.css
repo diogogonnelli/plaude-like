@@ -126,6 +126,10 @@ button {
   gap: 16px;
 }
 
+.grid.single-column {
+  grid-template-columns: 1fr;
+}
+
 .panel-header {
   display: flex;
   justify-content: space-between;
@@ -158,4 +162,19 @@ th, td {
 th {
   color: #6a625b;
   font-weight: 600;
+}
+
+.stack {
+  display: grid;
+  gap: 12px;
+}
+
+.chip-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: #faf5ee;
+  border: 1px solid #e8dccf;
 }
