@@ -50,6 +50,7 @@ class RecordingDetailScreen extends StatelessWidget {
                   authorName: controller.authorLabelFor(
                     recording.createdByUserId,
                   ),
+                  sourceLabel: controller.sourceDetailLabelFor(recording),
                 ),
                 const SizedBox(height: 16),
                 LayoutBuilder(
@@ -91,11 +92,13 @@ class _SummaryHero extends StatelessWidget {
     required this.recording,
     required this.projectName,
     required this.authorName,
+    required this.sourceLabel,
   });
 
   final RecordingNote recording;
   final String projectName;
   final String authorName;
+  final String sourceLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -118,6 +121,10 @@ class _SummaryHero extends StatelessWidget {
                 label: format.format(recording.createdAt.toLocal()),
               ),
               _MetaPill(icon: Icons.workspaces_outline, label: projectName),
+              _MetaPill(
+                icon: Icons.desktop_windows_outlined,
+                label: sourceLabel,
+              ),
               _MetaPill(icon: Icons.person_outline_rounded, label: authorName),
             ],
           ),
@@ -413,6 +420,16 @@ class _ActionsPanel extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           BrandButton(
+            label: recording.projectId == null
+                ? 'Vincular projeto'
+                : 'Trocar ou remover projeto',
+            icon: Icons.workspaces_outline,
+            variant: BrandButtonVariant.secondary,
+            onPressed: () => _showProjectBindingDialog(context, controller, recording),
+            expanded: true,
+          ),
+          const SizedBox(height: 12),
+          BrandButton(
             label: isPlaying ? 'Pausar áudio local' : 'Reproduzir áudio local',
             icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
             variant: BrandButtonVariant.ghost,
@@ -447,6 +464,58 @@ class _ActionsPanel extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _showProjectBindingDialog(
+  BuildContext context,
+  PlaudeController controller,
+  RecordingNote recording,
+) async {
+  String? selectedProjectId = recording.projectId;
+
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) {
+      return AlertDialog(
+        title: const Text('Projeto da gravação'),
+        content: StatefulBuilder(
+          builder: (context, setState) {
+            return DropdownButtonFormField<String?>(
+              initialValue: selectedProjectId,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Projeto vinculado'),
+              items: [
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text('Sem projeto'),
+                ),
+                ...controller.projects.map(
+                  (project) => DropdownMenuItem<String?>(
+                    value: project.id,
+                    child: Text(project.name),
+                  ),
+                ),
+              ],
+              onChanged: (value) => setState(() => selectedProjectId = value),
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(dialogContext).pop();
+              await controller.updateRecordingProject(recording.id, selectedProjectId);
+            },
+            child: const Text('Salvar'),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 class _MetaPill extends StatelessWidget {
@@ -504,7 +573,7 @@ class _MissingState extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'A rota aponta para um item fora do projeto ativo ou que já não existe mais.',
+                'A rota aponta para um item que já não existe mais ou não pertence a esta conta.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),

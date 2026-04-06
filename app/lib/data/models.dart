@@ -32,6 +32,60 @@ enum ProcessingStatus {
   }
 }
 
+class CaptureMetadata {
+  const CaptureMetadata({
+    required this.sourceApp,
+    required this.platform,
+    required this.captureMode,
+    required this.helperVersion,
+    this.windowTitle,
+  });
+
+  final String sourceApp;
+  final String platform;
+  final String captureMode;
+  final String helperVersion;
+  final String? windowTitle;
+
+  String get sourceLabel => switch (sourceApp) {
+    'teams' => 'Teams',
+    'zoom' => 'Zoom',
+    'meet' => 'Google Meet',
+    'system_audio' => 'Áudio do sistema',
+    _ => sourceApp,
+  };
+
+  String get platformLabel => switch (platform) {
+    'windows' => 'Windows',
+    'macos' => 'macOS',
+    _ => platform,
+  };
+
+  factory CaptureMetadata.fromJson(Map<String, dynamic> json) {
+    return CaptureMetadata(
+      sourceApp: json['sourceApp'] as String? ?? json['source_app'] as String,
+      platform: json['platform'] as String,
+      captureMode:
+          json['captureMode'] as String? ?? json['capture_mode'] as String,
+      helperVersion:
+          json['helperVersion'] as String? ??
+          json['helper_version'] as String,
+      windowTitle:
+          json['windowTitle'] as String? ?? json['window_title'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sourceApp': sourceApp,
+      'platform': platform,
+      'captureMode': captureMode,
+      'helperVersion': helperVersion,
+      if (windowTitle != null) 'windowTitle': windowTitle,
+    };
+  }
+}
+
 class TranscriptSegment {
   const TranscriptSegment({
     required this.id,
@@ -211,6 +265,7 @@ class RecordingNote {
     required this.createdAt,
     required this.updatedAt,
     required this.transcriptSegments,
+    this.captureMetadata,
     this.durationMs,
     this.audioPath,
     this.summary,
@@ -220,13 +275,14 @@ class RecordingNote {
   });
 
   final String id;
-  final String projectId;
+  final String? projectId;
   final String createdByUserId;
   final String title;
   final String sourceType;
   final ProcessingStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final CaptureMetadata? captureMetadata;
   final int? durationMs;
   final String? audioPath;
   final List<TranscriptSegment> transcriptSegments;
@@ -238,9 +294,12 @@ class RecordingNote {
   bool get isReady => status == ProcessingStatus.ready;
 
   RecordingNote copyWith({
+    String? projectId,
+    bool clearProjectId = false,
     String? title,
     ProcessingStatus? status,
     DateTime? updatedAt,
+    CaptureMetadata? captureMetadata,
     int? durationMs,
     String? audioPath,
     List<TranscriptSegment>? transcriptSegments,
@@ -251,13 +310,14 @@ class RecordingNote {
   }) {
     return RecordingNote(
       id: id,
-      projectId: projectId,
+      projectId: clearProjectId ? null : (projectId ?? this.projectId),
       createdByUserId: createdByUserId,
       title: title ?? this.title,
       sourceType: sourceType,
       status: status ?? this.status,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      captureMetadata: captureMetadata ?? this.captureMetadata,
       durationMs: durationMs ?? this.durationMs,
       audioPath: audioPath ?? this.audioPath,
       transcriptSegments: transcriptSegments ?? this.transcriptSegments,
@@ -277,8 +337,7 @@ class RecordingNote {
       id: json['id'] as String,
       projectId:
           json['projectId'] as String? ??
-          json['project_id'] as String? ??
-          'project-demo',
+          json['project_id'] as String?,
       createdByUserId:
           json['createdByUserId'] as String? ??
           json['created_by_user_id'] as String? ??
@@ -294,6 +353,11 @@ class RecordingNote {
       updatedAt: DateTime.parse(
         json['updatedAt'] as String? ?? json['updated_at'] as String,
       ),
+      captureMetadata: json['captureMetadata'] == null
+          ? null
+          : CaptureMetadata.fromJson(
+              json['captureMetadata'] as Map<String, dynamic>,
+            ),
       durationMs: json['durationMs'] as int? ?? json['duration_ms'] as int?,
       audioPath: json['audioPath'] as String? ?? json['audio_path'] as String?,
       transcriptSegments: rawSegments

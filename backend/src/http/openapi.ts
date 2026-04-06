@@ -76,6 +76,12 @@ export function buildOpenApiDocument(baseUrl: string) {
             },
             {
               in: 'query',
+              name: 'withoutProject',
+              required: false,
+              schema: { type: 'boolean' },
+            },
+            {
+              in: 'query',
               name: '_ts',
               required: false,
               schema: { type: 'string' },
@@ -113,13 +119,13 @@ export function buildOpenApiDocument(baseUrl: string) {
                   type: 'object',
                   properties: {
                     title: { type: 'string' },
-                    projectId: { type: 'string' },
+                    projectId: { type: 'string', nullable: true },
                     sourceType: { type: 'string', enum: ['microphone', 'upload', 'desktop_meeting'] },
                     captureMetadata: { $ref: '#/components/schemas/CaptureMetadata' },
                     durationMs: { type: 'integer' },
                     audioPath: { type: 'string' },
                   },
-                  required: ['title', 'projectId', 'sourceType'],
+                  required: ['title', 'sourceType'],
                 },
               },
             },
@@ -162,12 +168,12 @@ export function buildOpenApiDocument(baseUrl: string) {
                   properties: {
                     file: { type: 'string', format: 'binary' },
                     title: { type: 'string' },
-                    projectId: { type: 'string' },
+                    projectId: { type: 'string', nullable: true },
                     sourceType: { type: 'string', enum: ['microphone', 'upload', 'desktop_meeting'] },
                     captureMetadata: { type: 'string', description: 'JSON stringificado com metadata da captura desktop.' },
                     durationMs: { type: 'integer' },
                   },
-                  required: ['file', 'title', 'projectId'],
+                  required: ['file', 'title'],
                 },
               },
             },
@@ -225,6 +231,48 @@ export function buildOpenApiDocument(baseUrl: string) {
               },
             },
             '404': { $ref: '#/components/responses/NotFoundError' },
+          },
+        },
+        patch: {
+          tags: ['Recordings'],
+          summary: 'Atualiza titulo ou projeto vinculado da gravacao',
+          parameters: [
+            {
+              in: 'path',
+              name: 'id',
+              required: true,
+              schema: { type: 'string' },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    title: { type: 'string' },
+                    projectId: { type: 'string', nullable: true },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Gravacao atualizada',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      data: { $ref: '#/components/schemas/Recording' },
+                    },
+                    required: ['data'],
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -573,6 +621,7 @@ export function buildOpenApiDocument(baseUrl: string) {
           parameters: [
             { in: 'query', name: 'query', required: false, schema: { type: 'string' } },
             { in: 'query', name: 'projectId', required: false, schema: { type: 'string' } },
+            { in: 'query', name: 'withoutProject', required: false, schema: { type: 'boolean' } },
             { in: 'query', name: 'userId', required: false, schema: { type: 'string' } },
             { in: 'query', name: 'sourceApp', required: false, schema: { type: 'string', enum: ['teams', 'zoom', 'meet', 'system_audio'] } },
             { in: 'query', name: 'platform', required: false, schema: { type: 'string', enum: ['windows', 'macos'] } },
@@ -597,6 +646,14 @@ export function buildOpenApiDocument(baseUrl: string) {
             { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
           ],
           responses: { '200': { description: 'Detalhe da gravacao' } },
+        },
+        patch: {
+          tags: ['Admin'],
+          summary: 'Atualiza titulo ou projeto vinculado da gravacao no backoffice',
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+          ],
+          responses: { '200': { description: 'Gravacao atualizada' } },
         },
       },
       '/admin/recordings/{id}/reprocess': {
@@ -777,7 +834,7 @@ export function buildOpenApiDocument(baseUrl: string) {
             id: { type: 'string' },
             userId: { type: 'string' },
             createdByUserId: { type: 'string' },
-            projectId: { type: 'string' },
+            projectId: { type: 'string', nullable: true },
             title: { type: 'string' },
             sourceType: { type: 'string', enum: ['microphone', 'upload', 'desktop_meeting'] },
             captureMetadata: {

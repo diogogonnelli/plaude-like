@@ -31,16 +31,18 @@ Aplicar as migrations em ordem:
 4. `supabase/migrations/0004_projects_and_memberships.sql`
 5. `supabase/migrations/0005_admin_users.sql`
 6. `supabase/migrations/0007_users_and_profiles.sql`
+7. `supabase/migrations/0008_desktop_meeting_capture.sql`
+8. `supabase/migrations/0009_owner_based_recordings.sql`
 
 ## Storage layout
 
 Os objetos de áudio ficam em:
 
 ```text
-{project-id}/{recording-id}/{file-name}
+{created-by-user-id}/{recording-id}/{file-name}
 ```
 
-Isso mantém o storage alinhado com o contexto de projeto e com a surface administrativa.
+Isso mantém o storage alinhado com o dono da gravação, mesmo quando não houver projeto vinculado.
 
 ## Auth e admin
 

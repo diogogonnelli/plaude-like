@@ -67,14 +67,18 @@ export class MemoryRecordingRepository implements RecordingRepository {
     return this.persistenceMode === 'supabase';
   }
 
-  async list(userId: string, filters?: { query?: string; tag?: string; projectId?: string }): Promise<Recording[]> {
+  async list(userId: string, filters?: {
+    query?: string;
+    tag?: string;
+    projectId?: string;
+    withoutProject?: boolean;
+  }): Promise<Recording[]> {
     if (this.persistenceMode === 'supabase') {
       return this.listFromSupabase(userId, filters);
     }
 
-    const allowedProjectIds = new Set((await this.listProjects(userId)).map((project) => project.id));
     const values = [...this.recordings.values()]
-      .filter((recording) => allowedProjectIds.has(recording.projectId))
+      .filter((recording) => matchesRecordingOwner(recording, userId))
       .filter((recording) => matchesFilters(recording, filters))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
@@ -84,6 +88,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
   async listAllRecordings(filters?: {
     query?: string;
     projectId?: string;
+    withoutProject?: boolean;
     userId?: string;
     status?: Recording['status'];
     sourceApp?: CaptureSourceApp;
@@ -95,6 +100,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
 
     return [...this.recordings.values()]
       .filter((recording) => (filters?.projectId ? recording.projectId === filters.projectId : true))
+      .filter((recording) => (filters?.withoutProject ? !recording.projectId : true))
       .filter((recording) => (filters?.userId ? recording.createdByUserId === filters.userId : true))
       .filter((recording) => (filters?.status ? recording.status === filters.status : true))
       .filter((recording) => (filters?.sourceApp ? recording.captureMetadata?.sourceApp === filters.sourceApp : true))
@@ -114,8 +120,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
       return null;
     }
 
-    const allowedProjectIds = new Set((await this.listProjects(userId)).map((project) => project.id));
-    if (!allowedProjectIds.has(recording.projectId)) {
+    if (!matchesRecordingOwner(recording, userId)) {
       return null;
     }
 
@@ -132,17 +137,13 @@ export class MemoryRecordingRepository implements RecordingRepository {
   }
 
   async create(userId: string, input: CreateRecordingInput): Promise<Recording> {
-    if (!input.projectId) {
-      throw new ServiceError('projectId is required.', 400, 'project_id_required');
-    }
-
     const timestamp = nowIso();
     const createdByUserId = input.createdByUserId ?? userId;
     const recording: Recording = {
       id: randomUUID(),
       userId: createdByUserId,
       createdByUserId,
-      projectId: input.projectId,
+      projectId: input.projectId ?? null,
       title: input.title,
       sourceType: input.sourceType,
       captureMetadata: input.captureMetadata,
@@ -165,11 +166,15 @@ export class MemoryRecordingRepository implements RecordingRepository {
     recording.chatSession!.recordingId = recording.id;
 
     if (this.persistenceMode === 'supabase') {
-      await this.ensureProjectMembership(userId, input.projectId);
+      if (input.projectId) {
+        await this.ensureProjectMembership(userId, input.projectId);
+      }
       return this.upsertToSupabase(await maybeUploadOriginalAudio(recording));
     }
 
-    await this.ensureProjectMembership(userId, input.projectId);
+    if (input.projectId) {
+      await this.ensureProjectMembership(userId, input.projectId);
+    }
     this.recordings.set(recording.id, structuredClone(recording));
     return structuredClone(recording);
   }
@@ -617,13 +622,16 @@ export class MemoryRecordingRepository implements RecordingRepository {
     for (const rawRecording of seed) {
       const recording: Recording = {
         ...rawRecording,
-        projectId: rawRecording.projectId == '' ? demoProjectId : rawRecording.projectId,
+        projectId: rawRecording.projectId == '' ? demoProjectId : (rawRecording.projectId ?? null),
         createdByUserId: rawRecording.createdByUserId == '' ? rawRecording.userId : rawRecording.createdByUserId,
       };
       this.recordings.set(recording.id, structuredClone(recording));
       this.ensureMemoryUserSeed(recording.createdByUserId, timestamp);
 
       const projectId = recording.projectId;
+      if (!projectId) {
+        continue;
+      }
       if (!this.projects.has(projectId)) {
         this.projects.set(projectId, {
           id: projectId,
@@ -718,35 +726,23 @@ export class MemoryRecordingRepository implements RecordingRepository {
 
   private async listFromSupabase(
     userId: string,
-    filters?: { query?: string; tag?: string; projectId?: string },
+    filters?: { query?: string; tag?: string; projectId?: string; withoutProject?: boolean },
   ): Promise<Recording[]> {
     const storageUserId = resolveStorageUserId(userId);
     const supabase = this.ensureSupabaseClient();
 
-    let membershipsQuery = supabase
-      .from('project_members')
-      .select('project_id')
-      .eq('user_id', storageUserId);
-
-    if (filters?.projectId) {
-      membershipsQuery = membershipsQuery.eq('project_id', filters.projectId);
-    }
-
-    const { data: membershipRows, error: membershipError } = await membershipsQuery;
-    if (membershipError) {
-      throw wrapSupabaseError('Falha ao listar memberships.', membershipError);
-    }
-
-    const projectIds = (membershipRows ?? []).map((row) => String(row.project_id));
-    if (projectIds.length == 0) {
-      return [];
-    }
-
-    const { data, error } = await supabase
+    let recordingsQuery = supabase
       .from('recordings')
       .select('id')
-      .in('project_id', projectIds)
+      .eq('created_by_user_id', storageUserId)
       .order('created_at', { ascending: false });
+    if (filters?.projectId) {
+      recordingsQuery = recordingsQuery.eq('project_id', filters.projectId);
+    }
+    if (filters?.withoutProject) {
+      recordingsQuery = recordingsQuery.is('project_id', null);
+    }
+    const { data, error } = await recordingsQuery;
 
     if (error) {
       throw wrapSupabaseError('Falha ao listar gravacoes no Supabase.', error);
@@ -768,6 +764,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
   private async listAllRecordingsFromSupabase(filters?: {
     query?: string;
     projectId?: string;
+    withoutProject?: boolean;
     userId?: string;
     status?: Recording['status'];
     sourceApp?: CaptureSourceApp;
@@ -778,6 +775,9 @@ export class MemoryRecordingRepository implements RecordingRepository {
     let query = supabase.from('recordings').select('id').order('created_at', { ascending: false });
     if (filters?.projectId) {
       query = query.eq('project_id', filters.projectId);
+    }
+    if (filters?.withoutProject) {
+      query = query.is('project_id', null);
     }
     if (filters?.userId) {
       query = query.eq('created_by_user_id', resolveStorageUserId(filters.userId));
@@ -806,31 +806,24 @@ export class MemoryRecordingRepository implements RecordingRepository {
 
     return recordings
       .filter((recording): recording is Recording => recording !== null)
-      .filter((recording) => matchesFilters(recording, { query: filters?.query, projectId: filters?.projectId }))
+      .filter((recording) => matchesFilters(recording, {
+        query: filters?.query,
+        projectId: filters?.projectId,
+        withoutProject: filters?.withoutProject,
+      }))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
   private async getFromSupabase(recordingId: string, userId: string): Promise<Recording | null> {
     const storageUserId = resolveStorageUserId(userId);
-    const supabase = this.ensureSupabaseClient();
-
     const graph = await this.fetchGraph(recordingId, userId);
     if (!graph) {
       return null;
     }
 
-    const { data, error } = await supabase
-      .from('project_members')
-      .select('project_id')
-      .eq('project_id', graph.projectId)
-      .eq('user_id', storageUserId)
-      .maybeSingle();
-
-    if (error) {
-      throw wrapSupabaseError('Falha ao validar acesso da gravacao.', error);
-    }
-
-    return data ? graph : null;
+    return graph.createdByUserId === storageUserId || graph.userId === storageUserId
+      ? graph
+      : null;
   }
 
   private async fetchGraph(recordingId: string, userId: string): Promise<Recording | null> {
@@ -1468,7 +1461,7 @@ async function maybeUploadOriginalAudio(recording: Recording): Promise<Recording
     return recording;
   }
 
-  const objectPath = `${recording.projectId}/${recording.id}/${basename(audioPath)}`;
+  const objectPath = `${resolveStorageUserId(recording.createdByUserId)}/${recording.id}/${basename(audioPath)}`;
   await uploadAudioToStorage({
     objectPath,
     filePath: audioPath,
@@ -1482,13 +1475,17 @@ async function maybeUploadOriginalAudio(recording: Recording): Promise<Recording
 
 function matchesFilters(
   recording: Recording,
-  filters?: { query?: string; tag?: string; projectId?: string },
+  filters?: { query?: string; tag?: string; projectId?: string; withoutProject?: boolean },
 ): boolean {
   if (!filters) {
     return true;
   }
 
   if (filters.projectId && recording.projectId !== filters.projectId) {
+    return false;
+  }
+
+  if (filters.withoutProject && recording.projectId) {
     return false;
   }
 
@@ -1517,6 +1514,15 @@ function matchesFilters(
   }
 
   return true;
+}
+
+function matchesRecordingOwner(recording: Recording, userId: string): boolean {
+  return (
+    recording.createdByUserId === userId ||
+    recording.createdByUserId === resolveStorageUserId(userId) ||
+    recording.userId === userId ||
+    recording.userId === resolveStorageUserId(userId)
+  );
 }
 
 function matchesProjectFilters(

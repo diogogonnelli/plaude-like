@@ -113,9 +113,54 @@
               </table>
             </div>
           </section>
+
+          <section class="card">
+            <div class="section-head">
+              <div>
+                <h2>Gravações do usuário</h2>
+                <p>Lista de todas as gravações já registradas para a conta autenticada.</p>
+              </div>
+              <button id="refreshRecordingsButton" class="button ghost small" type="button">Atualizar</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Título</th>
+                    <th>Origem</th>
+                    <th>Status</th>
+                    <th>Criada em</th>
+                  </tr>
+                </thead>
+                <tbody id="recordingsTableBody"></tbody>
+              </table>
+            </div>
+          </section>
         </section>
       </main>
     </div>
+
+    <div id="recordingDetailBackdrop" class="dialog-backdrop hidden">
+      <div class="dialog-card" role="dialog" aria-modal="true">
+        <div class="section-head">
+          <div>
+            <h2>Detalhe da gravação</h2>
+            <p>Metadados operacionais, transcript, summary, highlights, action items e erro final.</p>
+          </div>
+          <button id="closeDetailButton" class="button ghost small" type="button">Fechar</button>
+        </div>
+
+        <div id="recordingDetailFeedback" class="inline-message hidden"></div>
+
+        <div id="recordingDetailContent" class="detail-pane">
+          <div class="empty-card">
+            <strong>Selecione uma gravação</strong>
+            <span>Abra o detalhe a partir da lista de gravações do usuário.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="./app.js"></script>
   </body>
   </html>

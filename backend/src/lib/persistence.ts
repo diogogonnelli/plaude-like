@@ -32,7 +32,7 @@ export function serializeRecordingGraph(recording: Recording, storageUserId: str
     id: recording.id,
     userId: storageUserId,
     createdByUserId: recording.createdByUserId ? resolveStorageUserId(recording.createdByUserId) : storageUserId,
-    projectId: recording.projectId,
+    projectId: recording.projectId ?? null,
     title: recording.title,
     sourceType: recording.sourceType,
     captureMetadata: recording.captureMetadata ?? null,
@@ -65,7 +65,7 @@ export function deserializeRecordingGraph(
     id: String(raw.id),
     userId: raw.userId == null ? fallbackUserId : String(raw.userId),
     createdByUserId: raw.createdByUserId == null ? fallbackUserId : String(raw.createdByUserId),
-    projectId: String(raw.projectId),
+    projectId: raw.projectId == null ? null : String(raw.projectId),
     title: String(raw.title),
     sourceType: raw.sourceType as Recording['sourceType'],
     captureMetadata: raw.captureMetadata == null

@@ -7,7 +7,13 @@ import { CompanionStore } from './src/store/companion-store.js';
 import { SupabaseSessionService } from './src/services/supabase-session.js';
 import { UploadQueueService } from './src/services/upload-queue.js';
 import { CaptureSessionManager } from './src/services/capture-session-manager.js';
-import { listProjects } from './src/services/backend-client.js';
+import {
+  exportRecordingMarkdown,
+  getRecording,
+  listProjects,
+  listRecordings,
+  updateRecording,
+} from './src/services/backend-client.js';
 import { captureSources } from './src/shared/capture-sources.js';
 
 const runtime = {
@@ -21,9 +27,11 @@ const runtime = {
 async function buildBootstrapPayload() {
   const sessionState = runtime.sessionService.getSession();
   let projects = [];
+  let recordings = [];
 
   if (sessionState?.accessToken) {
     projects = await listProjects(companionConfig.backendBaseUrl, sessionState.accessToken).catch(() => []);
+    recordings = await listRecordings(companionConfig.backendBaseUrl, sessionState.accessToken).catch(() => []);
   }
 
   return {
@@ -33,6 +41,7 @@ async function buildBootstrapPayload() {
     queue: runtime.uploadQueue.listQueue(),
     captureSources,
     projects,
+    recordings,
   };
 }
 
@@ -64,6 +73,7 @@ function registerIpcHandlers() {
       session: sessionState,
       queue: runtime.uploadQueue.listQueue(),
       projects: await listProjects(companionConfig.backendBaseUrl, sessionState.accessToken).catch(() => []),
+      recordings: await listRecordings(companionConfig.backendBaseUrl, sessionState.accessToken).catch(() => []),
     };
   });
 
@@ -79,6 +89,42 @@ function registerIpcHandlers() {
     }
 
     return listProjects(companionConfig.backendBaseUrl, accessToken);
+  });
+
+  ipcMain.handle('recordings:list', async () => {
+    const accessToken = runtime.sessionService.getAccessToken();
+    if (!accessToken) {
+      return [];
+    }
+
+    return listRecordings(companionConfig.backendBaseUrl, accessToken);
+  });
+
+  ipcMain.handle('recordings:get', async (_event, payload) => {
+    const accessToken = runtime.sessionService.getAccessToken();
+    if (!accessToken) {
+      return null;
+    }
+
+    return getRecording(companionConfig.backendBaseUrl, accessToken, payload.recordingId);
+  });
+
+  ipcMain.handle('recordings:export-markdown', async (_event, payload) => {
+    const accessToken = runtime.sessionService.getAccessToken();
+    if (!accessToken) {
+      return null;
+    }
+
+    return exportRecordingMarkdown(companionConfig.backendBaseUrl, accessToken, payload.recordingId);
+  });
+
+  ipcMain.handle('recordings:update', async (_event, payload) => {
+    const accessToken = runtime.sessionService.getAccessToken();
+    if (!accessToken) {
+      return null;
+    }
+
+    return updateRecording(companionConfig.backendBaseUrl, accessToken, payload.recordingId, payload.input);
   });
 
   ipcMain.handle('queue:retry', async () => {

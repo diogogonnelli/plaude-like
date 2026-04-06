@@ -94,7 +94,9 @@ export class UploadQueueService {
   async uploadItem(item, accessToken) {
     const form = new FormData();
     form.set('title', item.title);
-    form.set('projectId', item.projectId);
+    if (item.projectId) {
+      form.set('projectId', item.projectId);
+    }
     form.set('sourceType', item.sourceType);
     form.set('captureMetadata', JSON.stringify(item.captureMetadata));
 

@@ -58,6 +58,7 @@ class PlaudeApi {
   Future<List<RecordingNote>> listRecordings({
     String? query,
     String? projectId,
+    bool withoutProject = false,
   }) async {
     final requestQuery = <String, String>{
       '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
@@ -67,6 +68,9 @@ class PlaudeApi {
     }
     if (projectId != null && projectId.isNotEmpty) {
       requestQuery['projectId'] = projectId;
+    }
+    if (withoutProject) {
+      requestQuery['withoutProject'] = 'true';
     }
 
     final response = await _client.get(
@@ -96,16 +100,22 @@ class PlaudeApi {
 
   Future<RecordingNote> createRecording({
     required String title,
-    required String projectId,
+    String? projectId,
     required String sourceType,
+    CaptureMetadata? captureMetadata,
     String? audioPath,
     int? durationMs,
   }) async {
     final requestPayload = <String, dynamic>{
       'title': title,
-      'projectId': projectId,
       'sourceType': sourceType,
     };
+    if (projectId != null && projectId.isNotEmpty) {
+      requestPayload['projectId'] = projectId;
+    }
+    if (captureMetadata != null) {
+      requestPayload['captureMetadata'] = captureMetadata.toJson();
+    }
     if (audioPath != null) {
       requestPayload['audioPath'] = audioPath;
     }
@@ -125,15 +135,21 @@ class PlaudeApi {
   Future<RecordingNote> uploadRecording({
     required PlatformFile file,
     required String title,
-    required String projectId,
+    String? projectId,
     String sourceType = 'upload',
+    CaptureMetadata? captureMetadata,
     int? durationMs,
   }) async {
     final request = http.MultipartRequest('POST', _uri('/recordings/upload'));
     request.headers.addAll(await _headers(includeJsonContentType: false));
     request.fields['title'] = title;
-    request.fields['projectId'] = projectId;
+    if (projectId != null && projectId.isNotEmpty) {
+      request.fields['projectId'] = projectId;
+    }
     request.fields['sourceType'] = sourceType;
+    if (captureMetadata != null) {
+      request.fields['captureMetadata'] = jsonEncode(captureMetadata.toJson());
+    }
     if (durationMs != null) {
       request.fields['durationMs'] = durationMs.toString();
     }
@@ -184,6 +200,31 @@ class PlaudeApi {
         '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
       }),
       headers: await _headers(),
+    );
+    final payload = _decode(response);
+    return RecordingNote.fromJson(payload['data'] as Map<String, dynamic>);
+  }
+
+  Future<RecordingNote> updateRecording({
+    required String recordingId,
+    String? title,
+    String? projectId,
+    bool clearProjectId = false,
+  }) async {
+    final requestPayload = <String, dynamic>{};
+    if (title != null && title.isNotEmpty) {
+      requestPayload['title'] = title;
+    }
+    if (clearProjectId) {
+      requestPayload['projectId'] = null;
+    } else if (projectId != null && projectId.isNotEmpty) {
+      requestPayload['projectId'] = projectId;
+    }
+
+    final response = await _client.patch(
+      _uri('/recordings/$recordingId'),
+      headers: await _headers(),
+      body: jsonEncode(requestPayload),
     );
     final payload = _decode(response);
     return RecordingNote.fromJson(payload['data'] as Map<String, dynamic>);

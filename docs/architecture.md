@@ -49,13 +49,13 @@ Entidades centrais:
 
 ## Regras de acesso
 
-- rotas do produto usam membership por projeto
+- gravações pertencem ao usuário dono, com projeto apenas como vínculo opcional
 - rotas `/admin/*` exigem token válido, usuário ativo em `public.users` e perfil `admin`
 - admin tem visão global de projetos, membros, gravações e jobs
 
 ## Storage
 
-- áudio persistido em `recordings/{projectId}/{recordingId}/{fileName}`
+- novos áudios persistidos em `recordings/{createdByUserId}/{recordingId}/{fileName}`
 - metadados de transcrição ficam no topo do grafo da gravação
 - reuniões online usam `sourceType=desktop_meeting` e `captureMetadata`
 

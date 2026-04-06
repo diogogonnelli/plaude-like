@@ -14,6 +14,9 @@ import '../data/demo_content.dart';
 import '../data/models.dart';
 import '../data/plaude_api.dart';
 
+const recordingFilterAll = '__all__';
+const recordingFilterNone = '__none__';
+
 class PlaudeController extends ChangeNotifier {
   PlaudeController({
     required this.api,
@@ -41,7 +44,8 @@ class PlaudeController extends ChangeNotifier {
   String? _recordingPath;
   String? _currentlyPlayingPath;
   String? _notice;
-  String? _activeProjectId;
+  String? _selectedProjectForNewRecordings;
+  String _recordingProjectFilterValue = recordingFilterAll;
   Session? _session;
   final Set<String> _processingIds = <String>{};
   final Set<String> _chatBusyIds = <String>{};
@@ -59,14 +63,17 @@ class PlaudeController extends ChangeNotifier {
   bool get isRecording => _isRecording;
   String? get notice => _notice;
   String get searchQuery => _searchQuery;
-  String? get activeProjectId => _activeProjectId;
-  Project? get activeProject {
-    if (_activeProjectId == null) return null;
+  String? get selectedProjectForNewRecordings => _selectedProjectForNewRecordings;
+  String get recordingProjectFilterValue => _recordingProjectFilterValue;
+  String? get activeProjectId => _selectedProjectForNewRecordings;
+  Project? get selectedProjectForNewRecordingProject {
+    if (_selectedProjectForNewRecordings == null) return null;
     for (final project in _projects) {
-      if (project.id == _activeProjectId) return project;
+      if (project.id == _selectedProjectForNewRecordings) return project;
     }
     return null;
   }
+  Project? get activeProject => selectedProjectForNewRecordingProject;
 
   List<RecordingNote> get recordings => _filteredRecordings();
 
@@ -171,9 +178,21 @@ class PlaudeController extends ChangeNotifier {
       _backendAvailable = await api.isHealthy();
       if (_backendAvailable) {
         _projects = await api.listProjects();
-        _activeProjectId ??= _projects.isNotEmpty ? _projects.first.id : null;
+        if (_selectedProjectForNewRecordings != null &&
+            !_projects.any((project) => project.id == _selectedProjectForNewRecordings)) {
+          _selectedProjectForNewRecordings = null;
+        }
+        if (_recordingProjectFilterValue != recordingFilterAll &&
+            _recordingProjectFilterValue != recordingFilterNone &&
+            !_projects.any((project) => project.id == _recordingProjectFilterValue)) {
+          _recordingProjectFilterValue = recordingFilterAll;
+        }
         _recordings = await api.listRecordings(
-          projectId: _activeProjectId,
+          projectId: _recordingProjectFilterValue == recordingFilterAll ||
+                  _recordingProjectFilterValue == recordingFilterNone
+              ? null
+              : _recordingProjectFilterValue,
+          withoutProject: _recordingProjectFilterValue == recordingFilterNone,
           query: _searchQuery.trim().isEmpty ? null : _searchQuery.trim(),
         );
         _notice = 'Conectado ao backend.';
@@ -216,7 +235,8 @@ class PlaudeController extends ChangeNotifier {
     _projects = const [];
     _recordings = const [];
     _backendAvailable = false;
-    _activeProjectId = null;
+    _selectedProjectForNewRecordings = null;
+    _recordingProjectFilterValue = recordingFilterAll;
     _notice = null;
     _isLoading = false;
   }
@@ -226,15 +246,28 @@ class PlaudeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setSelectedProjectForNewRecordings(String? projectId) async {
+    _selectedProjectForNewRecordings = projectId;
+    notifyListeners();
+  }
+
   Future<void> changeActiveProject(String? projectId) async {
-    _activeProjectId = projectId;
+    await setSelectedProjectForNewRecordings(projectId);
+  }
+
+  Future<void> changeRecordingProjectFilter(String value) async {
+    _recordingProjectFilterValue = value;
     notifyListeners();
     if (_backendAvailable) {
       await refresh();
     }
   }
 
-  String projectNameFor(String projectId) {
+  String projectNameFor(String? projectId) {
+    if (projectId == null || projectId.isEmpty) {
+      return 'Sem projeto';
+    }
+
     for (final project in _projects) {
       if (project.id == projectId) {
         return project.name;
@@ -253,6 +286,31 @@ class PlaudeController extends ChangeNotifier {
     }
 
     return 'Usuário do projeto';
+  }
+
+  String sourceLabelFor(RecordingNote recording) {
+    if (recording.sourceType == 'desktop_meeting') {
+      return recording.captureMetadata?.sourceLabel ?? 'Reunião online';
+    }
+
+    if (recording.sourceType == 'microphone') {
+      return 'Microfone';
+    }
+
+    return 'Upload';
+  }
+
+  String sourceDetailLabelFor(RecordingNote recording) {
+    if (recording.sourceType == 'desktop_meeting') {
+      final metadata = recording.captureMetadata;
+      if (metadata == null) {
+        return 'Reunião online';
+      }
+
+      return '${metadata.sourceLabel} · ${metadata.platformLabel}';
+    }
+
+    return sourceLabelFor(recording);
   }
 
   RecordingNote? findById(String id) {
@@ -279,12 +337,6 @@ class PlaudeController extends ChangeNotifier {
       return;
     }
 
-    if (_activeProjectId == null) {
-      _notice = 'Selecione um projeto antes de gravar.';
-      notifyListeners();
-      return;
-    }
-
     try {
       final hasPermission = await _recorder.hasPermission();
       if (!hasPermission) {
@@ -298,13 +350,44 @@ class PlaudeController extends ChangeNotifier {
       final extension = useAac ? 'm4a' : 'wav';
       final path =
           '${tempDir.path}/gravacao_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final androidConfig = Platform.isAndroid
+          ? const AndroidRecordConfig(
+              service: AndroidService(
+                title: 'GravAção',
+                content: 'Gravação em andamento em segundo plano.',
+              ),
+            )
+          : const AndroidRecordConfig();
+      final iosConfig = Platform.isIOS
+          ? const IosRecordConfig(
+              categoryOptions: [
+                IosAudioCategoryOption.defaultToSpeaker,
+                IosAudioCategoryOption.allowBluetooth,
+                IosAudioCategoryOption.allowBluetoothA2DP,
+                IosAudioCategoryOption.allowAirPlay,
+              ],
+            )
+          : const IosRecordConfig();
       final config = useAac
-          ? const RecordConfig(
+          ? RecordConfig(
               encoder: AudioEncoder.aacLc,
               bitRate: 128000,
               sampleRate: 44100,
+              androidConfig: androidConfig,
+              iosConfig: iosConfig,
+              audioInterruption: Platform.isIOS
+                  ? AudioInterruptionMode.pauseResume
+                  : AudioInterruptionMode.pause,
             )
-          : const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 44100);
+          : RecordConfig(
+              encoder: AudioEncoder.wav,
+              sampleRate: 44100,
+              androidConfig: androidConfig,
+              iosConfig: iosConfig,
+              audioInterruption: Platform.isIOS
+                  ? AudioInterruptionMode.pauseResume
+                  : AudioInterruptionMode.pause,
+            );
 
       await _recorder.start(config, path: path);
       final started = await _recorder.isRecording();
@@ -345,12 +428,7 @@ class PlaudeController extends ChangeNotifier {
       return;
     }
 
-    final projectId = _activeProjectId;
-    if (projectId == null) {
-      _notice = 'Selecione um projeto antes de enviar a gravacao.';
-      notifyListeners();
-      return;
-    }
+    final projectId = _selectedProjectForNewRecordings;
 
     if (_backendAvailable) {
       final filePath = _recordingPath!;
@@ -393,12 +471,7 @@ class PlaudeController extends ChangeNotifier {
       return;
     }
 
-    final projectId = _activeProjectId;
-    if (projectId == null) {
-      _notice = 'Selecione um projeto antes de enviar um audio.';
-      notifyListeners();
-      return;
-    }
+    final projectId = _selectedProjectForNewRecordings;
 
     if (_backendAvailable) {
       await _uploadAndWatch(
@@ -421,7 +494,7 @@ class PlaudeController extends ChangeNotifier {
 
   Future<void> _createAndProcessRecording({
     required String title,
-    required String projectId,
+    required String? projectId,
     required String sourceType,
     String? audioPath,
     int? durationMs,
@@ -448,7 +521,7 @@ class PlaudeController extends ChangeNotifier {
   Future<void> _uploadAndWatch({
     required PlatformFile platformFile,
     required String title,
-    required String projectId,
+    required String? projectId,
     required String sourceType,
   }) async {
     try {
@@ -503,7 +576,7 @@ class PlaudeController extends ChangeNotifier {
 
   Future<RecordingNote> _createRecording({
     required String title,
-    required String projectId,
+    required String? projectId,
     required String sourceType,
     String? audioPath,
     int? durationMs,
@@ -736,6 +809,52 @@ class PlaudeController extends ChangeNotifier {
     );
   }
 
+  Future<void> updateRecordingProject(String recordingId, String? projectId) async {
+    final current = findById(recordingId);
+    if (current == null) {
+      _notice = 'Gravação não encontrada.';
+      notifyListeners();
+      return;
+    }
+
+    if (projectId != null && !_projects.any((project) => project.id == projectId)) {
+      _notice = 'Projeto inválido para vínculo.';
+      notifyListeners();
+      return;
+    }
+
+    if (_backendAvailable) {
+      try {
+        final updated = await api.updateRecording(
+          recordingId: recordingId,
+          projectId: projectId,
+          clearProjectId: projectId == null,
+        );
+        _replaceRecording(updated);
+        _notice = projectId == null
+            ? 'Vínculo com projeto removido.'
+            : 'Projeto da gravação atualizado.';
+        return;
+      } catch (error) {
+        _notice = 'Falha ao atualizar o projeto da gravação: $error';
+        notifyListeners();
+        return;
+      }
+    }
+
+    _replaceRecording(
+      current.copyWith(
+        projectId: projectId,
+        clearProjectId: projectId == null,
+        updatedAt: DateTime.now(),
+      ),
+    );
+    _notice = projectId == null
+        ? 'Vínculo com projeto removido.'
+        : 'Projeto da gravação atualizado localmente.';
+    notifyListeners();
+  }
+
   Future<void> togglePlayback(String path) async {
     if (!isPlayable(path)) {
       _notice =
@@ -886,7 +1005,12 @@ class PlaudeController extends ChangeNotifier {
 
   List<RecordingNote> _filteredRecordings() {
     return _recordings.where((recording) {
-      if (_activeProjectId != null && recording.projectId != _activeProjectId) {
+      if (_recordingProjectFilterValue == recordingFilterNone && recording.projectId != null) {
+        return false;
+      }
+      if (_recordingProjectFilterValue != recordingFilterAll &&
+          _recordingProjectFilterValue != recordingFilterNone &&
+          recording.projectId != _recordingProjectFilterValue) {
         return false;
       }
       if (_searchQuery.isEmpty) {
@@ -916,7 +1040,6 @@ class PlaudeController extends ChangeNotifier {
         updatedAt: DateTime(2026, 3, 26, 10, 0, 0),
       ),
     ];
-    _activeProjectId ??= 'project-demo';
     _recordings = demoNotes;
   }
 

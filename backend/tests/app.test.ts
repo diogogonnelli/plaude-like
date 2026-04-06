@@ -378,6 +378,103 @@ describe('recordings api', () => {
     expect(processResponse.body.data.summary.overview).toBeTruthy();
   });
 
+  it('creates recordings without a project and allows later project binding changes', async () => {
+    const createResponse = await request(app)
+      .post('/recordings')
+      .set('x-user-id', demoUserId)
+      .send({
+        title: 'Nota sem projeto',
+        sourceType: 'upload',
+      });
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body.data.projectId).toBeNull();
+
+    const recordingId = createResponse.body.data.id as string;
+
+    const withoutProjectResponse = await request(app)
+      .get('/recordings')
+      .set('x-user-id', demoUserId)
+      .query({ withoutProject: 'true' });
+
+    expect(withoutProjectResponse.status).toBe(200);
+    expect(withoutProjectResponse.body.data.some((item: { id: string }) => item.id === recordingId)).toBe(true);
+
+    const bindResponse = await request(app)
+      .patch(`/recordings/${recordingId}`)
+      .set('x-user-id', demoUserId)
+      .send({ projectId: 'project-demo' });
+
+    expect(bindResponse.status).toBe(200);
+    expect(bindResponse.body.data.projectId).toBe('project-demo');
+
+    const unbindResponse = await request(app)
+      .patch(`/recordings/${recordingId}`)
+      .set('x-user-id', demoUserId)
+      .send({ projectId: null });
+
+    expect(unbindResponse.status).toBe(200);
+    expect(unbindResponse.body.data.projectId).toBeNull();
+  });
+
+  it('keeps recordings private to the owner even when linked to a shared project', async () => {
+    const profiles = await request(app).get('/admin/profiles');
+    const userProfileId = profiles.body.data.find((item: { code: string }) => item.code === 'user')?.id as string;
+
+    const createdUser = await request(app)
+      .post('/admin/users')
+      .send({
+        email: 'member-private@example.com',
+        password: 'senha-forte-123',
+        fullName: 'Membro do projeto',
+        profileId: userProfileId,
+      });
+
+    const createdProject = await request(app)
+      .post('/admin/projects')
+      .send({ name: 'Projeto owner-only' });
+
+    await request(app)
+      .post(`/admin/projects/${createdProject.body.data.id}/members`)
+      .send({ userId: createdUser.body.data.id, role: 'member' });
+
+    const createResponse = await request(app)
+      .post('/recordings')
+      .set('x-user-id', demoUserId)
+      .send({
+        title: 'Privada no projeto',
+        projectId: createdProject.body.data.id,
+        sourceType: 'upload',
+      });
+
+    const ownerRecordingId = createResponse.body.data.id as string;
+
+    const response = await request(app)
+      .get(`/recordings/${ownerRecordingId}`)
+      .set('x-user-id', demoUserId);
+
+    expect(response.status).toBe(200);
+
+    const memberApp = buildTestApp(service, {
+      authProvider: new TestAuthProvider(
+        makeAuth({
+          userId: createdUser.body.data.id,
+          email: 'member-private@example.com',
+          fullName: 'Membro do projeto',
+          profile: userProfile,
+          source: 'dev-header',
+        }),
+        { enforced: false, admin: false },
+      ),
+    });
+
+    const memberResponse = await request(memberApp)
+      .get(`/recordings/${ownerRecordingId}`);
+
+    expect(memberResponse.status).toBe(404);
+    expect(memberResponse.body.code).toBe('recording_not_found');
+  });
+
   it('accepts desktop meeting recordings with capture metadata and admin filters', async () => {
     const createResponse = await request(app)
       .post('/recordings')

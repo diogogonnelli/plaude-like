@@ -47,7 +47,7 @@ Exemplo resumido:
   "id": "uuid",
   "userId": "auth-user-uuid",
   "createdByUserId": "auth-user-uuid",
-  "projectId": "project-uuid",
+  "projectId": null,
   "title": "Audio curto",
   "sourceType": "upload",
   "captureMetadata": null,
@@ -119,6 +119,7 @@ Query params opcionais:
 - `query`
 - `tag`
 - `projectId`
+- `withoutProject`
 - `_ts`
 
 ### `POST /recordings`
@@ -130,7 +131,7 @@ Body:
 ```json
 {
   "title": "Nome da gravação",
-  "projectId": "project-uuid",
+  "projectId": null,
   "sourceType": "desktop_meeting",
   "captureMetadata": {
     "sourceApp": "teams",
@@ -158,7 +159,7 @@ Campos:
 
 - `file` obrigatório
 - `title` obrigatório
-- `projectId` obrigatório
+- `projectId` opcional
 - `sourceType` opcional
 - `captureMetadata` opcional em JSON stringificado
 - `durationMs` opcional
@@ -166,6 +167,10 @@ Campos:
 ### `GET /recordings/:id`
 
 Busca uma gravação específica.
+
+### `PATCH /recordings/:id`
+
+Atualiza título e/ou vínculo opcional com projeto.
 
 ### `POST /recordings/:id/process`
 
@@ -271,7 +276,7 @@ Resposta típica:
 {
   "data": {
     "id": "recording-uuid",
-    "projectId": "project-uuid",
+    "projectId": null,
     "createdByUserId": "user-uuid",
     "sourceType": "desktop_meeting",
     "captureMetadata": {

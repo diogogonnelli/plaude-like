@@ -116,7 +116,7 @@ export interface Recording {
   id: string;
   userId: string;
   createdByUserId: string;
-  projectId: string;
+  projectId?: string | null;
   title: string;
   sourceType: RecordingSourceType;
   captureMetadata?: CaptureMetadata;
@@ -138,7 +138,7 @@ export interface Recording {
 
 export interface CreateRecordingInput {
   title: string;
-  projectId: string;
+  projectId?: string | null;
   sourceType: RecordingSourceType;
   captureMetadata?: CaptureMetadata;
   durationMs?: number;

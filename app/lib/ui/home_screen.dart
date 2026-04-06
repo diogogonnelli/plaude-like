@@ -15,7 +15,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<PlaudeController>();
-    final activeProject = controller.activeProject;
+    final selectedProject = controller.selectedProjectForNewRecordingProject;
 
     return AppShell(
       title: '',
@@ -25,25 +25,28 @@ class HomeScreen extends StatelessWidget {
       homeBrandOnly: true,
       onNavigationSelected: (index) => _goToIndex(context, index),
       actions: [
-        if (controller.projects.isNotEmpty)
-          SizedBox(
-            width: 240,
-            child: DropdownButtonFormField<String>(
-              key: ValueKey(controller.activeProjectId),
-              initialValue: controller.activeProjectId,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Projeto ativo'),
-              items: controller.projects
-                  .map(
-                    (project) => DropdownMenuItem(
-                      value: project.id,
-                      child: Text(project.name),
-                    ),
-                  )
-                  .toList(),
-              onChanged: controller.changeActiveProject,
-            ),
+        SizedBox(
+          width: 240,
+          child: DropdownButtonFormField<String?>(
+            key: ValueKey(controller.selectedProjectForNewRecordings ?? '__none__'),
+            initialValue: controller.selectedProjectForNewRecordings,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Projeto para novas gravações'),
+            items: [
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('Sem projeto'),
+              ),
+              ...controller.projects.map(
+                (project) => DropdownMenuItem<String?>(
+                  value: project.id,
+                  child: Text(project.name),
+                ),
+              ),
+            ],
+            onChanged: controller.setSelectedProjectForNewRecordings,
           ),
+        ),
         BrandButton(
           label: 'Atualizar',
           icon: Icons.sync_rounded,
@@ -64,7 +67,7 @@ class HomeScreen extends StatelessWidget {
             ],
             _CommandDeck(
               controller: controller,
-              activeProjectName: activeProject?.name ?? 'Nenhum projeto ativo',
+              activeProjectName: selectedProject?.name ?? 'Sem projeto',
               totalCount: controller.recordings.length,
               processingCount: controller.processingRecordings.length,
               failedCount: controller.failedRecordings.length,
@@ -154,7 +157,7 @@ class _CommandDeck extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Projeto ativo: $activeProjectName',
+            'Projeto para novas gravações: $activeProjectName',
             style: Theme.of(
               context,
             ).textTheme.titleLarge?.copyWith(color: Colors.white),

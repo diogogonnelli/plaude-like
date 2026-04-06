@@ -32,10 +32,15 @@ const captureMetadataSchema = z
   })
   .strict();
 
+const optionalProjectIdSchema = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.string().min(1).nullable().optional(),
+);
+
 const createRecordingSchema = z
   .object({
     title: z.string().min(1),
-    projectId: z.string().min(1),
+    projectId: optionalProjectIdSchema,
     sourceType: z.enum(recordingSourceTypes),
     captureMetadata: captureMetadataSchema.optional(),
     durationMs: z.number().int().positive().optional(),
@@ -64,10 +69,17 @@ const exportSchema = z
 const uploadRecordingSchema = z
   .object({
     title: z.string().min(1),
-    projectId: z.string().min(1),
+    projectId: optionalProjectIdSchema,
     sourceType: z.enum(recordingSourceTypes).default('upload'),
     captureMetadata: z.preprocess(parseCaptureMetadataField, captureMetadataSchema.optional()),
     durationMs: z.coerce.number().int().positive().optional(),
+  })
+  .strict();
+
+const recordingPatchSchema = z
+  .object({
+    title: z.string().min(1).optional(),
+    projectId: z.string().min(1).nullable().optional(),
   })
   .strict();
 
@@ -238,6 +250,16 @@ function parseCaptureMetadataField(value: unknown) {
   return value;
 }
 
+function assertProjectFiltersAreValid(projectId: string | undefined, withoutProject: boolean | undefined) {
+  if (projectId && withoutProject) {
+    throw new ServiceError(
+      'projectId and withoutProject cannot be used together.',
+      400,
+      'project_filter_conflict',
+    );
+  }
+}
+
 function slugify(value: string) {
   return value
     .toLowerCase()
@@ -354,11 +376,13 @@ export function buildApp(recordingService: RecordingService, options: BuildAppOp
           query: z.string().min(1).optional(),
           tag: z.string().min(1).optional(),
           projectId: z.string().min(1).optional(),
+          withoutProject: booleanQuerySchema.optional(),
           _ts: z.string().optional(),
         })
         .strict()
         .parse(request.query);
 
+      assertProjectFiltersAreValid(query.projectId, query.withoutProject);
       const recordings = await recordingService.list(auth.userId, query);
       response.json({ data: recordings });
     }),
@@ -446,6 +470,21 @@ export function buildApp(recordingService: RecordingService, options: BuildAppOp
       });
 
       response.status(201).json({ data: recording });
+    }),
+  );
+
+  app.patch(
+    '/recordings/:id',
+    withAuth(async (request, response, auth) => {
+      const params = z
+        .object({
+          id: z.string().min(1),
+        })
+        .strict()
+        .parse(request.params);
+      const body = recordingPatchSchema.parse(request.body ?? {});
+      const recording = await recordingService.updateRecording(params.id, auth.userId, body);
+      response.json({ data: recording });
     }),
   );
 
@@ -775,6 +814,7 @@ export function buildApp(recordingService: RecordingService, options: BuildAppOp
         .object({
           query: z.string().min(1).optional(),
           projectId: z.string().min(1).optional(),
+          withoutProject: booleanQuerySchema.optional(),
           userId: z.string().min(1).optional(),
           sourceApp: z.enum(captureSourceApps).optional(),
           platform: z.enum(capturePlatforms).optional(),
@@ -782,6 +822,7 @@ export function buildApp(recordingService: RecordingService, options: BuildAppOp
       })
         .strict()
         .parse(request.query);
+      assertProjectFiltersAreValid(query.projectId, query.withoutProject);
       const recordings = await recordingService.listAdminRecordings(query);
       const decorated = await decorateAdminRecordings(recordingService, recordings);
       response.json({ data: decorated });
@@ -805,6 +846,16 @@ export function buildApp(recordingService: RecordingService, options: BuildAppOp
       const body = exportSchema.parse(request.body ?? {});
       const artifact = await recordingService.exportAdmin(params.id, body.format);
       response.json({ data: artifact });
+    }, { admin: true }),
+  );
+
+  app.patch(
+    '/admin/recordings/:id',
+    withAuth(async (request, response) => {
+      const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
+      const body = recordingPatchSchema.parse(request.body ?? {});
+      const recording = await recordingService.updateRecordingAdmin(params.id, body);
+      response.json({ data: recording });
     }, { admin: true }),
   );
 

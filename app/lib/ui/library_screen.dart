@@ -28,25 +28,36 @@ class LibraryScreen extends StatelessWidget {
       interceptBackToPrimary: true,
       onNavigationSelected: (index) => _goToIndex(context, index),
       actions: [
-        if (controller.projects.isNotEmpty)
-          SizedBox(
-            width: 220,
-            child: DropdownButtonFormField<String>(
-              key: ValueKey(controller.activeProjectId),
-              initialValue: controller.activeProjectId,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Projeto'),
-              items: controller.projects
-                  .map(
-                    (project) => DropdownMenuItem(
-                      value: project.id,
-                      child: Text(project.name),
-                    ),
-                  )
-                  .toList(),
-              onChanged: controller.changeActiveProject,
-            ),
+        SizedBox(
+          width: 220,
+          child: DropdownButtonFormField<String>(
+            key: ValueKey(controller.recordingProjectFilterValue),
+            initialValue: controller.recordingProjectFilterValue,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Projeto'),
+            items: [
+              const DropdownMenuItem(
+                value: recordingFilterAll,
+                child: Text('Todos'),
+              ),
+              const DropdownMenuItem(
+                value: recordingFilterNone,
+                child: Text('Sem projeto'),
+              ),
+              ...controller.projects.map(
+                (project) => DropdownMenuItem(
+                  value: project.id,
+                  child: Text(project.name),
+                ),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                controller.changeRecordingProjectFilter(value);
+              }
+            },
           ),
+        ),
       ],
       child: RefreshIndicator(
         onRefresh: controller.refresh,
@@ -334,6 +345,7 @@ class _LibrarySection extends StatelessWidget {
                             authorName: controller.authorLabelFor(
                               recording.createdByUserId,
                             ),
+                            sourceLabel: controller.sourceLabelFor(recording),
                             onTap: () =>
                                 context.go('/recordings/${recording.id}'),
                           ),
@@ -366,12 +378,14 @@ class _RecordingCard extends StatelessWidget {
     required this.note,
     required this.projectName,
     required this.authorName,
+    required this.sourceLabel,
     required this.onTap,
   });
 
   final RecordingNote note;
   final String projectName;
   final String authorName;
+  final String sourceLabel;
   final VoidCallback onTap;
 
   @override
@@ -426,6 +440,10 @@ class _RecordingCard extends StatelessWidget {
                   label: format.format(note.createdAt.toLocal()),
                 ),
                 _MetaChip(icon: Icons.workspaces_outline, label: projectName),
+                _MetaChip(
+                  icon: Icons.desktop_windows_outlined,
+                  label: sourceLabel,
+                ),
                 _MetaChip(
                   icon: Icons.person_outline_rounded,
                   label: authorName,

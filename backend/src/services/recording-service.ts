@@ -74,7 +74,12 @@ export class RecordingService {
     private readonly pushNotifications: PushNotificationServiceLike = new NoopPushNotificationService(),
   ) {}
 
-  list(userId: string, filters?: { query?: string; tag?: string; projectId?: string }) {
+  list(userId: string, filters?: {
+    query?: string;
+    tag?: string;
+    projectId?: string;
+    withoutProject?: boolean;
+  }) {
     return this.repository.list(userId, filters);
   }
 
@@ -322,6 +327,7 @@ export class RecordingService {
   listAdminRecordings(filters?: {
     query?: string;
     projectId?: string;
+    withoutProject?: boolean;
     userId?: string;
     status?: Recording['status'];
     sourceApp?: NonNullable<Recording['captureMetadata']>['sourceApp'];
@@ -356,6 +362,48 @@ export class RecordingService {
     return this.repository.create(userId, input);
   }
 
+  async updateRecording(
+    recordingId: string,
+    userId: string,
+    input: {
+      title?: string;
+      projectId?: string | null;
+    },
+  ): Promise<Recording> {
+    const current = await this.getOrThrow(recordingId, userId);
+    const nextProjectId = input.projectId === undefined ? current.projectId ?? null : input.projectId;
+
+    if (nextProjectId) {
+      await this.getProjectOrThrow(nextProjectId, userId);
+    }
+
+    return this.repository.update({
+      ...current,
+      title: input.title ?? current.title,
+      projectId: nextProjectId,
+    });
+  }
+
+  async updateRecordingAdmin(
+    recordingId: string,
+    input: {
+      title?: string;
+      projectId?: string | null;
+    },
+  ): Promise<Recording> {
+    const current = await this.getAdminRecordingOrThrow(recordingId);
+
+    if (input.projectId) {
+      await this.getAdminProjectOrThrow(input.projectId);
+    }
+
+    return this.repository.update({
+      ...current,
+      title: input.title ?? current.title,
+      projectId: input.projectId === undefined ? current.projectId ?? null : input.projectId,
+    });
+  }
+
   async uploadAndStartTranscription(userId: string, input: UploadAudioInput): Promise<Recording> {
     const startedAt = new Date().toISOString();
     let recording = await this.repository.create(userId, {
@@ -387,7 +435,7 @@ export class RecordingService {
       }
 
       try {
-        const objectPath = buildAudioObjectPath(recording.projectId, recording.id, input.fileName);
+        const objectPath = buildAudioObjectPath(recording.createdByUserId, recording.id, input.fileName);
         await uploadAudioToStorage({
           objectPath,
           filePath: input.filePath,
@@ -618,9 +666,9 @@ export class RecordingService {
   }
 }
 
-function buildAudioObjectPath(projectId: string, recordingId: string, fileName: string): string {
+function buildAudioObjectPath(userId: string, recordingId: string, fileName: string): string {
   const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-  return `${projectId}/${recordingId}/${safeFileName}`;
+  return `${userId}/${recordingId}/${safeFileName}`;
 }
 
 function normalizeOptionalText(value: string | null | undefined): string | null | undefined {

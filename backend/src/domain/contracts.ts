@@ -16,7 +16,12 @@ import type {
 
 export interface RecordingRepository {
   isSupabasePersistence(): boolean;
-  list(userId: string, filters?: { query?: string; tag?: string; projectId?: string }): Promise<Recording[]>;
+  list(userId: string, filters?: {
+    query?: string;
+    tag?: string;
+    projectId?: string;
+    withoutProject?: boolean;
+  }): Promise<Recording[]>;
   getById(recordingId: string, userId: string): Promise<Recording | null>;
   getAnyById(recordingId: string): Promise<Recording | null>;
   create(userId: string, input: CreateRecordingInput): Promise<Recording>;
@@ -78,6 +83,7 @@ export interface RecordingRepository {
   listAllRecordings(filters?: {
     query?: string;
     projectId?: string;
+    withoutProject?: boolean;
     userId?: string;
     status?: Recording['status'];
     sourceApp?: CaptureSourceApp;
@@ -114,7 +120,7 @@ export interface ExportProvider {
 
 export interface UploadAudioInput {
   title: string;
-  projectId: string;
+  projectId?: string | null;
   sourceType: Recording['sourceType'];
   captureMetadata?: Recording['captureMetadata'];
   filePath: string;

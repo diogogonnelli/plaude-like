@@ -11,13 +11,14 @@ Esta pasta versiona o schema da persistência real do produto.
 - `0005_admin_users.sql`: allowlist de admins globais
 - `0007_users_and_profiles.sql`: diretório de usuários, perfis de acesso e migração do modelo antigo de admins
 - `0008_desktop_meeting_capture.sql`: `desktop_meeting`, `capture_metadata` e atualização das RPCs
+- `0009_owner_based_recordings.sql`: `project_id` opcional e visibilidade owner-based para gravações
 
 ## Storage
 
 Os arquivos de áudio ficam em:
 
 ```text
-{project-id}/{recording-id}/{file-name}
+{created-by-user-id}/{recording-id}/{file-name}
 ```
 
 ## Auth

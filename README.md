@@ -8,6 +8,7 @@ Produto `GravAção`, co-branded com `SPOT`, com app `Flutter` para web/mobile, 
   - biblioteca de notas de voz
   - gravação local em mobile/desktop
   - upload de arquivos de áudio
+  - projeto opcional no momento da gravação ou do envio
   - leitura de reuniões online capturadas pelo companion desktop
   - tela de detalhe com resumo, highlights, action items e transcript
   - chat contextual sobre a nota

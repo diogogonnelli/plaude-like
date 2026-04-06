@@ -118,7 +118,7 @@ export class PushNotificationService implements PushNotificationServiceLike {
       data: {
         type: 'recording_ready',
         recordingId: recording.id,
-        projectId: recording.projectId,
+        projectId: recording.projectId ?? '',
       },
       android: {
         priority: 'high',
