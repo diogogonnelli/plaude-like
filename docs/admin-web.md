@@ -20,20 +20,33 @@ Aplicação separada em `admin-web/`, com autenticação Supabase e rotas reais 
 
 1. O usuário faz login com email e senha via Supabase Auth.
 2. O `admin-web` envia `Authorization: Bearer <access_token>` para o backend.
-3. O backend valida o token e verifica se o `user_id` existe em `public.admin_users`.
-4. Se a conta não estiver allowlisted, a UI mostra tela de acesso negado.
+3. O backend valida o token, carrega a linha de `public.users` e o perfil relacionado em `public.profiles`.
+4. O acesso administrativo só é liberado quando o perfil efetivo da pessoa é `admin` e o cadastro está ativo.
 
 ## Rotas
 
 - `/login`
+- `/users`
+- `/profiles`
 - `/projects`
 - `/projects/:id/members`
 - `/recordings`
 - `/recordings/:id`
 - `/jobs`
-- `/providers`
 
 ## Superfícies operacionais
+
+### Usuários
+
+- listagem com filtro por busca, perfil e status
+- criação e edição com email, nome, senha, perfil e ativação
+- leitura direta do perfil vinculado à pessoa
+
+### Perfis
+
+- catálogo de papéis de acesso como `admin` e `user`
+- criação, edição e remoção de perfis customizados
+- proteção visual para perfis sistêmicos
 
 ### Projetos
 
@@ -45,8 +58,8 @@ Aplicação separada em `admin-web/`, com autenticação Supabase e rotas reais 
 ### Membros
 
 - seletor de projeto por rota
-- listagem de `userId`, `role` e `createdAt`
-- adição por `userId` bruto e `role`
+- listagem de usuário, `role` e `createdAt`
+- adição por usuário cadastrado e `role`
 - remoção com confirmação visual
 
 ### Gravações
@@ -61,11 +74,6 @@ Aplicação separada em `admin-web/`, com autenticação Supabase e rotas reais 
 - espelho operacional de `/admin/jobs`
 - deep link para `/recordings/:id`
 - filtros reaproveitados para diagnóstico rápido
-
-### Providers
-
-- leitura da configuração exposta pelo backend
-- útil para validação de ambiente em operação
 
 ## Observações
 

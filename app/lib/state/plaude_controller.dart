@@ -234,6 +234,27 @@ class PlaudeController extends ChangeNotifier {
     }
   }
 
+  String projectNameFor(String projectId) {
+    for (final project in _projects) {
+      if (project.id == projectId) {
+        return project.name;
+      }
+    }
+    return projectId;
+  }
+
+  String authorLabelFor(String createdByUserId) {
+    if (_session?.user.id == createdByUserId) {
+      return _friendlySessionName();
+    }
+
+    if (!_authRequired && createdByUserId == 'demo-user') {
+      return 'Você';
+    }
+
+    return 'Usuário do projeto';
+  }
+
   RecordingNote? findById(String id) {
     for (final recording in _recordings) {
       if (recording.id == id) {
@@ -897,6 +918,20 @@ class PlaudeController extends ChangeNotifier {
     ];
     _activeProjectId ??= 'project-demo';
     _recordings = demoNotes;
+  }
+
+  String _friendlySessionName() {
+    final email = _session?.user.email;
+    if (email == null || email.isEmpty) {
+      return 'Você';
+    }
+
+    final localPart = email.split('@').first.trim();
+    if (localPart.isEmpty) {
+      return 'Você';
+    }
+
+    return localPart;
   }
 
   void _replaceRecording(RecordingNote next) {

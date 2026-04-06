@@ -23,7 +23,7 @@ class LibraryScreen extends StatelessWidget {
       subtitle:
           'Busca, filtros por projeto e leitura densa do pipeline em uma superfície única.',
       navigationIndex: 0,
-      showCaptureFab: true,
+      showCaptureFab: false,
       homeBrandOnly: true,
       interceptBackToPrimary: true,
       onNavigationSelected: (index) => _goToIndex(context, index),
@@ -72,7 +72,8 @@ class LibraryScreen extends StatelessWidget {
                     ),
                   ),
                   if (controller.notice case final String notice
-                      when notice != _webCaptureNotice) ...[
+                      when notice != _webCaptureNotice &&
+                          notice != 'Conectado ao backend.') ...[
                     const SizedBox(height: 14),
                     _Banner(
                       text: notice,
@@ -83,35 +84,37 @@ class LibraryScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            _LibrarySummary(
+              processingCount: controller.processingRecordings.length,
+              readyCount: controller.readyRecordings.length,
+              failedCount: controller.failedRecordings.length,
+            ),
+            const SizedBox(height: 16),
             LayoutBuilder(
               builder: (context, constraints) {
                 final wide = constraints.maxWidth >= 900;
-                final summary = _LibrarySummary(
-                  processingCount: controller.processingRecordings.length,
-                  readyCount: controller.readyRecordings.length,
-                  failedCount: controller.failedRecordings.length,
-                );
                 final queue = _LibrarySection(
                   title: 'Em andamento',
                   subtitle: 'Status da esteira que ainda exige processamento.',
                   recordings: controller.processingRecordings,
+                  controller: controller,
                 );
                 final ready = _LibrarySection(
                   title: 'Notas prontas',
                   subtitle: 'Itens prontos para leitura, exportação e chat.',
                   recordings: controller.readyRecordings,
+                  controller: controller,
                 );
                 final failed = _LibrarySection(
                   title: 'Falhas',
                   subtitle: 'Itens acessíveis para retry e diagnóstico.',
                   recordings: controller.failedRecordings,
+                  controller: controller,
                 );
 
                 if (!wide) {
                   return Column(
                     children: [
-                      summary,
-                      const SizedBox(height: 16),
                       queue,
                       const SizedBox(height: 16),
                       ready,
@@ -123,8 +126,6 @@ class LibraryScreen extends StatelessWidget {
 
                 return Column(
                   children: [
-                    summary,
-                    const SizedBox(height: 16),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -188,28 +189,32 @@ class _LibrarySummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BrandPanel(
-      child: Wrap(
-        spacing: 14,
-        runSpacing: 14,
-        children: [
-          _SummaryCard(
+    return Row(
+      children: [
+        Expanded(
+          child: _SummaryCard(
             title: 'Processando',
             value: '$processingCount',
             tone: BrandStatusTone.accent,
           ),
-          _SummaryCard(
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SummaryCard(
             title: 'Prontas',
             value: '$readyCount',
             tone: BrandStatusTone.success,
           ),
-          _SummaryCard(
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SummaryCard(
             title: 'Falhas',
             value: '$failedCount',
             tone: BrandStatusTone.warning,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -227,27 +232,59 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (tone) {
-      BrandStatusTone.success => BrandColors.positive,
-      BrandStatusTone.warning => BrandColors.warning,
-      BrandStatusTone.accent => BrandColors.accent,
-      BrandStatusTone.info => BrandColors.info,
-      BrandStatusTone.neutral => BrandColors.shell,
+    final (backgroundColor, labelColor, borderColor) = switch (tone) {
+      BrandStatusTone.success => (
+        const Color(0xFFEAF8F0),
+        const Color(0xFF087A45),
+        const Color(0xFFBEE8CE),
+      ),
+      BrandStatusTone.warning => (
+        const Color(0xFFFFF1E8),
+        const Color(0xFFAA4300),
+        const Color(0xFFF6C8AF),
+      ),
+      BrandStatusTone.accent => (
+        const Color(0xFFFFEEF2),
+        BrandColors.accent,
+        const Color(0xFFF4C0CC),
+      ),
+      BrandStatusTone.info => (
+        const Color(0xFFEFF2FF),
+        BrandColors.info,
+        const Color(0xFFC8D0FF),
+      ),
+      BrandStatusTone.neutral => (
+        BrandColors.surfaceMuted,
+        BrandColors.shell,
+        BrandColors.stroke,
+      ),
     };
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 180),
-      child: BrandPanel(
-        backgroundColor: color.withValues(alpha: 0.08),
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.labelMedium),
-            const SizedBox(height: 8),
-            Text(value, style: Theme.of(context).textTheme.headlineMedium),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(BrandRadius.md),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: labelColor, fontSize: 10),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: BrandColors.text,
+              fontSize: 15,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -258,11 +295,13 @@ class _LibrarySection extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.recordings,
+    required this.controller,
   });
 
   final String title;
   final String subtitle;
   final List<RecordingNote> recordings;
+  final PlaudeController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -289,6 +328,12 @@ class _LibrarySection extends StatelessWidget {
                           padding: const EdgeInsets.only(bottom: 12),
                           child: _RecordingCard(
                             note: recording,
+                            projectName: controller.projectNameFor(
+                              recording.projectId,
+                            ),
+                            authorName: controller.authorLabelFor(
+                              recording.createdByUserId,
+                            ),
                             onTap: () =>
                                 context.go('/recordings/${recording.id}'),
                           ),
@@ -317,9 +362,16 @@ class _LibraryEmptyState extends StatelessWidget {
 }
 
 class _RecordingCard extends StatelessWidget {
-  const _RecordingCard({required this.note, required this.onTap});
+  const _RecordingCard({
+    required this.note,
+    required this.projectName,
+    required this.authorName,
+    required this.onTap,
+  });
 
   final RecordingNote note;
+  final String projectName;
+  final String authorName;
   final VoidCallback onTap;
 
   @override
@@ -373,13 +425,10 @@ class _RecordingCard extends StatelessWidget {
                   icon: Icons.schedule_rounded,
                   label: format.format(note.createdAt.toLocal()),
                 ),
-                _MetaChip(
-                  icon: Icons.workspaces_outline,
-                  label: note.projectId,
-                ),
+                _MetaChip(icon: Icons.workspaces_outline, label: projectName),
                 _MetaChip(
                   icon: Icons.person_outline_rounded,
-                  label: note.createdByUserId,
+                  label: authorName,
                 ),
               ],
             ),
@@ -399,6 +448,7 @@ class _MetaChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: const BoxConstraints(maxWidth: 180),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: BrandColors.surface,
@@ -410,7 +460,14 @@ class _MetaChip extends StatelessWidget {
         children: [
           Icon(icon, size: 16, color: BrandColors.shell),
           const SizedBox(width: 8),
-          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
         ],
       ),
     );

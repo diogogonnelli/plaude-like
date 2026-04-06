@@ -1,0 +1,12 @@
+cd C:\vscode_projects\Plaude_like\backend
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+npm install
+npm start
+
+cd C:\vscode_projects\Plaude_like\admin-web
+npm install
+$env:VITE_API_BASE_URL="http://localhost:8787"
+$env:VITE_SUPABASE_URL="https://xxivinpsvkmamhghofex.supabase.co"
+$env:VITE_SUPABASE_ANON_KEY="sb_publishable_TX-Gp485UroUdwb9AJk0mA_QudOzk0S"
+npm run dev -- --host 0.0.0.0
+http://localhost:5173

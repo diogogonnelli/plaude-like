@@ -65,7 +65,6 @@ class HomeScreen extends StatelessWidget {
             _CommandDeck(
               controller: controller,
               activeProjectName: activeProject?.name ?? 'Nenhum projeto ativo',
-              backendAvailable: controller.backendAvailable,
               totalCount: controller.recordings.length,
               processingCount: controller.processingRecordings.length,
               failedCount: controller.failedRecordings.length,
@@ -117,7 +116,6 @@ class _CommandDeck extends StatelessWidget {
   const _CommandDeck({
     required this.controller,
     required this.activeProjectName,
-    required this.backendAvailable,
     required this.totalCount,
     required this.processingCount,
     required this.failedCount,
@@ -125,7 +123,6 @@ class _CommandDeck extends StatelessWidget {
 
   final PlaudeController controller;
   final String activeProjectName;
-  final bool backendAvailable;
   final int totalCount;
   final int processingCount;
   final int failedCount;
@@ -148,27 +145,6 @@ class _CommandDeck extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              const BrandBadge(
-                label: 'SPOT execution layer',
-                backgroundColor: Color(0x1AFFFFFF),
-                foregroundColor: Colors.white,
-                borderColor: Color(0x24FFFFFF),
-              ),
-              BrandBadge(
-                label: backendAvailable
-                    ? 'Backend autenticado'
-                    : 'Modo demonstração',
-                backgroundColor: Colors.white.withValues(alpha: 0.12),
-                foregroundColor: Colors.white,
-                borderColor: Colors.white.withValues(alpha: 0.18),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
           Text(
             'Grave agora. Execute depois.',
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
@@ -191,50 +167,70 @@ class _CommandDeck extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
+          Row(
             children: [
-              FilledButton.icon(
-                onPressed: controller.isRecording
-                    ? controller.stopRecordingAndProcess
-                    : controller.startRecording,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: BrandColors.shellDark,
-                  minimumSize: const Size(0, 52),
-                ),
-                icon: Icon(
-                  controller.isRecording
-                      ? Icons.stop_circle_outlined
-                      : Icons.mic_none_rounded,
-                ),
-                label: Text(
-                  controller.isRecording
-                      ? 'Parar captação'
-                      : 'Iniciar captação',
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: controller.isRecording
+                      ? controller.stopRecordingAndProcess
+                      : controller.startRecording,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: BrandColors.shellDark,
+                    minimumSize: const Size(0, 52),
+                  ),
+                  icon: Icon(
+                    controller.isRecording
+                        ? Icons.stop_circle_outlined
+                        : Icons.mic_none_rounded,
+                  ),
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      controller.isRecording
+                          ? 'Parar captação'
+                          : 'Iniciar captação',
+                    ),
+                  ),
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: controller.pickAudioFile,
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 52),
-                  foregroundColor: Colors.white,
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: controller.pickAudioFile,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 52),
+                    foregroundColor: Colors.white,
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  icon: const Icon(Icons.upload_file_rounded),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Enviar áudio'),
+                  ),
                 ),
-                icon: const Icon(Icons.upload_file_rounded),
-                label: const Text('Enviar áudio'),
               ),
             ],
           ),
           const SizedBox(height: 22),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
+          Row(
             children: [
-              _MetricPanel(label: 'Notas', value: '$totalCount'),
-              _MetricPanel(label: 'Em andamento', value: '$processingCount'),
-              _MetricPanel(label: 'Falhas', value: '$failedCount'),
+              Expanded(
+                child: _MetricPanel(label: 'Notas', value: '$totalCount'),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _MetricPanel(
+                  label: 'Processando',
+                  value: '$processingCount',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _MetricPanel(label: 'Falhas', value: '$failedCount'),
+              ),
             ],
           ),
         ],
@@ -262,11 +258,20 @@ class _MetricPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(color: Colors.white70),
+          SizedBox(
+            height: 18,
+            child: FittedBox(
+              alignment: Alignment.centerLeft,
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                softWrap: false,
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(color: Colors.white70),
+              ),
+            ),
           ),
           const SizedBox(height: 6),
           Text(

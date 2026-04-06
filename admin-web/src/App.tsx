@@ -38,6 +38,7 @@ const supabase = HAS_SUPABASE_CONFIG
 
 type ProjectStatus = 'active' | 'archived';
 type MemberRole = 'owner' | 'member';
+type UserStatus = 'active' | 'inactive';
 type RecordingStatus =
   | 'uploaded'
   | 'processing_transcript'
@@ -55,11 +56,34 @@ type Project = {
   updatedAt: string;
 };
 
+type AccessProfile = {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type UserRecord = {
+  id: string;
+  email?: string | null;
+  fullName?: string | null;
+  profileId: string;
+  profileCode: string;
+  profileName: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type ProjectMember = {
   projectId: string;
   userId: string;
   role: MemberRole;
   createdAt: string;
+  user?: UserRecord;
 };
 
 type TranscriptSegment = {
@@ -92,6 +116,7 @@ type Recording = {
   id: string;
   userId: string;
   createdByUserId: string;
+  createdByLabel?: string | null;
   projectId: string;
   title: string;
   sourceType: 'microphone' | 'upload';
@@ -122,18 +147,13 @@ type JobRow = {
   lastError?: string | null;
 };
 
-type ProviderData = {
-  aiProvider: string;
-  transcriptionProvider: string;
-  assemblyAiSpeechModel: string;
-  supabasePersistenceMode: string;
-  supabaseStorageBucket: string;
-};
-
 type AdminMe = {
   userId: string;
   email: string | null;
+  fullName?: string | null;
   source: string;
+  isActive: boolean;
+  profile: AccessProfile | null;
   authEnforced: boolean;
   isAdmin: boolean;
 };
@@ -161,15 +181,16 @@ export function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<ProtectedAdminApp />}>
-            <Route index element={<Navigate to="/projects" replace />} />
+            <Route index element={<Navigate to="/users" replace />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/profiles" element={<ProfilesPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:projectId/members" element={<MembersPage />} />
             <Route path="/recordings" element={<RecordingsPage />} />
             <Route path="/recordings/:recordingId" element={<RecordingsPage />} />
             <Route path="/jobs" element={<JobsPage />} />
-            <Route path="/providers" element={<ProvidersPage />} />
           </Route>
-          <Route path="*" element={<Navigate to="/projects" replace />} />
+          <Route path="*" element={<Navigate to="/users" replace />} />
         </Routes>
       </BrowserRouter>
     </SessionProvider>
@@ -302,10 +323,12 @@ function formatTimestamp(milliseconds: number) {
   return `${minutes}:${seconds}`;
 }
 
-function statusLabel(status: RecordingStatus | ProjectStatus | MemberRole) {
+function statusLabel(status: RecordingStatus | ProjectStatus | MemberRole | UserStatus) {
   switch (status) {
     case 'active':
       return 'Ativo';
+    case 'inactive':
+      return 'Inativo';
     case 'archived':
       return 'Arquivado';
     case 'owner':
@@ -325,6 +348,15 @@ function statusLabel(status: RecordingStatus | ProjectStatus | MemberRole) {
     case 'failed':
       return 'Falhou';
   }
+}
+
+function formatUserLabel(user?: Pick<UserRecord, 'id' | 'email' | 'fullName'> | null) {
+  if (!user) return '—';
+  if (user.fullName && user.email) {
+    return `${user.fullName} (${user.email})`;
+  }
+
+  return user.fullName ?? user.email ?? user.id;
 }
 
 function useAccessToken() {
@@ -399,7 +431,7 @@ function ProtectedAdminApp() {
     return (
       <FullscreenState
         title="Acesso administrativo negado"
-        description={error ?? 'Sua conta autenticada não está na allowlist de administradores.'}
+        description={error ?? 'Sua conta autenticada não possui o perfil `admin` ativo.'}
         actions={
           <>
             <button className="button ghost" onClick={() => void signOut()}>
@@ -444,7 +476,7 @@ function LoginPage() {
 
   useEffect(() => {
     if (ready && session) {
-      navigate('/projects', { replace: true });
+      navigate('/users', { replace: true });
     }
   }, [navigate, ready, session]);
 
@@ -455,7 +487,7 @@ function LoginPage() {
 
     try {
       await signIn(email, password);
-      navigate('/projects', { replace: true });
+      navigate('/users', { replace: true });
     } catch (signInError) {
       setError(signInError instanceof Error ? signInError.message : 'Falha ao autenticar.');
     } finally {
@@ -472,7 +504,7 @@ function LoginPage() {
       <div className="auth-card">
         <div className="auth-kicker">SPOT endorsed workflow</div>
         <h1>Entrar no GravAção Admin</h1>
-        <p>Use uma conta provisionada no Supabase Auth e já autorizada na tabela `admin_users`.</p>
+        <p>Use uma conta provisionada no Supabase Auth e vinculada ao perfil `admin` em `public.users`.</p>
         {!hasSupabaseConfig ? (
           <div className="inline-error">
             Configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` para habilitar o login.
@@ -516,9 +548,10 @@ function AdminLayout(props: { adminMe: AdminMe; onSignOut: () => Promise<void> }
   const navigate = useNavigate();
 
   const sectionTitle = useMemo(() => {
+    if (location.pathname.startsWith('/users')) return 'Usuários';
+    if (location.pathname.startsWith('/profiles')) return 'Perfis';
     if (location.pathname.startsWith('/recordings')) return 'Gravações';
     if (location.pathname.startsWith('/jobs')) return 'Jobs';
-    if (location.pathname.startsWith('/providers')) return 'Providers';
     if (location.pathname.includes('/members')) return 'Membros';
     return 'Projetos';
   }, [location.pathname]);
@@ -529,10 +562,16 @@ function AdminLayout(props: { adminMe: AdminMe; onSignOut: () => Promise<void> }
         <div className="brand-card">
           <div className="brand-kicker">SPOT endorsed product</div>
           <h1>GravAção Admin</h1>
-          <p>Projetos, membros, gravações, jobs e providers com foco em leitura rápida e ação imediata.</p>
+          <p>Cadastros, perfis, projetos, gravações e jobs com permissão lida do diretório de usuários.</p>
         </div>
 
         <nav className="nav-stack">
+          <NavLink to="/users" className={({ isActive }) => navClass(isActive)}>
+            Usuários
+          </NavLink>
+          <NavLink to="/profiles" className={({ isActive }) => navClass(isActive)}>
+            Perfis
+          </NavLink>
           <NavLink to="/projects" className={({ isActive }) => navClass(isActive)}>
             Projetos
           </NavLink>
@@ -542,14 +581,12 @@ function AdminLayout(props: { adminMe: AdminMe; onSignOut: () => Promise<void> }
           <NavLink to="/jobs" className={({ isActive }) => navClass(isActive)}>
             Jobs
           </NavLink>
-          <NavLink to="/providers" className={({ isActive }) => navClass(isActive)}>
-            Providers
-          </NavLink>
         </nav>
 
         <div className="sidebar-foot">
           <div className="sidebar-meta">
-            <strong>{props.adminMe.email ?? props.adminMe.userId}</strong>
+            <strong>{props.adminMe.fullName ?? props.adminMe.email ?? props.adminMe.userId}</strong>
+            <span>{props.adminMe.profile?.name ?? 'Sem perfil'}</span>
             <span>{props.adminMe.authEnforced ? 'JWT Supabase ativo' : 'Modo local'}</span>
           </div>
           <button
@@ -601,7 +638,7 @@ function PageCard(props: { title: string; subtitle?: string; actions?: ReactNode
   );
 }
 
-function StatusPill(props: { status: RecordingStatus | ProjectStatus | MemberRole }) {
+function StatusPill(props: { status: RecordingStatus | ProjectStatus | MemberRole | UserStatus }) {
   return <span className={`status-pill status-${props.status}`}>{statusLabel(props.status as never)}</span>;
 }
 
@@ -616,6 +653,565 @@ function TableEmpty(props: { title: string; description: string }) {
 
 function InlineFeedback(props: { tone: 'error' | 'success'; message: string }) {
   return <div className={`inline-${props.tone}`}>{props.message}</div>;
+}
+
+function UsersPage() {
+  const token = useAccessToken();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [profiles, setProfiles] = useState<AccessProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [editorState, setEditorState] = useState<{ mode: 'create' | 'edit'; user?: UserRecord } | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const query = searchParams.get('query') ?? '';
+  const profileId = searchParams.get('profileId') ?? '';
+  const isActive = searchParams.get('isActive') ?? '';
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    const params = new URLSearchParams();
+    if (query) params.set('query', query);
+    if (profileId) params.set('profileId', profileId);
+    if (isActive) params.set('isActive', isActive);
+
+    void Promise.all([
+      apiRequest<{ data: AccessProfile[] }>('/admin/profiles', token),
+      apiRequest<{ data: UserRecord[] }>(`/admin/users?${params.toString()}`, token),
+    ])
+      .then(([profilesPayload, usersPayload]) => {
+        if (cancelled) return;
+        setProfiles(profilesPayload.data);
+        setUsers(usersPayload.data);
+      })
+      .catch((requestError: ApiError) => {
+        if (cancelled) return;
+        setError(requestError.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isActive, profileId, query, reloadKey, token]);
+
+  function updateFilters(next: Record<string, string>) {
+    const params = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(next)) {
+      value ? params.set(key, value) : params.delete(key);
+    }
+    setSearchParams(params, { replace: true });
+  }
+
+  async function handleSaveUser(payload: {
+    id?: string;
+    email: string;
+    password?: string;
+    fullName?: string | null;
+    profileId: string;
+    isActive: boolean;
+  }) {
+    setFeedback(null);
+    setError(null);
+    try {
+      if (payload.id) {
+        await apiRequest<{ data: UserRecord }>(`/admin/users/${payload.id}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            email: payload.email,
+            password: payload.password?.trim() ? payload.password : undefined,
+            fullName: payload.fullName,
+            profileId: payload.profileId,
+            isActive: payload.isActive,
+          }),
+        });
+        setFeedback('Usuário atualizado com sucesso.');
+      } else {
+        await apiRequest<{ data: UserRecord }>('/admin/users', token, {
+          method: 'POST',
+          body: JSON.stringify({
+            email: payload.email,
+            password: payload.password,
+            fullName: payload.fullName,
+            profileId: payload.profileId,
+            isActive: payload.isActive,
+          }),
+        });
+        setFeedback('Usuário criado com sucesso.');
+      }
+      setEditorState(null);
+      setReloadKey((current) => current + 1);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Falha ao salvar usuário.');
+    }
+  }
+
+  return (
+    <div className="page-stack">
+      <PageCard
+        title="Diretório de usuários"
+        subtitle="Cadastro de pessoas, vínculo com perfil e estado ativo para controle operacional."
+        actions={
+          <button className="button primary" onClick={() => setEditorState({ mode: 'create' })}>
+            Novo usuário
+          </button>
+        }
+      >
+        <div className="filters-grid">
+          <label className="field grow">
+            <span>Buscar</span>
+            <input
+              value={query}
+              onChange={(event) => updateFilters({ query: event.target.value })}
+              placeholder="Nome, email, perfil ou id"
+            />
+          </label>
+          <label className="field">
+            <span>Perfil</span>
+            <select value={profileId} onChange={(event) => updateFilters({ profileId: event.target.value })}>
+              <option value="">Todos</option>
+              {profiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Status</span>
+            <select value={isActive} onChange={(event) => updateFilters({ isActive: event.target.value })}>
+              <option value="">Todos</option>
+              <option value="true">Ativos</option>
+              <option value="false">Inativos</option>
+            </select>
+          </label>
+        </div>
+
+        {feedback ? <InlineFeedback tone="success" message={feedback} /> : null}
+        {error ? <InlineFeedback tone="error" message={error} /> : null}
+
+        {loading ? (
+          <TableEmpty title="Carregando usuários" description="Buscando diretório administrativo." />
+        ) : users.length === 0 ? (
+          <TableEmpty title="Nenhum usuário encontrado" description="Ajuste os filtros ou crie um novo cadastro." />
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Pessoa</th>
+                  <th>Perfil</th>
+                  <th>Status</th>
+                  <th>Atualizado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((user) => (
+                  <tr key={user.id}>
+                    <td>
+                      <div className="table-primary">{user.fullName ?? user.email ?? user.id}</div>
+                      <div className="table-secondary">{user.email ?? user.id}</div>
+                    </td>
+                    <td>
+                      <div className="table-primary">{user.profileName}</div>
+                      <div className="table-secondary">{user.profileCode}</div>
+                    </td>
+                    <td>
+                      <StatusPill status={user.isActive ? 'active' : 'inactive'} />
+                    </td>
+                    <td>{formatDate(user.updatedAt)}</td>
+                    <td>
+                      <button className="button ghost small" onClick={() => setEditorState({ mode: 'edit', user })}>
+                        Editar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </PageCard>
+
+      {editorState ? (
+        <UserEditorDialog
+          key={editorState.user?.id ?? 'create-user'}
+          mode={editorState.mode}
+          user={editorState.user}
+          profiles={profiles}
+          onClose={() => setEditorState(null)}
+          onSave={handleSaveUser}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function UserEditorDialog(props: {
+  mode: 'create' | 'edit';
+  user?: UserRecord;
+  profiles: AccessProfile[];
+  onClose: () => void;
+  onSave: (payload: {
+    id?: string;
+    email: string;
+    password?: string;
+    fullName?: string | null;
+    profileId: string;
+    isActive: boolean;
+  }) => Promise<void>;
+}) {
+  const [email, setEmail] = useState(props.user?.email ?? '');
+  const [fullName, setFullName] = useState(props.user?.fullName ?? '');
+  const [profileId, setProfileId] = useState(
+    props.user?.profileId ?? props.profiles.find((profile) => profile.code === 'user')?.id ?? '',
+  );
+  const [isActive, setIsActive] = useState(props.user?.isActive ?? true);
+  const [password, setPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await props.onSave({
+        id: props.user?.id,
+        email,
+        password,
+        fullName: fullName.trim() ? fullName : null,
+        profileId,
+        isActive,
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <DialogFrame
+      title={props.mode === 'create' ? 'Novo usuário' : 'Editar usuário'}
+      subtitle="Email, nome, perfil e estado de ativação."
+      onClose={props.onClose}
+    >
+      <form className="dialog-form" onSubmit={handleSubmit}>
+        <label className="field">
+          <span>Email</span>
+          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+        </label>
+        <label className="field">
+          <span>Nome completo</span>
+          <input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Opcional" />
+        </label>
+        <label className="field">
+          <span>Perfil</span>
+          <select value={profileId} onChange={(event) => setProfileId(event.target.value)} required>
+            <option value="" disabled>
+              Selecione
+            </option>
+            {props.profiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Status</span>
+          <select value={isActive ? 'true' : 'false'} onChange={(event) => setIsActive(event.target.value === 'true')}>
+            <option value="true">Ativo</option>
+            <option value="false">Inativo</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>{props.mode === 'create' ? 'Senha' : 'Nova senha'}</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder={props.mode === 'create' ? 'Obrigatória' : 'Opcional'}
+            required={props.mode === 'create'}
+          />
+        </label>
+        <div className="dialog-actions">
+          <button type="button" className="button ghost" onClick={props.onClose}>
+            Cancelar
+          </button>
+          <button type="submit" className="button primary" disabled={saving}>
+            {saving ? 'Salvando...' : props.mode === 'create' ? 'Criar usuário' : 'Salvar alterações'}
+          </button>
+        </div>
+      </form>
+    </DialogFrame>
+  );
+}
+
+function ProfilesPage() {
+  const token = useAccessToken();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [profiles, setProfiles] = useState<AccessProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [editorState, setEditorState] = useState<{ mode: 'create' | 'edit'; profile?: AccessProfile } | null>(null);
+  const [pendingDeletion, setPendingDeletion] = useState<AccessProfile | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const query = searchParams.get('query') ?? '';
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    const params = new URLSearchParams();
+    if (query) params.set('query', query);
+
+    void apiRequest<{ data: AccessProfile[] }>(`/admin/profiles?${params.toString()}`, token)
+      .then((payload) => {
+        if (cancelled) return;
+        setProfiles(payload.data);
+      })
+      .catch((requestError: ApiError) => {
+        if (cancelled) return;
+        setError(requestError.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [query, reloadKey, token]);
+
+  function updateFilters(next: Record<string, string>) {
+    const params = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(next)) {
+      value ? params.set(key, value) : params.delete(key);
+    }
+    setSearchParams(params, { replace: true });
+  }
+
+  async function handleSaveProfile(payload: {
+    id?: string;
+    code: string;
+    name: string;
+    description?: string | null;
+  }) {
+    setFeedback(null);
+    setError(null);
+    try {
+      if (payload.id) {
+        await apiRequest<{ data: AccessProfile }>(`/admin/profiles/${payload.id}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        });
+        setFeedback('Perfil atualizado com sucesso.');
+      } else {
+        await apiRequest<{ data: AccessProfile }>('/admin/profiles', token, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        setFeedback('Perfil criado com sucesso.');
+      }
+      setEditorState(null);
+      setReloadKey((current) => current + 1);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Falha ao salvar perfil.');
+    }
+  }
+
+  async function handleDeleteProfile() {
+    if (!pendingDeletion) return;
+    setError(null);
+    setFeedback(null);
+    try {
+      await apiRequest<Record<string, never>>(`/admin/profiles/${pendingDeletion.id}`, token, {
+        method: 'DELETE',
+      });
+      setPendingDeletion(null);
+      setFeedback('Perfil removido com sucesso.');
+      setReloadKey((current) => current + 1);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Falha ao remover perfil.');
+    }
+  }
+
+  return (
+    <div className="page-stack">
+      <PageCard
+        title="Perfis de acesso"
+        subtitle="Papéis como `admin` e `user` ficam centralizados aqui e são atribuídos às pessoas."
+        actions={
+          <button className="button primary" onClick={() => setEditorState({ mode: 'create' })}>
+            Novo perfil
+          </button>
+        }
+      >
+        <div className="filters-row">
+          <label className="field grow">
+            <span>Buscar</span>
+            <input
+              value={query}
+              onChange={(event) => updateFilters({ query: event.target.value })}
+              placeholder="Nome, código ou descrição"
+            />
+          </label>
+        </div>
+
+        {feedback ? <InlineFeedback tone="success" message={feedback} /> : null}
+        {error ? <InlineFeedback tone="error" message={error} /> : null}
+
+        {loading ? (
+          <TableEmpty title="Carregando perfis" description="Buscando catálogo de permissões." />
+        ) : profiles.length === 0 ? (
+          <TableEmpty title="Nenhum perfil encontrado" description="Crie um perfil para começar a segmentar o acesso." />
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Perfil</th>
+                  <th>Descrição</th>
+                  <th>Tipo</th>
+                  <th>Atualizado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {profiles.map((profile) => (
+                  <tr key={profile.id}>
+                    <td>
+                      <div className="table-primary">{profile.name}</div>
+                      <div className="table-secondary">{profile.code}</div>
+                    </td>
+                    <td>{profile.description ?? '—'}</td>
+                    <td>{profile.isSystem ? 'Sistêmico' : 'Custom'}</td>
+                    <td>{formatDate(profile.updatedAt)}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button className="button ghost small" onClick={() => setEditorState({ mode: 'edit', profile })}>
+                          Editar
+                        </button>
+                        {!profile.isSystem ? (
+                          <button className="button danger small" onClick={() => setPendingDeletion(profile)}>
+                            Remover
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </PageCard>
+
+      {editorState ? (
+        <ProfileEditorDialog
+          key={editorState.profile?.id ?? 'create-profile'}
+          mode={editorState.mode}
+          profile={editorState.profile}
+          onClose={() => setEditorState(null)}
+          onSave={handleSaveProfile}
+        />
+      ) : null}
+
+      {pendingDeletion ? (
+        <DialogFrame
+          title="Remover perfil"
+          subtitle={`Confirme a remoção do perfil ${pendingDeletion.name}.`}
+          onClose={() => setPendingDeletion(null)}
+        >
+          <div className="dialog-actions">
+            <button className="button ghost" onClick={() => setPendingDeletion(null)}>
+              Cancelar
+            </button>
+            <button className="button danger" onClick={() => void handleDeleteProfile()}>
+              Confirmar remoção
+            </button>
+          </div>
+        </DialogFrame>
+      ) : null}
+    </div>
+  );
+}
+
+function ProfileEditorDialog(props: {
+  mode: 'create' | 'edit';
+  profile?: AccessProfile;
+  onClose: () => void;
+  onSave: (payload: {
+    id?: string;
+    code: string;
+    name: string;
+    description?: string | null;
+  }) => Promise<void>;
+}) {
+  const [code, setCode] = useState(props.profile?.code ?? '');
+  const [name, setName] = useState(props.profile?.name ?? '');
+  const [description, setDescription] = useState(props.profile?.description ?? '');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await props.onSave({
+        id: props.profile?.id,
+        code: code.trim().toLowerCase(),
+        name,
+        description: description.trim() ? description : null,
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <DialogFrame
+      title={props.mode === 'create' ? 'Novo perfil' : 'Editar perfil'}
+      subtitle="Código, nome e descrição do papel."
+      onClose={props.onClose}
+    >
+      <form className="dialog-form" onSubmit={handleSubmit}>
+        <label className="field">
+          <span>Código</span>
+          <input
+            value={code}
+            onChange={(event) => setCode(event.target.value.replace(/[^a-z0-9_]/g, '').toLowerCase())}
+            disabled={props.profile?.isSystem}
+            required
+          />
+        </label>
+        <label className="field">
+          <span>Nome</span>
+          <input value={name} onChange={(event) => setName(event.target.value)} required />
+        </label>
+        <label className="field">
+          <span>Descrição</span>
+          <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={4} />
+        </label>
+        <div className="dialog-actions">
+          <button type="button" className="button ghost" onClick={props.onClose}>
+            Cancelar
+          </button>
+          <button type="submit" className="button primary" disabled={saving}>
+            {saving ? 'Salvando...' : props.mode === 'create' ? 'Criar perfil' : 'Salvar alterações'}
+          </button>
+        </div>
+      </form>
+    </DialogFrame>
+  );
 }
 
 function ProjectsPage() {
@@ -870,6 +1466,7 @@ function MembersPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [users, setUsers] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -886,16 +1483,18 @@ function MembersPage() {
       setError(null);
 
       try {
-        const [projectsPayload, projectPayload, membersPayload] = await Promise.all([
+        const [projectsPayload, projectPayload, membersPayload, usersPayload] = await Promise.all([
           apiRequest<{ data: Project[] }>('/admin/projects', token),
           apiRequest<{ data: Project }>(`/admin/projects/${projectId}`, token),
           apiRequest<{ data: ProjectMember[] }>(`/admin/projects/${projectId}/members`, token),
+          apiRequest<{ data: UserRecord[] }>('/admin/users?isActive=true', token),
         ]);
 
         if (cancelled) return;
         setProjects(projectsPayload.data);
         setProject(projectPayload.data);
         setMembers(membersPayload.data);
+        setUsers(usersPayload.data);
       } catch (requestError) {
         if (cancelled) return;
         setError(requestError instanceof Error ? requestError.message : 'Falha ao carregar membros.');
@@ -950,11 +1549,13 @@ function MembersPage() {
     }
   }
 
+  const availableUsers = users.filter((user) => !members.some((member) => member.userId === user.id));
+
   return (
     <div className="page-stack">
       <PageCard
         title="Membros do projeto"
-        subtitle="Gestão administrativa direta por `userId`, com confirmação explícita para remoção."
+        subtitle="Gestão administrativa por usuário cadastrado, com confirmação explícita para remoção."
         actions={
           <label className="field compact">
             <span>Projeto</span>
@@ -982,8 +1583,17 @@ function MembersPage() {
           <form className="form-card" onSubmit={handleAddMember}>
             <h4>Adicionar membro</h4>
             <label className="field">
-              <span>User ID</span>
-              <input value={userId} onChange={(event) => setUserId(event.target.value)} placeholder="UUID do usuário" required />
+              <span>Usuário</span>
+              <select value={userId} onChange={(event) => setUserId(event.target.value)} required>
+                <option value="" disabled>
+                  Selecione um usuário
+                </option>
+                {availableUsers.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {formatUserLabel(user)}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="field">
               <span>Role</span>
@@ -1018,7 +1628,7 @@ function MembersPage() {
             <table>
               <thead>
                 <tr>
-                  <th>User ID</th>
+                  <th>Usuário</th>
                   <th>Role</th>
                   <th>Criado em</th>
                   <th></th>
@@ -1027,7 +1637,10 @@ function MembersPage() {
               <tbody>
                 {members.map((member) => (
                   <tr key={`${member.projectId}-${member.userId}`}>
-                    <td className="table-primary">{member.userId}</td>
+                    <td>
+                      <div className="table-primary">{formatUserLabel(member.user ?? null)}</div>
+                      <div className="table-secondary">{member.user?.email ?? member.userId}</div>
+                    </td>
                     <td>
                       <StatusPill status={member.role} />
                     </td>
@@ -1070,6 +1683,8 @@ function RecordingsPage() {
   const navigate = useNavigate();
   const { recordingId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [projectOptions, setProjectOptions] = useState<Project[]>([]);
+  const [authorOptions, setAuthorOptions] = useState<UserRecord[]>([]);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1077,12 +1692,34 @@ function RecordingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const isWide = useMediaQuery('(min-width: 1180px)');
 
   const query = searchParams.get('query') ?? '';
   const projectId = searchParams.get('projectId') ?? '';
   const status = searchParams.get('status') ?? '';
   const userId = searchParams.get('userId') ?? '';
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void Promise.all([
+      apiRequest<{ data: Project[] }>('/admin/projects', token),
+      apiRequest<{ data: UserRecord[] }>('/admin/users', token),
+    ])
+      .then(([projectsPayload, usersPayload]) => {
+        if (cancelled) return;
+        setProjectOptions(projectsPayload.data);
+        setAuthorOptions(usersPayload.data);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setProjectOptions([]);
+        setAuthorOptions([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1151,6 +1788,10 @@ function RecordingsPage() {
     setSearchParams(params, { replace: true });
   }
 
+  function projectNameById(id: string) {
+    return projectOptions.find((project) => project.id === id)?.name ?? id;
+  }
+
   async function handleReprocess() {
     if (!selectedRecording) return;
     setFeedback(null);
@@ -1169,6 +1810,71 @@ function RecordingsPage() {
     }
   }
 
+  async function handleExportMarkdown() {
+    if (!selectedRecording) return;
+    const projectName = projectNameById(selectedRecording.projectId);
+    const authorName = selectedRecording.createdByLabel ?? selectedRecording.createdByUserId;
+    const transcript = selectedRecording.transcriptSegments.length
+      ? selectedRecording.transcriptSegments
+          .map(
+            (segment) =>
+              `- ${segment.speakerLabel} [${formatTimestamp(segment.startMs)}]: ${segment.text}`,
+          )
+          .join('\n')
+      : 'Sem transcript disponível.';
+
+    const markdown = [
+      `# ${selectedRecording.noteArtifact?.title ?? selectedRecording.title}`,
+      '',
+      '## Metadados',
+      `- Recording ID: ${selectedRecording.id}`,
+      `- Projeto: ${projectName}`,
+      `- Autor: ${authorName}`,
+      `- Status: ${statusLabel(selectedRecording.status)}`,
+      `- Job ID: ${selectedRecording.transcriptionJobId ?? '—'}`,
+      `- Criada em: ${formatDate(selectedRecording.createdAt)}`,
+      `- Atualizada em: ${formatDate(selectedRecording.updatedAt)}`,
+      '',
+      '## Resumo executivo',
+      selectedRecording.summary?.overview ?? 'Sem resumo disponível.',
+      '',
+      '## Capítulos',
+      ...(selectedRecording.summary?.chapters?.length
+        ? selectedRecording.summary.chapters.flatMap((chapter) => [
+            `### ${chapter.heading}`,
+            chapter.body,
+            '',
+          ])
+        : ['Sem capítulos estruturados.', '']),
+      '## Highlights',
+      ...(selectedRecording.noteArtifact?.highlights?.length
+        ? selectedRecording.noteArtifact.highlights.map((item) => `- ${item}`)
+        : ['Sem highlights estruturados.']),
+      '',
+      '## Action items',
+      ...(selectedRecording.noteArtifact?.actionItems?.length
+        ? selectedRecording.noteArtifact.actionItems.map((item) => `- ${item}`)
+        : ['Sem action items estruturados.']),
+      '',
+      '## Transcript',
+      transcript,
+      '',
+      ...(selectedRecording.lastError
+        ? ['## Último erro', selectedRecording.lastError, '']
+        : []),
+    ].join('\n');
+
+    const blob = new Blob([markdown], {
+      type: 'text/markdown',
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${selectedRecording.id}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   const list = (
     <PageCard title="Gravações" subtitle="Filtros reais, detalhe administrativo e reprocessamento explícito.">
       <div className="filters-grid">
@@ -1178,7 +1884,14 @@ function RecordingsPage() {
         </label>
         <label className="field">
           <span>Projeto</span>
-          <input value={projectId} onChange={(event) => updateFilters({ projectId: event.target.value })} placeholder="projectId" />
+          <select value={projectId} onChange={(event) => updateFilters({ projectId: event.target.value })}>
+            <option value="">Todos</option>
+            {projectOptions.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="field">
           <span>Status</span>
@@ -1194,7 +1907,14 @@ function RecordingsPage() {
         </label>
         <label className="field">
           <span>Autor</span>
-          <input value={userId} onChange={(event) => updateFilters({ userId: event.target.value })} placeholder="createdByUserId" />
+          <select value={userId} onChange={(event) => updateFilters({ userId: event.target.value })}>
+            <option value="">Todos</option>
+            {authorOptions.map((author) => (
+              <option key={author.id} value={author.id}>
+                {formatUserLabel(author)}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
 
@@ -1211,27 +1931,30 @@ function RecordingsPage() {
                 <th>Título</th>
                 <th>Projeto</th>
                 <th>Status</th>
-                <th>Provider</th>
                 <th>Criada em</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
               {recordings.map((recording) => (
-                <tr
-                  key={recording.id}
-                  className={recording.id === recordingId ? 'selected-row' : undefined}
-                  onClick={() => navigate(`/recordings/${recording.id}?${searchParams.toString()}`)}
-                >
+                <tr key={recording.id} className={recording.id === recordingId ? 'selected-row' : undefined}>
                   <td>
                     <div className="table-primary">{recording.title}</div>
-                    <div className="table-secondary">{recording.id}</div>
                   </td>
-                  <td>{recording.projectId}</td>
+                  <td>{projectNameById(recording.projectId)}</td>
                   <td>
                     <StatusPill status={recording.status} />
                   </td>
-                  <td>{recording.transcriptionProvider ?? '—'}</td>
                   <td>{formatDate(recording.createdAt)}</td>
+                  <td>
+                    <button
+                      className="button ghost small"
+                      onClick={() => navigate(`/recordings/${recording.id}?${searchParams.toString()}`)}
+                      type="button"
+                    >
+                      Detalhe
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1241,37 +1964,29 @@ function RecordingsPage() {
     </PageCard>
   );
 
-  const detail = recordingId ? (
-    <RecordingDetailPane
-      loading={detailLoading}
-      error={detailError}
-      recording={selectedRecording}
-      feedback={feedback}
-      onClose={() => navigate(`/recordings?${searchParams.toString()}`)}
-      onReprocess={handleReprocess}
-    />
-  ) : null;
-
-  if (!isWide) {
-    return (
-      <div className="page-stack">
-        {detail}
-        {list}
-      </div>
-    );
-  }
-
   return (
-    <div className="split-layout">
-      <div className="split-main">{list}</div>
-      <div className="split-side">
-        {detail ?? (
-          <PageCard title="Detalhe da gravação" subtitle="Selecione uma linha para inspecionar transcript, resumo e erros.">
-            <TableEmpty title="Nenhuma gravação selecionada" description="Abra um item da tabela para trabalhar no detalhe." />
-          </PageCard>
-        )}
-      </div>
-    </div>
+    <>
+      <div className="page-stack">{list}</div>
+      {recordingId ? (
+        <DialogFrame
+          title="Detalhe da gravação"
+          subtitle="Metadados operacionais, transcript, summary, highlights, action items e erro final."
+          onClose={() => navigate(`/recordings?${searchParams.toString()}`)}
+        >
+          <RecordingDetailPane
+            loading={detailLoading}
+            error={detailError}
+            recording={selectedRecording}
+            projectName={selectedRecording ? projectNameById(selectedRecording.projectId) : '—'}
+            authorName={selectedRecording?.createdByLabel ?? selectedRecording?.createdByUserId ?? '—'}
+            feedback={feedback}
+            onClose={() => navigate(`/recordings?${searchParams.toString()}`)}
+            onExportMarkdown={handleExportMarkdown}
+            onReprocess={handleReprocess}
+          />
+        </DialogFrame>
+      ) : null}
+    </>
   );
 }
 
@@ -1280,24 +1995,14 @@ function RecordingDetailPane(props: {
   error: string | null;
   feedback: string | null;
   recording: Recording | null;
+  projectName: string;
+  authorName: string;
   onClose: () => void;
+  onExportMarkdown: () => Promise<void>;
   onReprocess: () => Promise<void>;
 }) {
   return (
-    <PageCard
-      title="Detalhe administrativo"
-      subtitle="Metadados operacionais, transcript, summary, highlights, action items e erro final."
-      actions={
-        <div className="row-actions">
-          <button className="button ghost" onClick={props.onClose}>
-            Fechar
-          </button>
-          <button className="button primary" onClick={() => void props.onReprocess()} disabled={!props.recording}>
-            Reprocessar
-          </button>
-        </div>
-      }
-    >
+    <div className="detail-pane">
       {props.feedback ? <InlineFeedback tone="success" message={props.feedback} /> : null}
       {props.error ? <InlineFeedback tone="error" message={props.error} /> : null}
       {props.loading ? (
@@ -1308,14 +2013,27 @@ function RecordingDetailPane(props: {
         <div className="detail-stack">
           <div className="detail-metadata">
             <DetailItem label="Recording ID" value={props.recording.id} />
-            <DetailItem label="Projeto" value={props.recording.projectId} />
-            <DetailItem label="Autor" value={props.recording.createdByUserId} />
+            <DetailItem label="Projeto" value={props.projectName} />
+            <DetailItem label="Autor" value={props.authorName} />
             <DetailItem label="Status" value={statusLabel(props.recording.status)} />
-            <DetailItem label="Provider" value={props.recording.transcriptionProvider ?? '—'} />
             <DetailItem label="Job ID" value={props.recording.transcriptionJobId ?? '—'} />
             <DetailItem label="Criada em" value={formatDate(props.recording.createdAt)} />
             <DetailItem label="Atualizada em" value={formatDate(props.recording.updatedAt)} />
           </div>
+
+          <section className="detail-block">
+            <div className="row-actions">
+              <button className="button primary" onClick={() => void props.onReprocess()} disabled={!props.recording}>
+                Reprocessar
+              </button>
+              <button className="button ghost" onClick={() => void props.onExportMarkdown()} disabled={!props.recording}>
+                Exportar markdown
+              </button>
+              <button className="button ghost" onClick={props.onClose}>
+                Fechar
+              </button>
+            </div>
+          </section>
 
           <section className="detail-block">
             <h4>Resumo executivo</h4>
@@ -1385,7 +2103,7 @@ function RecordingDetailPane(props: {
           ) : null}
         </div>
       )}
-    </PageCard>
+    </div>
   );
 }
 
@@ -1508,55 +2226,6 @@ function JobsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-      </PageCard>
-    </div>
-  );
-}
-
-function ProvidersPage() {
-  const token = useAccessToken();
-  const [providers, setProviders] = useState<ProviderData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    void apiRequest<{ data: ProviderData }>('/admin/providers', token)
-      .then((payload) => {
-        if (cancelled) return;
-        setProviders(payload.data);
-      })
-      .catch((requestError: ApiError) => {
-        if (cancelled) return;
-        setError(requestError.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
-
-  return (
-    <div className="page-stack">
-      <PageCard title="Providers e infraestrutura" subtitle="Estado exposto do backend para IA, transcrição e persistência.">
-        {error ? <InlineFeedback tone="error" message={error} /> : null}
-        {loading ? (
-          <TableEmpty title="Carregando providers" description="Buscando configuração exposta do backend." />
-        ) : !providers ? (
-          <TableEmpty title="Sem dados" description="O backend não retornou configuração de providers." />
-        ) : (
-          <div className="provider-grid">
-            <DetailItem label="AI Provider" value={providers.aiProvider} />
-            <DetailItem label="Speech Provider" value={providers.transcriptionProvider} />
-            <DetailItem label="Speech Model" value={providers.assemblyAiSpeechModel} />
-            <DetailItem label="Persistence" value={providers.supabasePersistenceMode} />
-            <DetailItem label="Storage Bucket" value={providers.supabaseStorageBucket} />
           </div>
         )}
       </PageCard>

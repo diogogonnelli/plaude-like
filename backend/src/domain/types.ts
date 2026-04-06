@@ -9,6 +9,28 @@ export type ProcessingStatus =
 export type ProjectStatus = 'active' | 'archived';
 export type ProjectMemberRole = 'owner' | 'member';
 
+export interface AccessProfile {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserRecord {
+  id: string;
+  email?: string | null;
+  fullName?: string | null;
+  profileId: string;
+  profileCode: string;
+  profileName: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -23,6 +45,7 @@ export interface ProjectMember {
   userId: string;
   role: ProjectMemberRole;
   createdAt: string;
+  user?: UserRecord;
 }
 
 export interface TranscriptSegment {

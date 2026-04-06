@@ -19,7 +19,7 @@ export function buildOpenApiDocument(baseUrl: string) {
       { name: 'Chat', description: 'Perguntas sobre uma nota pronta' },
       { name: 'Export', description: 'Exportacao textual da nota' },
       { name: 'Webhooks', description: 'Callbacks de provedores externos' },
-      { name: 'Admin', description: 'Superficie administrativa e operacional para contas allowlisted em admin_users' },
+      { name: 'Admin', description: 'Superficie administrativa e operacional baseada em public.users + public.profiles' },
     ],
     security: [
       {
@@ -437,8 +437,68 @@ export function buildOpenApiDocument(baseUrl: string) {
       '/admin/me': {
         get: {
           tags: ['Admin'],
-          summary: 'Valida a sessao administrativa atual',
+          summary: 'Valida a sessao administrativa atual e retorna o perfil efetivo',
           responses: { '200': { description: 'Sessao admin validada' } },
+        },
+      },
+      '/admin/profiles': {
+        get: {
+          tags: ['Admin'],
+          summary: 'Lista perfis de acesso',
+          parameters: [
+            { in: 'query', name: 'query', required: false, schema: { type: 'string' } },
+          ],
+          responses: { '200': { description: 'Lista de perfis' } },
+        },
+        post: {
+          tags: ['Admin'],
+          summary: 'Cria perfil de acesso',
+          responses: { '201': { description: 'Perfil criado' } },
+        },
+      },
+      '/admin/profiles/{id}': {
+        patch: {
+          tags: ['Admin'],
+          summary: 'Atualiza perfil de acesso',
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+          ],
+          responses: { '200': { description: 'Perfil atualizado' } },
+        },
+        delete: {
+          tags: ['Admin'],
+          summary: 'Remove perfil de acesso',
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+          ],
+          responses: { '204': { description: 'Perfil removido' } },
+        },
+      },
+      '/admin/users': {
+        get: {
+          tags: ['Admin'],
+          summary: 'Lista usuarios do diretório administrativo',
+          parameters: [
+            { in: 'query', name: 'query', required: false, schema: { type: 'string' } },
+            { in: 'query', name: 'profileId', required: false, schema: { type: 'string' } },
+            { in: 'query', name: 'isActive', required: false, schema: { type: 'boolean' } },
+          ],
+          responses: { '200': { description: 'Lista de usuarios' } },
+        },
+        post: {
+          tags: ['Admin'],
+          summary: 'Cria usuario e vincula perfil',
+          responses: { '201': { description: 'Usuario criado' } },
+        },
+      },
+      '/admin/users/{id}': {
+        patch: {
+          tags: ['Admin'],
+          summary: 'Atualiza usuario administrativo',
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+          ],
+          responses: { '200': { description: 'Usuario atualizado' } },
         },
       },
       '/admin/projects': {

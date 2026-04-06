@@ -52,10 +52,6 @@ class FlakyAiProvider implements AiProvider {
   }
 }
 
-const repository = new MemoryRecordingRepository(demoRecordings);
-const service = new RecordingService(repository, new MockAiProvider(), new PlainTextExportProvider());
-const app = buildApp(service);
-
 class TestPushNotificationService implements PushNotificationServiceLike {
   public readonly registered: Array<{ userId: string; token: string; platform: PushDevicePlatform }> = [];
   public readonly unregistered: Array<{ userId: string; token: string }> = [];
@@ -102,6 +98,53 @@ class TestAuthProvider implements RequestAuthProvider {
   }
 }
 
+const adminProfile = {
+  id: 'profile-admin',
+  code: 'admin',
+  name: 'Administrador',
+} as const;
+
+const userProfile = {
+  id: 'profile-user',
+  code: 'user',
+  name: 'Usuário',
+} as const;
+
+function makeAuth(overrides: Partial<RequestAuth> = {}): RequestAuth {
+  return {
+    userId: demoUserId,
+    email: 'demo@example.com',
+    fullName: 'Usuário demo',
+    isActive: true,
+    profile: adminProfile,
+    source: 'dev-default',
+    ...overrides,
+  };
+}
+
+const repository = new MemoryRecordingRepository(demoRecordings, {
+  forcePersistenceMode: 'memory',
+});
+const service = new RecordingService(repository, new MockAiProvider(), new PlainTextExportProvider());
+const defaultAuthProvider = new TestAuthProvider(makeAuth(), { enforced: false, admin: true });
+
+function buildTestApp(
+  recordingService: RecordingService,
+  options: {
+    authProvider?: RequestAuthProvider;
+    pushNotificationService?: PushNotificationServiceLike;
+  } = {},
+) {
+  return buildApp(recordingService, {
+    authProvider: options.authProvider ?? defaultAuthProvider,
+    pushNotificationService: options.pushNotificationService,
+  });
+}
+
+const app = buildTestApp(service, {
+  authProvider: new TestAuthProvider(makeAuth(), { enforced: false, admin: true }),
+});
+
 describe('recordings api', () => {
   it('serves the OpenAPI document and Swagger UI', async () => {
     const jsonResponse = await request(app).get('/openapi.json');
@@ -134,11 +177,13 @@ describe('recordings api', () => {
   it('rejects protected routes without a bearer token when auth is enforced', async () => {
     const guardedApp = buildApp(service, {
       authProvider: new TestAuthProvider(
-        {
+        makeAuth({
           userId: '11111111-1111-4111-8111-111111111111',
           email: 'user@example.com',
+          fullName: 'Regular User',
+          profile: userProfile,
           source: 'supabase',
-        },
+        }),
         { enforced: true, admin: false },
       ),
     });
@@ -152,11 +197,13 @@ describe('recordings api', () => {
   it('rejects admin routes for authenticated non-admin users', async () => {
     const guardedApp = buildApp(service, {
       authProvider: new TestAuthProvider(
-        {
+        makeAuth({
           userId: '11111111-1111-4111-8111-111111111111',
           email: 'user@example.com',
+          fullName: 'Regular User',
+          profile: userProfile,
           source: 'supabase',
-        },
+        }),
         { enforced: true, admin: false },
       ),
     });
@@ -172,11 +219,12 @@ describe('recordings api', () => {
   it('allows admin routes globally without requiring project membership', async () => {
     const guardedApp = buildApp(service, {
       authProvider: new TestAuthProvider(
-        {
+        makeAuth({
           userId: '22222222-2222-4222-8222-222222222222',
           email: 'operator@example.com',
+          fullName: 'Backoffice Operator',
           source: 'supabase',
-        },
+        }),
         { enforced: true, admin: true },
       ),
     });
@@ -202,6 +250,20 @@ describe('recordings api', () => {
   });
 
   it('creates a project and manages members through admin endpoints', async () => {
+    const profiles = await request(app).get('/admin/profiles');
+    const userProfileId = profiles.body.data.find((item: { code: string }) => item.code === 'user')?.id as string;
+
+    const createdUser = await request(app)
+      .post('/admin/users')
+      .send({
+        email: 'usuario-teste@example.com',
+        password: 'senha-forte-123',
+        fullName: 'Usuário Teste',
+        profileId: userProfileId,
+      });
+
+    expect(createdUser.status).toBe(201);
+
     const createProject = await request(app)
       .post('/admin/projects')
       .send({ name: 'Projeto de teste' });
@@ -211,7 +273,7 @@ describe('recordings api', () => {
 
     const addMember = await request(app)
       .post(`/admin/projects/${projectId}/members`)
-      .send({ userId: 'usuario-teste', role: 'member' });
+      .send({ userId: createdUser.body.data.id, role: 'member' });
 
     expect(addMember.status).toBe(201);
 
@@ -220,6 +282,58 @@ describe('recordings api', () => {
 
     expect(listMembers.status).toBe(200);
     expect(listMembers.body.data.length).toBeGreaterThan(1);
+    expect(listMembers.body.data.some((member: { user?: { email?: string } }) => member.user?.email === 'usuario-teste@example.com')).toBe(true);
+  });
+
+  it('manages profiles and users through admin endpoints', async () => {
+    const createProfile = await request(app)
+      .post('/admin/profiles')
+      .send({
+        code: 'reviewer',
+        name: 'Reviewer',
+        description: 'Perfil para revisão interna.',
+      });
+
+    expect(createProfile.status).toBe(201);
+
+    const createUser = await request(app)
+      .post('/admin/users')
+      .send({
+        email: 'reviewer@example.com',
+        password: 'senha-forte-456',
+        fullName: 'Pessoa Reviewer',
+        profileId: createProfile.body.data.id,
+      });
+
+    expect(createUser.status).toBe(201);
+    expect(createUser.body.data.profileCode).toBe('reviewer');
+
+    const updateUser = await request(app)
+      .patch(`/admin/users/${createUser.body.data.id}`)
+      .send({
+        fullName: 'Pessoa Reviewer Atualizada',
+        isActive: false,
+      });
+
+    expect(updateUser.status).toBe(200);
+    expect(updateUser.body.data.fullName).toBe('Pessoa Reviewer Atualizada');
+    expect(updateUser.body.data.isActive).toBe(false);
+
+    const updateProfile = await request(app)
+      .patch(`/admin/profiles/${createProfile.body.data.id}`)
+      .send({
+        name: 'Reviewer Senior',
+      });
+
+    expect(updateProfile.status).toBe(200);
+    expect(updateProfile.body.data.name).toBe('Reviewer Senior');
+
+    const listUsers = await request(app)
+      .get('/admin/users')
+      .query({ query: 'reviewer@example.com' });
+
+    expect(listUsers.status).toBe(200);
+    expect(listUsers.body.data.some((item: { email?: string }) => item.email === 'reviewer@example.com')).toBe(true);
   });
 
   it('filters admin projects by status and query', async () => {
@@ -266,7 +380,7 @@ describe('recordings api', () => {
 
   it('registers and removes a push token for the authenticated user', async () => {
     const pushService = new TestPushNotificationService();
-    const pushApp = buildApp(service, {
+    const pushApp = buildTestApp(service, {
       pushNotificationService: pushService,
     });
 
@@ -318,10 +432,12 @@ describe('recordings api', () => {
   });
 
   it('retries transient processing failures', async () => {
-    const retryRepository = new MemoryRecordingRepository(demoRecordings);
+    const retryRepository = new MemoryRecordingRepository(demoRecordings, {
+      forcePersistenceMode: 'memory',
+    });
     const flakyProvider = new FlakyAiProvider();
     const retryService = new RecordingService(retryRepository, flakyProvider, new PlainTextExportProvider());
-    const retryApp = buildApp(retryService);
+    const retryApp = buildTestApp(retryService);
 
     const createResponse = await request(retryApp)
       .post('/recordings')
@@ -369,7 +485,9 @@ describe('recordings api', () => {
   });
 
   it('dispatches a push notification when a recording reaches ready', async () => {
-    const pushRepository = new MemoryRecordingRepository(demoRecordings);
+    const pushRepository = new MemoryRecordingRepository(demoRecordings, {
+      forcePersistenceMode: 'memory',
+    });
     const pushService = new TestPushNotificationService();
     const pushRecordingService = new RecordingService(
       pushRepository,
@@ -377,7 +495,7 @@ describe('recordings api', () => {
       new PlainTextExportProvider(),
       pushService,
     );
-    const pushApp = buildApp(pushRecordingService, {
+    const pushApp = buildTestApp(pushRecordingService, {
       pushNotificationService: pushService,
     });
 
@@ -425,7 +543,9 @@ describe('recordings api', () => {
   });
 
   it('falls back to grounded citations when provider answer is empty', async () => {
-    const fallbackRepository = new MemoryRecordingRepository(demoRecordings);
+    const fallbackRepository = new MemoryRecordingRepository(demoRecordings, {
+      forcePersistenceMode: 'memory',
+    });
     const fallbackService = new RecordingService(
       fallbackRepository,
       {
@@ -441,7 +561,7 @@ describe('recordings api', () => {
       },
       new PlainTextExportProvider(),
     );
-    const fallbackApp = buildApp(fallbackService);
+    const fallbackApp = buildTestApp(fallbackService);
 
     const response = await request(fallbackApp)
       .post(`/recordings/${demoRecordings[0]!.id}/chat`)

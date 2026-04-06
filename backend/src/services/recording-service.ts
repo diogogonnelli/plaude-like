@@ -3,15 +3,21 @@ import { unlink } from 'node:fs/promises';
 
 import type { AiProvider, ExportProvider, RecordingRepository, UploadAudioInput } from '../domain/contracts.js';
 import type {
+  AccessProfile,
   ChatMessage,
   CreateRecordingInput,
   ProcessRecordingInput,
   Project,
   ProjectMemberRole,
   Recording,
+  UserRecord,
 } from '../domain/types.js';
 import { config } from '../lib/config.js';
-import { hasSupabasePersistenceConfig, uploadAudioToStorage } from '../lib/supabase-admin.js';
+import {
+  hasSupabasePersistenceConfig,
+  requireSupabaseAdminClient,
+  uploadAudioToStorage,
+} from '../lib/supabase-admin.js';
 import { AssemblyAiTranscriptionProvider } from './assemblyai-transcription-provider.js';
 import { NoopPushNotificationService, type PushNotificationServiceLike } from './push-notification-service.js';
 import { ServiceError, isRetryableError, withRetries } from './service-errors.js';
@@ -139,6 +145,178 @@ export class RecordingService {
 
   removeProjectMemberAdmin(projectId: string, memberUserId: string) {
     return this.repository.removeProjectMemberAdmin(projectId, memberUserId);
+  }
+
+  listAdminUsers(filters?: {
+    query?: string;
+    profileId?: string;
+    isActive?: boolean;
+  }) {
+    return this.repository.listUsers(filters);
+  }
+
+  getAdminUserById(userId: string) {
+    return this.repository.getUserById(userId);
+  }
+
+  async getAdminUserOrThrow(userId: string): Promise<UserRecord> {
+    const user = await this.repository.getUserById(userId);
+    if (!user) {
+      throw new ServiceError('User not found.', 404, 'user_not_found', { userId });
+    }
+
+    return user;
+  }
+
+  async createAdminUser(input: {
+    email: string;
+    password: string;
+    fullName?: string | null;
+    profileId: string;
+    isActive?: boolean;
+  }): Promise<UserRecord> {
+    const profile = await this.getAccessProfileOrThrow(input.profileId);
+    const normalizedEmail = input.email.trim().toLowerCase();
+    const normalizedFullName = normalizeOptionalText(input.fullName);
+
+    if (!this.repository.isSupabasePersistence()) {
+      return this.repository.saveUser({
+        id: randomUUID(),
+        email: normalizedEmail,
+        fullName: normalizedFullName,
+        profileId: profile.id,
+        isActive: input.isActive ?? true,
+      });
+    }
+
+    const supabase = requireSupabaseAdminClient();
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: normalizedEmail,
+      password: input.password,
+      email_confirm: true,
+      user_metadata: buildUserMetadata(normalizedFullName),
+    });
+
+    if (error || !data.user) {
+      throw new ServiceError(
+        `Failed to create auth user: ${error?.message ?? 'unknown error'}`,
+        502,
+        'auth_admin_operation_failed',
+      );
+    }
+
+    return this.repository.saveUser({
+      id: data.user.id,
+      email: data.user.email ?? normalizedEmail,
+      fullName: normalizedFullName,
+      profileId: profile.id,
+      isActive: input.isActive ?? true,
+    });
+  }
+
+  async updateAdminUser(
+    userId: string,
+    input: {
+      email?: string;
+      password?: string;
+      fullName?: string | null;
+      profileId?: string;
+      isActive?: boolean;
+    },
+  ): Promise<UserRecord> {
+    await this.getAdminUserOrThrow(userId);
+
+    if (input.profileId) {
+      await this.getAccessProfileOrThrow(input.profileId);
+    }
+
+    const normalizedEmail = input.email?.trim().toLowerCase();
+    const normalizedFullName =
+      input.fullName === undefined ? undefined : normalizeOptionalText(input.fullName);
+
+    if (this.repository.isSupabasePersistence()) {
+      const payload: {
+        email?: string;
+        password?: string;
+        user_metadata?: Record<string, string | null>;
+      } = {};
+
+      if (normalizedEmail) {
+        payload.email = normalizedEmail;
+      }
+
+      if (input.password?.trim()) {
+        payload.password = input.password;
+      }
+
+      if (normalizedFullName !== undefined) {
+        payload.user_metadata = buildUserMetadata(normalizedFullName);
+      }
+
+      if (Object.keys(payload).length > 0) {
+        const supabase = requireSupabaseAdminClient();
+        const { error } = await supabase.auth.admin.updateUserById(userId, payload);
+        if (error) {
+          throw new ServiceError(
+            `Failed to update auth user: ${error.message}`,
+            502,
+            'auth_admin_operation_failed',
+          );
+        }
+      }
+    }
+
+    return this.repository.saveUser({
+      id: userId,
+      email: normalizedEmail,
+      fullName: normalizedFullName,
+      profileId: input.profileId,
+      isActive: input.isActive,
+    });
+  }
+
+  listAccessProfiles(filters?: { query?: string }) {
+    return this.repository.listProfiles(filters);
+  }
+
+  async getAccessProfileOrThrow(profileId: string): Promise<AccessProfile> {
+    const profile = await this.repository.getProfileById(profileId);
+    if (!profile) {
+      throw new ServiceError('Profile not found.', 404, 'profile_not_found', { profileId });
+    }
+
+    return profile;
+  }
+
+  createAccessProfile(input: {
+    code: string;
+    name: string;
+    description?: string | null;
+  }) {
+    return this.repository.createProfile({
+      code: input.code,
+      name: input.name,
+      description: normalizeOptionalText(input.description),
+    });
+  }
+
+  updateAccessProfile(
+    profileId: string,
+    input: {
+      code?: string;
+      name?: string;
+      description?: string | null;
+    },
+  ) {
+    return this.repository.updateProfile(profileId, {
+      code: input.code,
+      name: input.name,
+      description: input.description === undefined ? undefined : normalizeOptionalText(input.description),
+    });
+  }
+
+  deleteAccessProfile(profileId: string) {
+    return this.repository.deleteProfile(profileId);
   }
 
   listAdminRecordings(filters?: {
@@ -364,6 +542,11 @@ export class RecordingService {
     return this.exportProvider.build(recording, format);
   }
 
+  async exportAdmin(recordingId: string, format: 'txt' | 'md') {
+    const recording = await this.getAdminRecordingOrThrow(recordingId);
+    return this.exportProvider.build(recording, format);
+  }
+
   async processFromWebhook(
     recordingId: string,
     userId: string,
@@ -435,4 +618,27 @@ export class RecordingService {
 function buildAudioObjectPath(projectId: string, recordingId: string, fileName: string): string {
   const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
   return `${projectId}/${recordingId}/${safeFileName}`;
+}
+
+function normalizeOptionalText(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const trimmed = value?.trim() ?? '';
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function buildUserMetadata(fullName: string | null | undefined): Record<string, string | null> {
+  if (fullName == null) {
+    return {
+      full_name: null,
+      name: null,
+    };
+  }
+
+  return {
+    full_name: fullName,
+    name: fullName,
+  };
 }

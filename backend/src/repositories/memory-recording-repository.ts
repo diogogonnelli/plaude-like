@@ -6,11 +6,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { RecordingRepository } from '../domain/contracts.js';
 import type {
+  AccessProfile,
   CreateRecordingInput,
   Project,
   ProjectMember,
   ProjectMemberRole,
   Recording,
+  UserRecord,
 } from '../domain/types.js';
 import { config } from '../lib/config.js';
 import {
@@ -27,25 +29,40 @@ import { ServiceError } from '../services/service-errors.js';
 
 const nowIso = () => new Date().toISOString();
 const demoProjectId = 'project-demo';
+const demoAdminProfileId = 'profile-admin';
+const demoUserProfileId = 'profile-user';
 
 export class MemoryRecordingRepository implements RecordingRepository {
   private readonly recordings = new Map<string, Recording>();
   private readonly projects = new Map<string, Project>();
   private readonly projectMembers = new Map<string, ProjectMember[]>();
+  private readonly profiles = new Map<string, AccessProfile>();
+  private readonly users = new Map<string, UserRecord>();
   private readonly supabase: SupabaseClient | null;
   private readonly persistenceMode: 'memory' | 'supabase';
 
-  constructor(seed: Recording[] = []) {
+  constructor(
+    seed: Recording[] = [],
+    options: { forcePersistenceMode?: 'memory' | 'supabase' } = {},
+  ) {
     const wantsSupabase =
-      config.SUPABASE_PERSISTENCE_MODE === 'supabase' ||
-      (config.SUPABASE_PERSISTENCE_MODE === 'auto' && hasSupabasePersistenceConfig());
+      options.forcePersistenceMode === 'supabase' ||
+      (options.forcePersistenceMode == null &&
+        (config.SUPABASE_PERSISTENCE_MODE === 'supabase' ||
+          (config.SUPABASE_PERSISTENCE_MODE === 'auto' &&
+            hasSupabasePersistenceConfig())));
 
-    this.persistenceMode = wantsSupabase ? 'supabase' : 'memory';
+    this.persistenceMode =
+      options.forcePersistenceMode ?? (wantsSupabase ? 'supabase' : 'memory');
     this.supabase = wantsSupabase ? createSupabaseAdminClient() : null;
 
     if (this.persistenceMode === 'memory') {
       this.bootstrapMemory(seed);
     }
+  }
+
+  isSupabasePersistence(): boolean {
+    return this.persistenceMode === 'supabase';
   }
 
   async list(userId: string, filters?: { query?: string; tag?: string; projectId?: string }): Promise<Recording[]> {
@@ -271,7 +288,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
     }
 
     await this.ensureProjectMembership(requesterUserId, projectId);
-    return structuredClone(this.projectMembers.get(projectId) ?? []);
+    return this.decorateProjectMembers(this.projectMembers.get(projectId) ?? []);
   }
 
   async listProjectMembersAdmin(projectId: string): Promise<ProjectMember[]> {
@@ -279,7 +296,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
       return this.listProjectMembersAdminFromSupabase(projectId);
     }
 
-    return structuredClone(this.projectMembers.get(projectId) ?? []);
+    return this.decorateProjectMembers(this.projectMembers.get(projectId) ?? []);
   }
 
   async addProjectMember(
@@ -292,10 +309,11 @@ export class MemoryRecordingRepository implements RecordingRepository {
     }
 
     await this.ensureProjectOwner(requesterUserId, projectId);
+    this.requireMemoryUser(member.userId);
     const members = this.projectMembers.get(projectId) ?? [];
     const existing = members.find((current) => current.userId === member.userId);
     if (existing) {
-      return structuredClone(existing);
+      return this.attachUserToMember(existing);
     }
 
     const projectMember: ProjectMember = {
@@ -306,7 +324,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
     };
     members.push(projectMember);
     this.projectMembers.set(projectId, members);
-    return structuredClone(projectMember);
+    return this.attachUserToMember(projectMember);
   }
 
   async addProjectMemberAdmin(
@@ -317,10 +335,11 @@ export class MemoryRecordingRepository implements RecordingRepository {
       return this.addProjectMemberAdminInSupabase(projectId, member);
     }
 
+    this.requireMemoryUser(member.userId);
     const members = this.projectMembers.get(projectId) ?? [];
     const existing = members.find((current) => current.userId === member.userId);
     if (existing) {
-      return structuredClone(existing);
+      return this.attachUserToMember(existing);
     }
 
     const projectMember: ProjectMember = {
@@ -331,7 +350,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
     };
     members.push(projectMember);
     this.projectMembers.set(projectId, members);
-    return structuredClone(projectMember);
+    return this.attachUserToMember(projectMember);
   }
 
   async removeProjectMember(requesterUserId: string, projectId: string, memberUserId: string): Promise<void> {
@@ -361,8 +380,221 @@ export class MemoryRecordingRepository implements RecordingRepository {
     );
   }
 
+  async listUsers(filters?: {
+    query?: string;
+    profileId?: string;
+    isActive?: boolean;
+  }): Promise<UserRecord[]> {
+    if (this.persistenceMode === 'supabase') {
+      return this.listUsersFromSupabase(filters);
+    }
+
+    return [...this.users.values()]
+      .filter((user) => matchesUserFilters(user, filters))
+      .sort(compareUsers)
+      .map((user) => structuredClone(user));
+  }
+
+  async getUserById(userId: string): Promise<UserRecord | null> {
+    if (this.persistenceMode === 'supabase') {
+      return this.getUserByIdFromSupabase(userId);
+    }
+
+    const user = this.users.get(userId);
+    return user ? structuredClone(user) : null;
+  }
+
+  async saveUser(input: {
+    id: string;
+    email?: string | null;
+    fullName?: string | null;
+    profileId?: string;
+    isActive?: boolean;
+  }): Promise<UserRecord> {
+    if (this.persistenceMode === 'supabase') {
+      return this.saveUserToSupabase(input);
+    }
+
+    const current = this.users.get(input.id);
+    const profile = this.requireMemoryProfile(input.profileId ?? current?.profileId ?? demoUserProfileId);
+    const timestamp = nowIso();
+    const next: UserRecord = {
+      id: input.id,
+      email: input.email ?? current?.email ?? null,
+      fullName: input.fullName ?? current?.fullName ?? null,
+      profileId: profile.id,
+      profileCode: profile.code,
+      profileName: profile.name,
+      isActive: input.isActive ?? current?.isActive ?? true,
+      createdAt: current?.createdAt ?? timestamp,
+      updatedAt: timestamp,
+    };
+
+    this.users.set(next.id, next);
+    return structuredClone(next);
+  }
+
+  async listProfiles(filters?: { query?: string }): Promise<AccessProfile[]> {
+    if (this.persistenceMode === 'supabase') {
+      return this.listProfilesFromSupabase(filters);
+    }
+
+    return [...this.profiles.values()]
+      .filter((profile) => matchesProfileFilters(profile, filters))
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .map((profile) => structuredClone(profile));
+  }
+
+  async getProfileById(profileId: string): Promise<AccessProfile | null> {
+    if (this.persistenceMode === 'supabase') {
+      return this.getProfileByIdFromSupabase(profileId);
+    }
+
+    const profile = this.profiles.get(profileId);
+    return profile ? structuredClone(profile) : null;
+  }
+
+  async getProfileByCode(code: string): Promise<AccessProfile | null> {
+    if (this.persistenceMode === 'supabase') {
+      return this.getProfileByCodeFromSupabase(code);
+    }
+
+    const profile = [...this.profiles.values()].find((item) => item.code === code);
+    return profile ? structuredClone(profile) : null;
+  }
+
+  async createProfile(input: {
+    code: string;
+    name: string;
+    description?: string | null;
+    isSystem?: boolean;
+  }): Promise<AccessProfile> {
+    if (this.persistenceMode === 'supabase') {
+      return this.createProfileInSupabase(input);
+    }
+
+    if ([...this.profiles.values()].some((profile) => profile.code === input.code)) {
+      throw new ServiceError('Profile code already exists.', 409, 'profile_code_conflict', {
+        code: input.code,
+      });
+    }
+
+    const timestamp = nowIso();
+    const profile: AccessProfile = {
+      id: randomUUID(),
+      code: input.code,
+      name: input.name,
+      description: input.description ?? null,
+      isSystem: input.isSystem ?? false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    this.profiles.set(profile.id, profile);
+    return structuredClone(profile);
+  }
+
+  async updateProfile(
+    profileId: string,
+    input: {
+      code?: string;
+      name?: string;
+      description?: string | null;
+    },
+  ): Promise<AccessProfile> {
+    if (this.persistenceMode === 'supabase') {
+      return this.updateProfileInSupabase(profileId, input);
+    }
+
+    const current = this.requireMemoryProfile(profileId);
+    if (
+      input.code &&
+      input.code !== current.code &&
+      [...this.profiles.values()].some((profile) => profile.code === input.code)
+    ) {
+      throw new ServiceError('Profile code already exists.', 409, 'profile_code_conflict', {
+        code: input.code,
+      });
+    }
+
+    const next: AccessProfile = {
+      ...current,
+      code: input.code ?? current.code,
+      name: input.name ?? current.name,
+      description: input.description === undefined ? current.description ?? null : input.description,
+      updatedAt: nowIso(),
+    };
+
+    this.profiles.set(profileId, next);
+    for (const [userId, user] of this.users.entries()) {
+      if (user.profileId !== profileId) {
+        continue;
+      }
+
+      this.users.set(userId, {
+        ...user,
+        profileCode: next.code,
+        profileName: next.name,
+        updatedAt: nowIso(),
+      });
+    }
+
+    return structuredClone(next);
+  }
+
+  async deleteProfile(profileId: string): Promise<void> {
+    if (this.persistenceMode === 'supabase') {
+      await this.deleteProfileFromSupabase(profileId);
+      return;
+    }
+
+    const current = this.requireMemoryProfile(profileId);
+    if (current.isSystem) {
+      throw new ServiceError('System profiles cannot be deleted.', 400, 'profile_is_system');
+    }
+
+    if ([...this.users.values()].some((user) => user.profileId === profileId)) {
+      throw new ServiceError('Profile is still assigned to users.', 409, 'profile_in_use');
+    }
+
+    this.profiles.delete(profileId);
+  }
+
   private bootstrapMemory(seed: Recording[]) {
     const timestamp = nowIso();
+    const adminProfile: AccessProfile = {
+      id: demoAdminProfileId,
+      code: 'admin',
+      name: 'Administrador',
+      description: 'Acesso administrativo completo ao backoffice.',
+      isSystem: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    const userProfile: AccessProfile = {
+      id: demoUserProfileId,
+      code: 'user',
+      name: 'Usuário',
+      description: 'Usuário padrão do produto.',
+      isSystem: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.profiles.set(adminProfile.id, adminProfile);
+    this.profiles.set(userProfile.id, userProfile);
+
+    this.users.set('demo-user', {
+      id: 'demo-user',
+      email: 'demo@example.com',
+      fullName: 'Usuário demo',
+      profileId: adminProfile.id,
+      profileCode: adminProfile.code,
+      profileName: adminProfile.name,
+      isActive: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+
     const defaultProject: Project = {
       id: demoProjectId,
       name: 'Projeto demo',
@@ -382,6 +614,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
         createdByUserId: rawRecording.createdByUserId == '' ? rawRecording.userId : rawRecording.createdByUserId,
       };
       this.recordings.set(recording.id, structuredClone(recording));
+      this.ensureMemoryUserSeed(recording.createdByUserId, timestamp);
 
       const projectId = recording.projectId;
       if (!this.projects.has(projectId)) {
@@ -421,6 +654,59 @@ export class MemoryRecordingRepository implements RecordingRepository {
     for (const [projectId, members] of memberships.entries()) {
       this.projectMembers.set(projectId, members);
     }
+  }
+
+  private ensureMemoryUserSeed(userId: string, timestamp: string) {
+    if (this.users.has(userId)) {
+      return;
+    }
+
+    const profile = this.requireMemoryProfile(demoUserProfileId);
+    this.users.set(userId, {
+      id: userId,
+      email: null,
+      fullName: null,
+      profileId: profile.id,
+      profileCode: profile.code,
+      profileName: profile.name,
+      isActive: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  }
+
+  private requireMemoryProfile(profileId: string): AccessProfile {
+    const profile = this.profiles.get(profileId);
+    if (!profile) {
+      throw new ServiceError('Profile not found.', 404, 'profile_not_found', { profileId });
+    }
+
+    return profile;
+  }
+
+  private requireMemoryUser(userId: string): UserRecord {
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new ServiceError('User not found.', 404, 'user_not_found', { userId });
+    }
+
+    if (!user.isActive) {
+      throw new ServiceError('User is inactive.', 409, 'user_inactive', { userId });
+    }
+
+    return user;
+  }
+
+  private attachUserToMember(member: ProjectMember): ProjectMember {
+    const user = this.users.get(member.userId);
+    return {
+      ...structuredClone(member),
+      ...(user ? { user: structuredClone(user) } : {}),
+    };
+  }
+
+  private decorateProjectMembers(members: ProjectMember[]): ProjectMember[] {
+    return members.map((member) => this.attachUserToMember(member));
   }
 
   private async listFromSupabase(
@@ -736,7 +1022,9 @@ export class MemoryRecordingRepository implements RecordingRepository {
     const supabase = this.ensureSupabaseClient();
     const { data, error } = await supabase
       .from('project_members')
-      .select('project_id,user_id,role,created_at')
+      .select(
+        'project_id,user_id,role,created_at,user:users!project_members_user_id_fkey(id,email,full_name,profile_id,is_active,created_at,updated_at,profile:profiles!users_profile_id_fkey(id,code,name,description,is_system,created_at,updated_at))',
+      )
       .eq('project_id', projectId)
       .order('created_at', { ascending: true });
 
@@ -744,12 +1032,16 @@ export class MemoryRecordingRepository implements RecordingRepository {
       throw wrapSupabaseError('Falha ao listar membros do projeto.', error);
     }
 
-    return (data ?? []).map((member) => ({
-      projectId: String(member.project_id),
-      userId: String(member.user_id),
-      role: member.role as ProjectMemberRole,
-      createdAt: String(member.created_at),
-    }));
+    return (data ?? []).map((member) => {
+      const user = mapUserRecord((member as { user?: unknown }).user);
+      return {
+        projectId: String(member.project_id),
+        userId: String(member.user_id),
+        role: member.role as ProjectMemberRole,
+        createdAt: String(member.created_at),
+        ...(user ? { user } : {}),
+      };
+    });
   }
 
   private async addProjectMemberInSupabase(
@@ -765,6 +1057,11 @@ export class MemoryRecordingRepository implements RecordingRepository {
     projectId: string,
     member: { userId: string; role: ProjectMemberRole },
   ): Promise<ProjectMember> {
+    const existingUser = await this.getUserByIdFromSupabase(member.userId);
+    if (!existingUser) {
+      throw new ServiceError('User not found.', 404, 'user_not_found', { userId: member.userId });
+    }
+
     const supabase = this.ensureSupabaseClient();
     const { data, error } = await supabase
       .from('project_members')
@@ -785,6 +1082,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
       userId: member.userId,
       role: data.role as ProjectMemberRole,
       createdAt: String(data.created_at),
+      user: existingUser,
     };
   }
 
@@ -810,6 +1108,269 @@ export class MemoryRecordingRepository implements RecordingRepository {
 
     if (error) {
       throw wrapSupabaseError('Falha ao remover membro do projeto.', error);
+    }
+  }
+
+  private async listUsersFromSupabase(filters?: {
+    query?: string;
+    profileId?: string;
+    isActive?: boolean;
+  }): Promise<UserRecord[]> {
+    const supabase = this.ensureSupabaseClient();
+    let query = supabase
+      .from('users')
+      .select(
+        'id,email,full_name,profile_id,is_active,created_at,updated_at,profile:profiles!users_profile_id_fkey(id,code,name,description,is_system,created_at,updated_at)',
+      )
+      .order('full_name', { ascending: true })
+      .order('email', { ascending: true });
+
+    if (filters?.profileId) {
+      query = query.eq('profile_id', filters.profileId);
+    }
+
+    if (filters?.isActive != null) {
+      query = query.eq('is_active', filters.isActive);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      throw wrapSupabaseError('Falha ao listar usuários.', error);
+    }
+
+    return (data ?? [])
+      .map((row) => mapUserRecord(row))
+      .filter((user): user is UserRecord => user !== null)
+      .filter((user) => matchesUserFilters(user, filters))
+      .sort(compareUsers);
+  }
+
+  private async getUserByIdFromSupabase(userId: string): Promise<UserRecord | null> {
+    const supabase = this.ensureSupabaseClient();
+    const { data, error } = await supabase
+      .from('users')
+      .select(
+        'id,email,full_name,profile_id,is_active,created_at,updated_at,profile:profiles!users_profile_id_fkey(id,code,name,description,is_system,created_at,updated_at)',
+      )
+      .eq('id', resolveStorageUserId(userId))
+      .maybeSingle();
+
+    if (error) {
+      throw wrapSupabaseError('Falha ao buscar usuário.', error);
+    }
+
+    return mapUserRecord(data);
+  }
+
+  private async saveUserToSupabase(input: {
+    id: string;
+    email?: string | null;
+    fullName?: string | null;
+    profileId?: string;
+    isActive?: boolean;
+  }): Promise<UserRecord> {
+    const current = await this.getUserByIdFromSupabase(input.id);
+    const fallbackProfile = current?.profileId
+      ? await this.getProfileByIdFromSupabase(current.profileId)
+      : await this.getProfileByCodeFromSupabase('user');
+    const resolvedProfileId = input.profileId ?? fallbackProfile?.id;
+
+    if (!resolvedProfileId) {
+      throw new ServiceError('Default profile not found.', 500, 'profile_default_missing');
+    }
+
+    const supabase = this.ensureSupabaseClient();
+    const { data, error } = await supabase
+      .from('users')
+      .upsert({
+        id: resolveStorageUserId(input.id),
+        email: input.email === undefined ? current?.email ?? null : input.email,
+        full_name: input.fullName === undefined ? current?.fullName ?? null : input.fullName,
+        profile_id: resolvedProfileId,
+        is_active: input.isActive ?? current?.isActive ?? true,
+      })
+      .select(
+        'id,email,full_name,profile_id,is_active,created_at,updated_at,profile:profiles!users_profile_id_fkey(id,code,name,description,is_system,created_at,updated_at)',
+      )
+      .single();
+
+    if (error) {
+      throw wrapSupabaseError('Falha ao salvar usuário.', error);
+    }
+
+    const user = mapUserRecord(data);
+    if (!user) {
+      throw new ServiceError('User payload is invalid.', 500, 'user_payload_invalid');
+    }
+
+    return user;
+  }
+
+  private async listProfilesFromSupabase(filters?: { query?: string }): Promise<AccessProfile[]> {
+    const supabase = this.ensureSupabaseClient();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id,code,name,description,is_system,created_at,updated_at')
+      .order('name', { ascending: true });
+
+    if (error) {
+      throw wrapSupabaseError('Falha ao listar perfis.', error);
+    }
+
+    return (data ?? [])
+      .map((row) => mapAccessProfile(row))
+      .filter((profile): profile is AccessProfile => profile !== null)
+      .filter((profile) => matchesProfileFilters(profile, filters));
+  }
+
+  private async getProfileByIdFromSupabase(profileId: string): Promise<AccessProfile | null> {
+    const supabase = this.ensureSupabaseClient();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id,code,name,description,is_system,created_at,updated_at')
+      .eq('id', profileId)
+      .maybeSingle();
+
+    if (error) {
+      throw wrapSupabaseError('Falha ao buscar perfil.', error);
+    }
+
+    return mapAccessProfile(data);
+  }
+
+  private async getProfileByCodeFromSupabase(code: string): Promise<AccessProfile | null> {
+    const supabase = this.ensureSupabaseClient();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id,code,name,description,is_system,created_at,updated_at')
+      .eq('code', code)
+      .maybeSingle();
+
+    if (error) {
+      throw wrapSupabaseError('Falha ao buscar perfil por código.', error);
+    }
+
+    return mapAccessProfile(data);
+  }
+
+  private async createProfileInSupabase(input: {
+    code: string;
+    name: string;
+    description?: string | null;
+    isSystem?: boolean;
+  }): Promise<AccessProfile> {
+    const existing = await this.getProfileByCodeFromSupabase(input.code);
+    if (existing) {
+      throw new ServiceError('Profile code already exists.', 409, 'profile_code_conflict', {
+        code: input.code,
+      });
+    }
+
+    const supabase = this.ensureSupabaseClient();
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert({
+        code: input.code,
+        name: input.name,
+        description: input.description ?? null,
+        is_system: input.isSystem ?? false,
+      })
+      .select('id,code,name,description,is_system,created_at,updated_at')
+      .single();
+
+    if (error) {
+      throw wrapSupabaseError('Falha ao criar perfil.', error);
+    }
+
+    const profile = mapAccessProfile(data);
+    if (!profile) {
+      throw new ServiceError('Profile payload is invalid.', 500, 'profile_payload_invalid');
+    }
+
+    return profile;
+  }
+
+  private async updateProfileInSupabase(
+    profileId: string,
+    input: {
+      code?: string;
+      name?: string;
+      description?: string | null;
+    },
+  ): Promise<AccessProfile> {
+    const current = await this.getProfileByIdFromSupabase(profileId);
+    if (!current) {
+      throw new ServiceError('Profile not found.', 404, 'profile_not_found', { profileId });
+    }
+
+    if (current.isSystem && input.code && input.code !== current.code) {
+      throw new ServiceError('System profiles cannot change code.', 400, 'profile_is_system');
+    }
+
+    if (input.code && input.code !== current.code) {
+      const existing = await this.getProfileByCodeFromSupabase(input.code);
+      if (existing) {
+        throw new ServiceError('Profile code already exists.', 409, 'profile_code_conflict', {
+          code: input.code,
+        });
+      }
+    }
+
+    const supabase = this.ensureSupabaseClient();
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        ...(input.code != null ? { code: input.code } : {}),
+        ...(input.name != null ? { name: input.name } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}),
+      })
+      .eq('id', profileId)
+      .select('id,code,name,description,is_system,created_at,updated_at')
+      .single();
+
+    if (error) {
+      throw wrapSupabaseError('Falha ao atualizar perfil.', error);
+    }
+
+    const profile = mapAccessProfile(data);
+    if (!profile) {
+      throw new ServiceError('Profile payload is invalid.', 500, 'profile_payload_invalid');
+    }
+
+    return profile;
+  }
+
+  private async deleteProfileFromSupabase(profileId: string): Promise<void> {
+    const current = await this.getProfileByIdFromSupabase(profileId);
+    if (!current) {
+      throw new ServiceError('Profile not found.', 404, 'profile_not_found', { profileId });
+    }
+
+    if (current.isSystem) {
+      throw new ServiceError('System profiles cannot be deleted.', 400, 'profile_is_system');
+    }
+
+    const supabase = this.ensureSupabaseClient();
+    const { count, error: countError } = await supabase
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('profile_id', profileId);
+
+    if (countError) {
+      throw wrapSupabaseError('Falha ao validar uso do perfil.', countError);
+    }
+
+    if ((count ?? 0) > 0) {
+      throw new ServiceError('Profile is still assigned to users.', 409, 'profile_in_use');
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', profileId);
+
+    if (error) {
+      throw wrapSupabaseError('Falha ao remover perfil.', error);
     }
   }
 
@@ -961,6 +1522,110 @@ function matchesProjectFilters(
   }
 
   return [project.name, project.slug, project.id].some((value) => value.toLowerCase().includes(query));
+}
+
+function matchesUserFilters(
+  user: UserRecord,
+  filters?: {
+    query?: string;
+    profileId?: string;
+    isActive?: boolean;
+  },
+): boolean {
+  if (!filters) {
+    return true;
+  }
+
+  if (filters.profileId && user.profileId !== filters.profileId) {
+    return false;
+  }
+
+  if (filters.isActive != null && user.isActive !== filters.isActive) {
+    return false;
+  }
+
+  const query = filters.query?.trim().toLowerCase();
+  if (!query) {
+    return true;
+  }
+
+  return [
+    user.id,
+    user.email ?? '',
+    user.fullName ?? '',
+    user.profileCode,
+    user.profileName,
+  ].some((value) => value.toLowerCase().includes(query));
+}
+
+function matchesProfileFilters(profile: AccessProfile, filters?: { query?: string }): boolean {
+  const query = filters?.query?.trim().toLowerCase();
+  if (!query) {
+    return true;
+  }
+
+  return [
+    profile.code,
+    profile.name,
+    profile.description ?? '',
+  ].some((value) => value.toLowerCase().includes(query));
+}
+
+function compareUsers(left: UserRecord, right: UserRecord): number {
+  const leftLabel = (left.fullName ?? left.email ?? left.id).toLowerCase();
+  const rightLabel = (right.fullName ?? right.email ?? right.id).toLowerCase();
+  return leftLabel.localeCompare(rightLabel);
+}
+
+function unwrapRelation(value: unknown): Record<string, unknown> | null {
+  if (Array.isArray(value)) {
+    return value.length > 0 && value[0] && typeof value[0] === 'object'
+      ? (value[0] as Record<string, unknown>)
+      : null;
+  }
+
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+}
+
+function mapAccessProfile(row: unknown): AccessProfile | null {
+  const record = unwrapRelation(row);
+  if (!record) {
+    return null;
+  }
+
+  return {
+    id: String(record.id),
+    code: String(record.code),
+    name: String(record.name),
+    description: record.description == null ? null : String(record.description),
+    isSystem: Boolean(record.is_system),
+    createdAt: String(record.created_at),
+    updatedAt: String(record.updated_at),
+  };
+}
+
+function mapUserRecord(row: unknown): UserRecord | null {
+  const record = unwrapRelation(row);
+  if (!record) {
+    return null;
+  }
+
+  const profile = mapAccessProfile(record.profile);
+  if (!profile) {
+    return null;
+  }
+
+  return {
+    id: String(record.id),
+    email: record.email == null ? null : String(record.email),
+    fullName: record.full_name == null ? null : String(record.full_name),
+    profileId: String(record.profile_id),
+    profileCode: profile.code,
+    profileName: profile.name,
+    isActive: Boolean(record.is_active),
+    createdAt: String(record.created_at),
+    updatedAt: String(record.updated_at),
+  };
 }
 
 function wrapSupabaseError(message: string, error: unknown): ServiceError {

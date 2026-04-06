@@ -1,4 +1,5 @@
 import type {
+  AccessProfile,
   ChatCitation,
   CreateRecordingInput,
   ExportArtifact,
@@ -8,9 +9,11 @@ import type {
   ProjectMemberRole,
   Recording,
   TranscriptSegment,
+  UserRecord,
 } from './types.js';
 
 export interface RecordingRepository {
+  isSupabasePersistence(): boolean;
   list(userId: string, filters?: { query?: string; tag?: string; projectId?: string }): Promise<Recording[]>;
   getById(recordingId: string, userId: string): Promise<Recording | null>;
   getAnyById(recordingId: string): Promise<Recording | null>;
@@ -39,6 +42,37 @@ export interface RecordingRepository {
   ): Promise<ProjectMember>;
   removeProjectMember(requesterUserId: string, projectId: string, memberUserId: string): Promise<void>;
   removeProjectMemberAdmin(projectId: string, memberUserId: string): Promise<void>;
+  listUsers(filters?: {
+    query?: string;
+    profileId?: string;
+    isActive?: boolean;
+  }): Promise<UserRecord[]>;
+  getUserById(userId: string): Promise<UserRecord | null>;
+  saveUser(input: {
+    id: string;
+    email?: string | null;
+    fullName?: string | null;
+    profileId?: string;
+    isActive?: boolean;
+  }): Promise<UserRecord>;
+  listProfiles(filters?: { query?: string }): Promise<AccessProfile[]>;
+  getProfileById(profileId: string): Promise<AccessProfile | null>;
+  getProfileByCode(code: string): Promise<AccessProfile | null>;
+  createProfile(input: {
+    code: string;
+    name: string;
+    description?: string | null;
+    isSystem?: boolean;
+  }): Promise<AccessProfile>;
+  updateProfile(
+    profileId: string,
+    input: {
+      code?: string;
+      name?: string;
+      description?: string | null;
+    },
+  ): Promise<AccessProfile>;
+  deleteProfile(profileId: string): Promise<void>;
   listAllRecordings(filters?: {
     query?: string;
     projectId?: string;

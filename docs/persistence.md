@@ -30,6 +30,7 @@ Aplicar as migrations em ordem:
 3. `supabase/migrations/0003_transcription_metadata.sql`
 4. `supabase/migrations/0004_projects_and_memberships.sql`
 5. `supabase/migrations/0005_admin_users.sql`
+6. `supabase/migrations/0007_users_and_profiles.sql`
 
 ## Storage layout
 
@@ -45,14 +46,16 @@ Isso mantém o storage alinhado com o contexto de projeto e com a surface admini
 
 - usuários finais entram via Supabase Auth
 - o backend valida Bearer JWT nas rotas do produto e do admin
-- `public.admin_users` guarda a allowlist de administradores globais
+- `public.users` guarda o cadastro de pessoas autenticadas
+- `public.profiles` guarda os papéis de acesso
+- o perfil `admin` define acesso ao backoffice
 
 ## Fluxo recomendado de deploy
 
 1. Criar projeto Supabase.
 2. Aplicar as migrations.
 3. Provisionar usuários no Auth.
-4. Inserir admins em `public.admin_users`.
+4. Garantir que os usuários estejam sincronizados em `public.users` e atribuir o perfil correto.
 5. Subir backend com `SUPABASE_PERSISTENCE_MODE=supabase`.
 6. Configurar `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e `VITE_API_BASE_URL` no `admin-web`.
 7. Configurar `BACKEND_BASE_URL`, `SUPABASE_URL` e `SUPABASE_ANON_KEY` no app Flutter.

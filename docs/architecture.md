@@ -13,13 +13,14 @@
 - `React` + `TypeScript` + `Vite`
 - `react-router-dom` para rotas reais
 - `@supabase/supabase-js` para login e bootstrap de sessão
-- superfícies operacionais para projetos, membros, gravações, jobs e providers
+- superfícies operacionais para usuários, perfis, projetos, membros, gravações e jobs
 
 ## Backend
 
 - `Express` + `TypeScript`
 - autenticação por Bearer token Supabase
-- allowlist admin em `public.admin_users`
+- diretório de pessoas em `public.users`
+- perfis de acesso em `public.profiles`
 - repositório híbrido: memória para smoke/local, Supabase para persistência real
 - `AiProvider` plugável: `mock` e `openai`
 
@@ -29,6 +30,8 @@ Entidades centrais:
 
 - `Project`
 - `ProjectMember`
+- `User`
+- `Profile`
 - `Recording`
 - `TranscriptSegment`
 - `Summary`
@@ -39,7 +42,7 @@ Entidades centrais:
 ## Regras de acesso
 
 - rotas do produto usam membership por projeto
-- rotas `/admin/*` exigem token válido e presença em `admin_users`
+- rotas `/admin/*` exigem token válido, usuário ativo em `public.users` e perfil `admin`
 - admin tem visão global de projetos, membros, gravações e jobs
 
 ## Storage
@@ -49,6 +52,6 @@ Entidades centrais:
 
 ## Próximos passos naturais
 
-- provisionamento operacional de `admin_users`
+- governança de perfis e trilha de auditoria para mudanças administrativas
 - integração de testes E2E do admin-web
 - observabilidade de pipeline e jobs

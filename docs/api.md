@@ -191,12 +191,20 @@ Webhook específico do AssemblyAI.
 Todos exigem:
 
 - Bearer token Supabase válido
-- usuário presente em `public.admin_users`
+- usuário ativo em `public.users`
+- perfil `admin` vinculado em `public.profiles`
 
 Superfície atual:
 
 - `GET /admin/me`
 - `GET /admin/dashboard`
+- `GET /admin/profiles`
+- `POST /admin/profiles`
+- `PATCH /admin/profiles/:id`
+- `DELETE /admin/profiles/:id`
+- `GET /admin/users`
+- `POST /admin/users`
+- `PATCH /admin/users/:id`
 - `GET /admin/projects`
 - `GET /admin/projects/:id`
 - `POST /admin/projects`

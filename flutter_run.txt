@@ -1,0 +1,1 @@
+flutter run --dart-define=BACKEND_BASE_URL=https://plaude-like-production.up.railway.app --dart-define=SUPABASE_URL=https://xxivinpsvkmamhghofex.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_TX-Gp485UroUdwb9AJk0mA_QudOzk0S

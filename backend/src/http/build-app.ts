@@ -77,6 +77,44 @@ const projectMemberSchema = z
   })
   .strict();
 
+const booleanQuerySchema = z.enum(['true', 'false']).transform((value) => value === 'true');
+
+const adminUserCreateSchema = z
+  .object({
+    email: z.string().email(),
+    password: z.string().min(8),
+    fullName: z.string().trim().min(1).nullable().optional(),
+    profileId: z.string().min(1),
+    isActive: z.boolean().optional(),
+  })
+  .strict();
+
+const adminUserPatchSchema = z
+  .object({
+    email: z.string().email().optional(),
+    password: z.string().min(8).optional(),
+    fullName: z.string().trim().min(1).nullable().optional(),
+    profileId: z.string().min(1).optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict();
+
+const profileSchema = z
+  .object({
+    code: z.string().regex(/^[a-z0-9_]+$/),
+    name: z.string().min(1),
+    description: z.string().trim().min(1).nullable().optional(),
+  })
+  .strict();
+
+const profilePatchSchema = z
+  .object({
+    code: z.string().regex(/^[a-z0-9_]+$/).optional(),
+    name: z.string().min(1).optional(),
+    description: z.string().trim().min(1).nullable().optional(),
+  })
+  .strict();
+
 const webhookSegmentSchema = z
   .object({
     speakerLabel: z.string().min(1).optional(),
@@ -179,6 +217,49 @@ function slugify(value: string) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60) || 'project';
+}
+
+function buildAuthorLabelResolver(recordingService: Pick<RecordingService, 'getAdminUserById'>) {
+  const cache = new Map<string, string>();
+
+  return async (userId: string) => {
+    if (cache.has(userId)) {
+      return cache.get(userId)!;
+    }
+
+    if (userId === 'demo-user') {
+      cache.set(userId, 'Usuário demo');
+      return 'Usuário demo';
+    }
+
+    const user = await recordingService.getAdminUserById(userId).catch(() => null);
+    if (!user) {
+      cache.set(userId, userId);
+      return userId;
+    }
+
+    const label =
+      user.fullName ??
+      user.email ??
+      userId;
+
+    cache.set(userId, label);
+    return label;
+  };
+}
+
+async function decorateAdminRecordings<T extends { createdByUserId: string }>(
+  recordingService: Pick<RecordingService, 'getAdminUserById'>,
+  recordings: T[],
+) {
+  const resolveAuthorLabel = buildAuthorLabelResolver(recordingService);
+
+  return Promise.all(
+    recordings.map(async (recording) => ({
+      ...recording,
+      createdByLabel: await resolveAuthorLabel(recording.createdByUserId),
+    })),
+  );
 }
 
 export interface BuildAppOptions {
@@ -487,11 +568,91 @@ export function buildApp(recordingService: RecordingService, options: BuildAppOp
         data: {
           userId: auth.userId,
           email: auth.email,
+          fullName: auth.fullName,
           source: auth.source,
+          isActive: auth.isActive,
+          profile: auth.profile,
           authEnforced: authProvider.isAuthEnforced(),
           isAdmin: true,
         },
       });
+    }, { admin: true }),
+  );
+
+  app.get(
+    '/admin/profiles',
+    withAuth(async (request, response) => {
+      const query = z
+        .object({
+          query: z.string().min(1).optional(),
+        })
+        .strict()
+        .parse(request.query);
+      const profiles = await recordingService.listAccessProfiles(query);
+      response.json({ data: profiles });
+    }, { admin: true }),
+  );
+
+  app.post(
+    '/admin/profiles',
+    withAuth(async (request, response) => {
+      const body = profileSchema.parse(request.body ?? {});
+      const profile = await recordingService.createAccessProfile(body);
+      response.status(201).json({ data: profile });
+    }, { admin: true }),
+  );
+
+  app.patch(
+    '/admin/profiles/:id',
+    withAuth(async (request, response) => {
+      const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
+      const body = profilePatchSchema.parse(request.body ?? {});
+      const profile = await recordingService.updateAccessProfile(params.id, body);
+      response.json({ data: profile });
+    }, { admin: true }),
+  );
+
+  app.delete(
+    '/admin/profiles/:id',
+    withAuth(async (request, response) => {
+      const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
+      await recordingService.deleteAccessProfile(params.id);
+      response.status(204).send();
+    }, { admin: true }),
+  );
+
+  app.get(
+    '/admin/users',
+    withAuth(async (request, response) => {
+      const query = z
+        .object({
+          query: z.string().min(1).optional(),
+          profileId: z.string().min(1).optional(),
+          isActive: booleanQuerySchema.optional(),
+        })
+        .strict()
+        .parse(request.query);
+      const users = await recordingService.listAdminUsers(query);
+      response.json({ data: users });
+    }, { admin: true }),
+  );
+
+  app.post(
+    '/admin/users',
+    withAuth(async (request, response) => {
+      const body = adminUserCreateSchema.parse(request.body ?? {});
+      const user = await recordingService.createAdminUser(body);
+      response.status(201).json({ data: user });
+    }, { admin: true }),
+  );
+
+  app.patch(
+    '/admin/users/:id',
+    withAuth(async (request, response) => {
+      const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
+      const body = adminUserPatchSchema.parse(request.body ?? {});
+      const user = await recordingService.updateAdminUser(params.id, body);
+      response.json({ data: user });
     }, { admin: true }),
   );
 
@@ -587,11 +748,12 @@ export function buildApp(recordingService: RecordingService, options: BuildAppOp
           projectId: z.string().min(1).optional(),
           userId: z.string().min(1).optional(),
           status: z.enum(['uploaded', 'processing_transcript', 'processing_summary', 'indexing', 'ready', 'failed']).optional(),
-        })
+      })
         .strict()
         .parse(request.query);
       const recordings = await recordingService.listAdminRecordings(query);
-      response.json({ data: recordings });
+      const decorated = await decorateAdminRecordings(recordingService, recordings);
+      response.json({ data: decorated });
     }, { admin: true }),
   );
 
@@ -600,7 +762,18 @@ export function buildApp(recordingService: RecordingService, options: BuildAppOp
     withAuth(async (request, response) => {
       const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
       const recording = await recordingService.getAdminRecordingOrThrow(params.id);
-      response.json({ data: recording });
+      const [decorated] = await decorateAdminRecordings(recordingService, [recording]);
+      response.json({ data: decorated });
+    }, { admin: true }),
+  );
+
+  app.post(
+    '/admin/recordings/:id/export',
+    withAuth(async (request, response) => {
+      const params = z.object({ id: z.string().min(1) }).strict().parse(request.params);
+      const body = exportSchema.parse(request.body ?? {});
+      const artifact = await recordingService.exportAdmin(params.id, body.format);
+      response.json({ data: artifact });
     }, { admin: true }),
   );
 

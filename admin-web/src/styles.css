@@ -234,7 +234,8 @@ a {
 
 .content-shell {
   min-width: 0;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 18px;
 }
 
@@ -242,9 +243,21 @@ a {
   display: flex;
   justify-content: space-between;
   gap: 18px;
-  align-items: flex-start;
-  padding: 18px 22px;
+  align-items: center;
+  padding: 16px 22px;
   border-radius: 30px;
+}
+
+.topbar > div:first-child {
+  max-width: 62ch;
+}
+
+.topbar h2 {
+  margin-top: 4px;
+}
+
+.topbar p {
+  margin-top: 6px;
 }
 
 .topbar-badge {
@@ -255,6 +268,7 @@ a {
   color: white;
   display: grid;
   gap: 6px;
+  align-self: flex-start;
 }
 
 .topbar-badge span {
@@ -328,7 +342,8 @@ a {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   min-height: 48px;
   border-radius: 18px;
   border: 1px solid var(--border);
@@ -338,9 +353,16 @@ a {
 }
 
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
   outline: 2px solid rgba(222, 12, 47, 0.12);
   border-color: rgba(222, 12, 47, 0.34);
+}
+
+.field textarea {
+  min-height: 120px;
+  padding: 14px;
+  resize: vertical;
 }
 
 .button {
@@ -464,6 +486,11 @@ tbody tr:hover {
   color: var(--success-text);
 }
 
+.status-inactive {
+  background: rgba(102, 99, 98, 0.12);
+  color: var(--shell);
+}
+
 .status-archived,
 .status-indexing,
 .status-member {
@@ -505,10 +532,12 @@ tbody tr:hover {
 }
 
 .dialog-card {
-  width: min(560px, 100%);
+  width: min(960px, 100%);
   padding: 22px;
   border-radius: 30px;
   background: var(--surface-solid);
+  max-height: min(90vh, 980px);
+  overflow: auto;
 }
 
 .dialog-form {
@@ -597,6 +626,11 @@ tbody tr:hover {
   gap: 12px;
 }
 
+.detail-pane {
+  display: grid;
+  gap: 18px;
+}
+
 .detail-list {
   margin: 0;
   padding-left: 18px;
@@ -650,6 +684,10 @@ tbody tr:hover {
   .section-header,
   .context-strip {
     flex-direction: column;
+  }
+
+  .topbar {
+    align-items: stretch;
   }
 
   .filters-grid,

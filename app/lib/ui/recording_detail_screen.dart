@@ -19,10 +19,10 @@ class RecordingDetailScreen extends StatelessWidget {
     final recording = controller.findById(recordingId);
 
     return AppShell(
-      title: 'Leitura executiva da gravação',
-      subtitle:
-          'Resumo, destaques, transcript com speaker e ações imediatas em um mesmo fluxo.',
+      title: '',
+      subtitle: '',
       navigationIndex: 0,
+      homeBrandOnly: true,
       onNavigationSelected: (index) => _goToIndex(context, index),
       actions: [
         BrandButton(
@@ -44,7 +44,13 @@ class RecordingDetailScreen extends StatelessWidget {
           : ListView(
               padding: const EdgeInsets.only(bottom: 24),
               children: [
-                _SummaryHero(recording: recording),
+                _SummaryHero(
+                  recording: recording,
+                  projectName: controller.projectNameFor(recording.projectId),
+                  authorName: controller.authorLabelFor(
+                    recording.createdByUserId,
+                  ),
+                ),
                 const SizedBox(height: 16),
                 LayoutBuilder(
                   builder: (context, constraints) {
@@ -81,9 +87,15 @@ class RecordingDetailScreen extends StatelessWidget {
 }
 
 class _SummaryHero extends StatelessWidget {
-  const _SummaryHero({required this.recording});
+  const _SummaryHero({
+    required this.recording,
+    required this.projectName,
+    required this.authorName,
+  });
 
   final RecordingNote recording;
+  final String projectName;
+  final String authorName;
 
   @override
   Widget build(BuildContext context) {
@@ -105,17 +117,11 @@ class _SummaryHero extends StatelessWidget {
                 icon: Icons.schedule_rounded,
                 label: format.format(recording.createdAt.toLocal()),
               ),
-              _MetaPill(
-                icon: Icons.workspaces_outline,
-                label: 'Projeto ${recording.projectId}',
-              ),
-              _MetaPill(
-                icon: Icons.person_outline_rounded,
-                label: 'Autor ${recording.createdByUserId}',
-              ),
+              _MetaPill(icon: Icons.workspaces_outline, label: projectName),
+              _MetaPill(icon: Icons.person_outline_rounded, label: authorName),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Text(
             recording.noteArtifact?.title ?? recording.title,
             style: Theme.of(context).textTheme.headlineMedium,
@@ -452,6 +458,7 @@ class _MetaPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: const BoxConstraints(maxWidth: 220),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: BrandColors.surfaceMuted,
@@ -463,7 +470,14 @@ class _MetaPill extends StatelessWidget {
         children: [
           Icon(icon, size: 16, color: BrandColors.shell),
           const SizedBox(width: 8),
-          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
         ],
       ),
     );

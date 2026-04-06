@@ -7,9 +7,18 @@ const userHeader = 'x-user-id';
 
 export type AuthSource = 'supabase' | 'dev-header' | 'dev-default';
 
+export interface RequestAuthProfile {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export interface RequestAuth {
   userId: string;
   email: string | null;
+  fullName: string | null;
+  isActive: boolean;
+  profile: RequestAuthProfile | null;
   source: AuthSource;
 }
 
@@ -46,22 +55,7 @@ export class SupabaseRequestAuthProvider implements RequestAuthProvider {
       return;
     }
 
-    const supabase = requireSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from('admin_users')
-      .select('user_id')
-      .eq('user_id', auth.userId)
-      .maybeSingle();
-
-    if (error) {
-      throw new ServiceError(
-        `Failed to validate admin access: ${error.message}`,
-        502,
-        'admin_auth_validation_failed',
-      );
-    }
-
-    if (!data) {
+    if (!auth.isActive || auth.profile?.code !== 'admin') {
       throw new ServiceError('Admin access denied.', 403, 'admin_access_denied');
     }
   }
@@ -72,6 +66,15 @@ export class SupabaseRequestAuthProvider implements RequestAuthProvider {
       return {
         userId: explicitUserId,
         email: null,
+        fullName: explicitUserId === 'demo-user' ? 'Usuário demo' : null,
+        isActive: true,
+        profile: explicitUserId === 'demo-user'
+          ? {
+              id: 'profile-admin',
+              code: 'admin',
+              name: 'Administrador',
+            }
+          : null,
         source: 'dev-header',
       };
     }
@@ -79,6 +82,13 @@ export class SupabaseRequestAuthProvider implements RequestAuthProvider {
     return {
       userId: 'demo-user',
       email: null,
+      fullName: 'Usuário demo',
+      isActive: true,
+      profile: {
+        id: 'profile-admin',
+        code: 'admin',
+        name: 'Administrador',
+      },
       source: 'dev-default',
     };
   }
@@ -100,12 +110,55 @@ export class SupabaseRequestAuthProvider implements RequestAuthProvider {
       throw new ServiceError('Invalid or expired access token.', 401, 'auth_token_invalid');
     }
 
+    const { data: directoryUser, error: directoryError } = await supabase
+      .from('users')
+      .select(
+        'id,email,full_name,is_active,profile:profiles!users_profile_id_fkey(id,code,name)',
+      )
+      .eq('id', data.user.id)
+      .maybeSingle();
+
+    if (directoryError) {
+      throw new ServiceError(
+        `Failed to load user directory entry: ${directoryError.message}`,
+        502,
+        'user_directory_lookup_failed',
+      );
+    }
+
+    if (!directoryUser) {
+      throw new ServiceError('Authenticated user is not registered.', 403, 'auth_user_not_registered');
+    }
+
+    if (directoryUser.is_active === false) {
+      throw new ServiceError('Authenticated user is inactive.', 403, 'auth_user_inactive');
+    }
+
+    const profile = normalizeProfile((directoryUser as { profile?: unknown }).profile);
+
     return {
       userId: data.user.id,
-      email: data.user.email ?? null,
+      email: (directoryUser.email as string | null | undefined) ?? data.user.email ?? null,
+      fullName: (directoryUser.full_name as string | null | undefined) ?? null,
+      isActive: directoryUser.is_active !== false,
+      profile,
       source: 'supabase',
     };
   }
 }
 
 const requestAuthCache = new WeakMap<express.Request, RequestAuth>();
+
+function normalizeProfile(value: unknown): RequestAuthProfile | null {
+  const record = Array.isArray(value) ? value[0] : value;
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+
+  const profile = record as Record<string, unknown>;
+  return {
+    id: String(profile.id),
+    code: String(profile.code),
+    name: String(profile.name),
+  };
+}
