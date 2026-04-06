@@ -1,0 +1,18 @@
+{
+  "name": "@plaude-like/meeting-capture-companion",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "dev": "electron .",
+    "start": "electron .",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.84.0",
+    "dotenv": "^17.2.3",
+    "electron": "^37.2.6",
+    "ffmpeg-static": "^5.2.0"
+  }
+}

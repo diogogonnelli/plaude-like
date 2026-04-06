@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meeting Capture Companion</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="kicker">SPOT companion</div>
+          <h1>Meeting Capture</h1>
+          <p>Grava reuniões online localmente e envia para o backend existente do GravAção.</p>
+        </div>
+        <div class="status-card">
+          <strong id="accountLabel">Sessão não iniciada</strong>
+          <span id="platformLabel">Plataforma</span>
+          <span id="versionLabel">Versão</span>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section id="loginSection" class="card">
+          <div class="section-head">
+            <div>
+              <h2>Entrar</h2>
+              <p>Use a mesma conta Supabase já cadastrada no produto.</p>
+            </div>
+          </div>
+          <form id="loginForm" class="form-grid">
+            <label class="field">
+              <span>Email</span>
+              <input id="emailInput" type="email" required />
+            </label>
+            <label class="field">
+              <span>Senha</span>
+              <input id="passwordInput" type="password" required />
+            </label>
+            <div class="actions">
+              <button class="button primary" type="submit">Entrar</button>
+            </div>
+          </form>
+          <div id="loginMessage" class="inline-message hidden"></div>
+        </section>
+
+        <section id="appSection" class="hidden app-grid">
+          <section class="card">
+            <div class="section-head">
+              <div>
+                <h2>Captura manual</h2>
+                <p>Escolha o projeto, o app da reunião e o destino de captura antes de iniciar.</p>
+              </div>
+              <button id="signOutButton" class="button ghost" type="button">Sair</button>
+            </div>
+
+            <div class="form-grid capture-grid">
+              <label class="field">
+                <span>Projeto</span>
+                <select id="projectSelect"></select>
+              </label>
+              <label class="field">
+                <span>App da reunião</span>
+                <select id="sourceSelect"></select>
+              </label>
+              <label class="field">
+                <span>Tela / janela</span>
+                <div class="inline-row">
+                  <select id="targetSelect"></select>
+                  <button id="refreshTargetsButton" class="button ghost small" type="button">Atualizar</button>
+                </div>
+              </label>
+              <label class="field grow">
+                <span>Título</span>
+                <input id="titleInput" type="text" placeholder="Ex.: Reunião semanal Teams" />
+              </label>
+            </div>
+
+            <div class="capture-state">
+              <strong id="captureStatusLabel">Parado</strong>
+              <span id="captureStatusText">Nenhuma gravação em andamento.</span>
+            </div>
+
+            <div class="actions">
+              <button id="startButton" class="button primary" type="button">Iniciar captura</button>
+              <button id="stopButton" class="button danger" type="button" disabled>Parar e enfileirar upload</button>
+              <button id="retryButton" class="button ghost" type="button">Reenviar pendentes</button>
+            </div>
+
+            <div id="appMessage" class="inline-message hidden"></div>
+          </section>
+
+          <section class="card">
+            <div class="section-head">
+              <div>
+                <h2>Fila local</h2>
+                <p>Uploads são persistidos em disco e reenviados automaticamente ao abrir o app.</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Título</th>
+                    <th>Origem</th>
+                    <th>Status</th>
+                    <th>Arquivo</th>
+                  </tr>
+                </thead>
+                <tbody id="queueTableBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+  </html>
