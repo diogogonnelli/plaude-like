@@ -21,6 +21,28 @@ $env:COMPANION_SUPABASE_ANON_KEY="<anon-key>"
 npm run dev
 ```
 
+## Gerar instalador Windows
+
+1. Preencha `meeting-capture-companion/.env.installer` com:
+
+```env
+COMPANION_BACKEND_BASE_URL=https://seu-backend.up.railway.app
+COMPANION_SUPABASE_URL=https://seu-projeto.supabase.co
+COMPANION_SUPABASE_ANON_KEY=sua_anon_key
+```
+
+2. Gere o instalador:
+
+```powershell
+cd meeting-capture-companion
+npm install
+npm run dist:win
+```
+
+3. O instalador NSIS será gerado em `meeting-capture-companion/dist/`.
+
+O build embute `companion.env` dentro do pacote, então o usuário final não precisa configurar variáveis manualmente.
+
 ## Escopo do v1
 
 - captura manual start/stop

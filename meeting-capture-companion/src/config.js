@@ -1,4 +1,20 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
+
+for (const candidate of [
+  join(currentDir, '..', '.env'),
+  process.resourcesPath ? join(process.resourcesPath, 'companion.env') : null,
+]) {
+  if (!candidate || !existsSync(candidate)) {
+    continue;
+  }
+
+  dotenv.config({ path: candidate, override: false });
+}
 
 function requiredEnv(...keys) {
   for (const key of keys) {

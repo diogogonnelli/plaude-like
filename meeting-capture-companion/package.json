@@ -2,17 +2,64 @@
   "name": "@plaude-like/meeting-capture-companion",
   "version": "0.1.0",
   "private": true,
+  "description": "Desktop companion for capturing online meetings and uploading them to Plaude Like.",
+  "author": "Spot Promo",
   "type": "module",
   "main": "main.js",
   "scripts": {
     "dev": "electron .",
     "start": "electron .",
-    "test": "node --test"
+    "test": "node --test",
+    "dist:win": "node ./scripts/prepare-builder-env.mjs && electron-builder --win nsis"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.84.0",
     "dotenv": "^17.2.3",
-    "electron": "^37.2.6",
     "ffmpeg-static": "^5.2.0"
+  },
+  "devDependencies": {
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.plaudelike.meetingcapture",
+    "productName": "Meeting Capture Companion",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build-resources/companion.env",
+        "to": "companion.env"
+      }
+    ],
+    "asarUnpack": [
+      "**/node_modules/ffmpeg-static/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Meeting-Capture-Companion-${version}-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }
