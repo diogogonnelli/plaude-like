@@ -9,6 +9,7 @@ create table if not exists public.profiles (
   constraint profiles_code_format check (code ~ '^[a-z0-9_]+$')
 );
 
+
 create table if not exists public.users (
   id uuid primary key references auth.users (id) on delete cascade,
   email text,
