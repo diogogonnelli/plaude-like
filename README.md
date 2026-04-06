@@ -8,6 +8,7 @@ Produto `GravAção`, co-branded com `SPOT`, com app `Flutter` para web/mobile, 
   - biblioteca de notas de voz
   - gravação local em mobile/desktop
   - upload de arquivos de áudio
+  - leitura de reuniões online capturadas pelo companion desktop
   - tela de detalhe com resumo, highlights, action items e transcript
   - chat contextual sobre a nota
   - exportação em markdown
@@ -27,6 +28,7 @@ Produto `GravAção`, co-branded com `SPOT`, com app `Flutter` para web/mobile, 
 - [`app`](./app): cliente Flutter web/mobile
 - [`admin-web`](./admin-web): web administrativo separado
 - [`backend`](./backend): API HTTP e pipeline de processamento
+- [`meeting-capture-companion`](./meeting-capture-companion): companion desktop para reuniões online em Windows/macOS
 - [`supabase`](./supabase): schema SQL e documentação da camada gerenciada
 - [`docs`](./docs): arquitetura e decisões do v1
 
@@ -52,6 +54,20 @@ flutter run -d chrome --dart-define=BACKEND_BASE_URL=http://localhost:8787
 ```
 
 Se o backend não estiver rodando, o app entra automaticamente em `demo mode`.
+
+### Meeting Capture Companion
+
+```bash
+cd meeting-capture-companion
+npm install
+npm run dev
+```
+
+Variáveis principais:
+
+- `COMPANION_BACKEND_BASE_URL`
+- `COMPANION_SUPABASE_URL`
+- `COMPANION_SUPABASE_ANON_KEY`
 
 ## Deploy de teste com containers
 

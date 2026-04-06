@@ -114,7 +114,8 @@ export function buildOpenApiDocument(baseUrl: string) {
                   properties: {
                     title: { type: 'string' },
                     projectId: { type: 'string' },
-                    sourceType: { type: 'string', enum: ['microphone', 'upload'] },
+                    sourceType: { type: 'string', enum: ['microphone', 'upload', 'desktop_meeting'] },
+                    captureMetadata: { $ref: '#/components/schemas/CaptureMetadata' },
                     durationMs: { type: 'integer' },
                     audioPath: { type: 'string' },
                   },
@@ -162,7 +163,8 @@ export function buildOpenApiDocument(baseUrl: string) {
                     file: { type: 'string', format: 'binary' },
                     title: { type: 'string' },
                     projectId: { type: 'string' },
-                    sourceType: { type: 'string', enum: ['microphone', 'upload'] },
+                    sourceType: { type: 'string', enum: ['microphone', 'upload', 'desktop_meeting'] },
+                    captureMetadata: { type: 'string', description: 'JSON stringificado com metadata da captura desktop.' },
                     durationMs: { type: 'integer' },
                   },
                   required: ['file', 'title', 'projectId'],
@@ -572,6 +574,8 @@ export function buildOpenApiDocument(baseUrl: string) {
             { in: 'query', name: 'query', required: false, schema: { type: 'string' } },
             { in: 'query', name: 'projectId', required: false, schema: { type: 'string' } },
             { in: 'query', name: 'userId', required: false, schema: { type: 'string' } },
+            { in: 'query', name: 'sourceApp', required: false, schema: { type: 'string', enum: ['teams', 'zoom', 'meet', 'system_audio'] } },
+            { in: 'query', name: 'platform', required: false, schema: { type: 'string', enum: ['windows', 'macos'] } },
             {
               in: 'query',
               name: 'status',
@@ -612,6 +616,8 @@ export function buildOpenApiDocument(baseUrl: string) {
           parameters: [
             { in: 'query', name: 'query', required: false, schema: { type: 'string' } },
             { in: 'query', name: 'projectId', required: false, schema: { type: 'string' } },
+            { in: 'query', name: 'sourceApp', required: false, schema: { type: 'string', enum: ['teams', 'zoom', 'meet', 'system_audio'] } },
+            { in: 'query', name: 'platform', required: false, schema: { type: 'string', enum: ['windows', 'macos'] } },
             {
               in: 'query',
               name: 'status',
@@ -712,6 +718,17 @@ export function buildOpenApiDocument(baseUrl: string) {
             actionItems: { type: 'array', items: { type: 'string' } },
           },
         },
+        CaptureMetadata: {
+          type: 'object',
+          properties: {
+            sourceApp: { type: 'string', enum: ['teams', 'zoom', 'meet', 'system_audio'] },
+            platform: { type: 'string', enum: ['windows', 'macos'] },
+            captureMode: { type: 'string', enum: ['system_and_mic'] },
+            helperVersion: { type: 'string' },
+            windowTitle: { type: 'string', nullable: true },
+          },
+          required: ['sourceApp', 'platform', 'captureMode', 'helperVersion'],
+        },
         ChatCitation: {
           type: 'object',
           properties: {
@@ -762,7 +779,13 @@ export function buildOpenApiDocument(baseUrl: string) {
             createdByUserId: { type: 'string' },
             projectId: { type: 'string' },
             title: { type: 'string' },
-            sourceType: { type: 'string', enum: ['microphone', 'upload'] },
+            sourceType: { type: 'string', enum: ['microphone', 'upload', 'desktop_meeting'] },
+            captureMetadata: {
+              oneOf: [
+                { $ref: '#/components/schemas/CaptureMetadata' },
+                { type: 'null' },
+              ],
+            },
             status: {
               type: 'string',
               enum: [

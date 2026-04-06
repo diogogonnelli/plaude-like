@@ -35,6 +35,7 @@ export function serializeRecordingGraph(recording: Recording, storageUserId: str
     projectId: recording.projectId,
     title: recording.title,
     sourceType: recording.sourceType,
+    captureMetadata: recording.captureMetadata ?? null,
     status: recording.status,
     createdAt: recording.createdAt,
     updatedAt: recording.updatedAt,
@@ -67,6 +68,9 @@ export function deserializeRecordingGraph(
     projectId: String(raw.projectId),
     title: String(raw.title),
     sourceType: raw.sourceType as Recording['sourceType'],
+    captureMetadata: raw.captureMetadata == null
+      ? undefined
+      : deserializeCaptureMetadata(raw.captureMetadata as Record<string, unknown>),
     status: raw.status as Recording['status'],
     createdAt: String(raw.createdAt),
     updatedAt: String(raw.updatedAt),
@@ -85,6 +89,16 @@ export function deserializeRecordingGraph(
       : undefined,
     chatSession: chatSession ? deserializeChatSession(chatSession) : undefined,
     lastError: raw.lastError == null ? undefined : String(raw.lastError),
+  };
+}
+
+function deserializeCaptureMetadata(payload: Record<string, unknown>): NonNullable<Recording['captureMetadata']> {
+  return {
+    sourceApp: String(payload.sourceApp) as NonNullable<Recording['captureMetadata']>['sourceApp'],
+    platform: String(payload.platform) as NonNullable<Recording['captureMetadata']>['platform'],
+    captureMode: String(payload.captureMode) as NonNullable<Recording['captureMetadata']>['captureMode'],
+    helperVersion: String(payload.helperVersion),
+    windowTitle: payload.windowTitle == null ? undefined : String(payload.windowTitle),
   };
 }
 

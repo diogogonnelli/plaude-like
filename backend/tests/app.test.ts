@@ -378,6 +378,37 @@ describe('recordings api', () => {
     expect(processResponse.body.data.summary.overview).toBeTruthy();
   });
 
+  it('accepts desktop meeting recordings with capture metadata and admin filters', async () => {
+    const createResponse = await request(app)
+      .post('/recordings')
+      .set('x-user-id', demoUserId)
+      .send({
+        title: 'Reunião semanal Teams',
+        projectId: 'project-demo',
+        sourceType: 'desktop_meeting',
+        captureMetadata: {
+          sourceApp: 'teams',
+          platform: 'windows',
+          captureMode: 'system_and_mic',
+          helperVersion: '0.1.0',
+          windowTitle: 'Daily sync',
+        },
+      });
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body.data.sourceType).toBe('desktop_meeting');
+    expect(createResponse.body.data.captureMetadata.sourceApp).toBe('teams');
+
+    const adminList = await request(app)
+      .get('/admin/recordings')
+      .query({ sourceApp: 'teams', platform: 'windows' });
+
+    expect(adminList.status).toBe(200);
+    expect(
+      adminList.body.data.some((recording: { id: string }) => recording.id === createResponse.body.data.id),
+    ).toBe(true);
+  });
+
   it('registers and removes a push token for the authenticated user', async () => {
     const pushService = new TestPushNotificationService();
     const pushApp = buildTestApp(service, {
@@ -423,11 +454,22 @@ describe('recordings api', () => {
       .set('x-user-id', demoUserId)
       .field('title', 'Audio longo')
       .field('projectId', 'project-demo')
-      .field('sourceType', 'upload')
+      .field('sourceType', 'desktop_meeting')
+      .field(
+        'captureMetadata',
+        JSON.stringify({
+          sourceApp: 'zoom',
+          platform: 'windows',
+          captureMode: 'system_and_mic',
+          helperVersion: '0.1.0',
+        }),
+      )
       .attach('file', Buffer.from('fake audio bytes'), 'audio-test.wav');
 
     expect(response.status).toBe(201);
     expect(response.body.data.title).toBe('Audio longo');
+    expect(response.body.data.sourceType).toBe('desktop_meeting');
+    expect(response.body.data.captureMetadata.sourceApp).toBe('zoom');
     expect(response.body.data.status).toBe('processing_transcript');
   });
 

@@ -17,12 +17,27 @@ import {
 } from './request-auth.js';
 
 const userHeader = 'x-user-id';
+const recordingSourceTypes = ['microphone', 'upload', 'desktop_meeting'] as const;
+const captureSourceApps = ['teams', 'zoom', 'meet', 'system_audio'] as const;
+const capturePlatforms = ['windows', 'macos'] as const;
+const captureModes = ['system_and_mic'] as const;
+
+const captureMetadataSchema = z
+  .object({
+    sourceApp: z.enum(captureSourceApps),
+    platform: z.enum(capturePlatforms),
+    captureMode: z.enum(captureModes),
+    helperVersion: z.string().min(1),
+    windowTitle: z.string().min(1).optional(),
+  })
+  .strict();
 
 const createRecordingSchema = z
   .object({
     title: z.string().min(1),
     projectId: z.string().min(1),
-    sourceType: z.enum(['microphone', 'upload']),
+    sourceType: z.enum(recordingSourceTypes),
+    captureMetadata: captureMetadataSchema.optional(),
     durationMs: z.number().int().positive().optional(),
     audioPath: z.string().min(1).optional(),
   })
@@ -50,7 +65,8 @@ const uploadRecordingSchema = z
   .object({
     title: z.string().min(1),
     projectId: z.string().min(1),
-    sourceType: z.enum(['microphone', 'upload']).default('upload'),
+    sourceType: z.enum(recordingSourceTypes).default('upload'),
+    captureMetadata: z.preprocess(parseCaptureMetadataField, captureMetadataSchema.optional()),
     durationMs: z.coerce.number().int().positive().optional(),
   })
   .strict();
@@ -208,6 +224,18 @@ function buildTranscriptFromSegments(
   return segments
     .map((segment, index) => `${segment.speakerLabel ?? `Speaker ${index + 1}`}: ${segment.text}`)
     .join('\n');
+}
+
+function parseCaptureMetadataField(value: unknown) {
+  if (value == null || value === '') {
+    return undefined;
+  }
+
+  if (typeof value === 'string') {
+    return JSON.parse(value) as unknown;
+  }
+
+  return value;
 }
 
 function slugify(value: string) {
@@ -410,6 +438,7 @@ export function buildApp(recordingService: RecordingService, options: BuildAppOp
         title: body.title,
         projectId: body.projectId,
         sourceType: body.sourceType,
+        captureMetadata: body.captureMetadata,
         durationMs: body.durationMs,
         filePath: file.path,
         fileName: file.originalname,
@@ -747,6 +776,8 @@ export function buildApp(recordingService: RecordingService, options: BuildAppOp
           query: z.string().min(1).optional(),
           projectId: z.string().min(1).optional(),
           userId: z.string().min(1).optional(),
+          sourceApp: z.enum(captureSourceApps).optional(),
+          platform: z.enum(capturePlatforms).optional(),
           status: z.enum(['uploaded', 'processing_transcript', 'processing_summary', 'indexing', 'ready', 'failed']).optional(),
       })
         .strict()
@@ -794,6 +825,8 @@ export function buildApp(recordingService: RecordingService, options: BuildAppOp
           query: z.string().min(1).optional(),
           projectId: z.string().min(1).optional(),
           userId: z.string().min(1).optional(),
+          sourceApp: z.enum(captureSourceApps).optional(),
+          platform: z.enum(capturePlatforms).optional(),
           status: z.enum(['uploaded', 'processing_transcript', 'processing_summary', 'indexing', 'ready', 'failed']).optional(),
         })
         .strict()

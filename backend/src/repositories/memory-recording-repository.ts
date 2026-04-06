@@ -7,6 +7,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RecordingRepository } from '../domain/contracts.js';
 import type {
   AccessProfile,
+  CapturePlatform,
+  CaptureSourceApp,
   CreateRecordingInput,
   Project,
   ProjectMember,
@@ -84,6 +86,8 @@ export class MemoryRecordingRepository implements RecordingRepository {
     projectId?: string;
     userId?: string;
     status?: Recording['status'];
+    sourceApp?: CaptureSourceApp;
+    platform?: CapturePlatform;
   }): Promise<Recording[]> {
     if (this.persistenceMode === 'supabase') {
       return this.listAllRecordingsFromSupabase(filters);
@@ -93,6 +97,8 @@ export class MemoryRecordingRepository implements RecordingRepository {
       .filter((recording) => (filters?.projectId ? recording.projectId === filters.projectId : true))
       .filter((recording) => (filters?.userId ? recording.createdByUserId === filters.userId : true))
       .filter((recording) => (filters?.status ? recording.status === filters.status : true))
+      .filter((recording) => (filters?.sourceApp ? recording.captureMetadata?.sourceApp === filters.sourceApp : true))
+      .filter((recording) => (filters?.platform ? recording.captureMetadata?.platform === filters.platform : true))
       .filter((recording) => matchesFilters(recording, { query: filters?.query }))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
       .map((recording) => structuredClone(recording));
@@ -139,6 +145,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
       projectId: input.projectId,
       title: input.title,
       sourceType: input.sourceType,
+      captureMetadata: input.captureMetadata,
       createdAt: timestamp,
       updatedAt: timestamp,
       durationMs: input.durationMs,
@@ -763,6 +770,8 @@ export class MemoryRecordingRepository implements RecordingRepository {
     projectId?: string;
     userId?: string;
     status?: Recording['status'];
+    sourceApp?: CaptureSourceApp;
+    platform?: CapturePlatform;
   }): Promise<Recording[]> {
     const supabase = this.ensureSupabaseClient();
 
@@ -775,6 +784,12 @@ export class MemoryRecordingRepository implements RecordingRepository {
     }
     if (filters?.status) {
       query = query.eq('status', filters.status);
+    }
+    if (filters?.sourceApp) {
+      query = query.eq('capture_metadata->>sourceApp', filters.sourceApp);
+    }
+    if (filters?.platform) {
+      query = query.eq('capture_metadata->>platform', filters.platform);
     }
 
     const { data, error } = await query;

@@ -8,6 +8,18 @@ export type ProcessingStatus =
 
 export type ProjectStatus = 'active' | 'archived';
 export type ProjectMemberRole = 'owner' | 'member';
+export type RecordingSourceType = 'microphone' | 'upload' | 'desktop_meeting';
+export type CaptureSourceApp = 'teams' | 'zoom' | 'meet' | 'system_audio';
+export type CapturePlatform = 'windows' | 'macos';
+export type CaptureMode = 'system_and_mic';
+
+export interface CaptureMetadata {
+  sourceApp: CaptureSourceApp;
+  platform: CapturePlatform;
+  captureMode: CaptureMode;
+  helperVersion: string;
+  windowTitle?: string | null;
+}
 
 export interface AccessProfile {
   id: string;
@@ -106,7 +118,8 @@ export interface Recording {
   createdByUserId: string;
   projectId: string;
   title: string;
-  sourceType: 'microphone' | 'upload';
+  sourceType: RecordingSourceType;
+  captureMetadata?: CaptureMetadata;
   status: ProcessingStatus;
   createdAt: string;
   updatedAt: string;
@@ -126,7 +139,8 @@ export interface Recording {
 export interface CreateRecordingInput {
   title: string;
   projectId: string;
-  sourceType: Recording['sourceType'];
+  sourceType: RecordingSourceType;
+  captureMetadata?: CaptureMetadata;
   durationMs?: number;
   audioPath?: string;
   createdByUserId?: string;

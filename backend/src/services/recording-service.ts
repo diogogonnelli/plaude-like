@@ -324,6 +324,8 @@ export class RecordingService {
     projectId?: string;
     userId?: string;
     status?: Recording['status'];
+    sourceApp?: NonNullable<Recording['captureMetadata']>['sourceApp'];
+    platform?: NonNullable<Recording['captureMetadata']>['platform'];
   }) {
     return this.repository.listAllRecordings(filters);
   }
@@ -360,6 +362,7 @@ export class RecordingService {
       title: input.title,
       projectId: input.projectId,
       sourceType: input.sourceType,
+      captureMetadata: input.captureMetadata,
       durationMs: input.durationMs,
       audioPath: input.fileName,
       createdByUserId: userId,

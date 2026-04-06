@@ -50,6 +50,7 @@ Exemplo resumido:
   "projectId": "project-uuid",
   "title": "Audio curto",
   "sourceType": "upload",
+  "captureMetadata": null,
   "status": "processing_transcript",
   "createdAt": "2026-03-31T21:00:00.000Z",
   "updatedAt": "2026-03-31T21:00:05.000Z",
@@ -130,7 +131,14 @@ Body:
 {
   "title": "Nome da gravação",
   "projectId": "project-uuid",
-  "sourceType": "upload",
+  "sourceType": "desktop_meeting",
+  "captureMetadata": {
+    "sourceApp": "teams",
+    "platform": "windows",
+    "captureMode": "system_and_mic",
+    "helperVersion": "0.1.0",
+    "windowTitle": "Daily sync"
+  },
   "durationMs": 180000,
   "audioPath": "opcional"
 }
@@ -152,6 +160,7 @@ Campos:
 - `title` obrigatório
 - `projectId` obrigatório
 - `sourceType` opcional
+- `captureMetadata` opcional em JSON stringificado
 - `durationMs` opcional
 
 ### `GET /recordings/:id`
@@ -264,6 +273,13 @@ Resposta típica:
     "id": "recording-uuid",
     "projectId": "project-uuid",
     "createdByUserId": "user-uuid",
+    "sourceType": "desktop_meeting",
+    "captureMetadata": {
+      "sourceApp": "teams",
+      "platform": "windows",
+      "captureMode": "system_and_mic",
+      "helperVersion": "0.1.0"
+    },
     "status": "ready",
     "transcriptionProvider": "assemblyai",
     "transcriptionJobId": "job-123",

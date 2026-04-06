@@ -1,5 +1,7 @@
 import type {
   AccessProfile,
+  CapturePlatform,
+  CaptureSourceApp,
   ChatCitation,
   CreateRecordingInput,
   ExportArtifact,
@@ -78,6 +80,8 @@ export interface RecordingRepository {
     projectId?: string;
     userId?: string;
     status?: Recording['status'];
+    sourceApp?: CaptureSourceApp;
+    platform?: CapturePlatform;
   }): Promise<Recording[]>;
 }
 
@@ -112,6 +116,7 @@ export interface UploadAudioInput {
   title: string;
   projectId: string;
   sourceType: Recording['sourceType'];
+  captureMetadata?: Recording['captureMetadata'];
   filePath: string;
   fileName: string;
   mimeType?: string;

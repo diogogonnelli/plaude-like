@@ -10,6 +10,7 @@ Esta pasta versiona o schema da persistência real do produto.
 - `0004_projects_and_memberships.sql`: projetos, memberships, `project_id`, `created_by_user_id` e RLS por projeto
 - `0005_admin_users.sql`: allowlist de admins globais
 - `0007_users_and_profiles.sql`: diretório de usuários, perfis de acesso e migração do modelo antigo de admins
+- `0008_desktop_meeting_capture.sql`: `desktop_meeting`, `capture_metadata` e atualização das RPCs
 
 ## Storage
 

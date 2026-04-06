@@ -15,6 +15,13 @@
 - `@supabase/supabase-js` para login e bootstrap de sessão
 - superfícies operacionais para usuários, perfis, projetos, membros, gravações e jobs
 
+## Meeting Capture Companion
+
+- `Electron` com UI local mínima
+- captura manual de áudio do sistema + microfone
+- fila persistente de uploads para o backend
+- tagging por `sourceApp` e `platform` para reuniões online
+
 ## Backend
 
 - `Express` + `TypeScript`
@@ -33,6 +40,7 @@ Entidades centrais:
 - `User`
 - `Profile`
 - `Recording`
+- `CaptureMetadata`
 - `TranscriptSegment`
 - `Summary`
 - `NoteArtifact`
@@ -49,6 +57,7 @@ Entidades centrais:
 
 - áudio persistido em `recordings/{projectId}/{recordingId}/{fileName}`
 - metadados de transcrição ficam no topo do grafo da gravação
+- reuniões online usam `sourceType=desktop_meeting` e `captureMetadata`
 
 ## Próximos passos naturais
 
