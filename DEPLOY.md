@@ -30,9 +30,10 @@ Layout esperado no servidor:
 
 ## 2. Variaveis do Bitbucket
 
-Defina no repositorio, no minimo:
+Defina no repositorio ou em `Deployments > Production`, no minimo:
 
 - `SSH_KEY_LINUX_HOST`: chave privada em base64 usada pelo pipeline para conectar no host
+  - compatibilidade: se sua workspace ja usa a variavel legada `SSH_KEY_webrun01`, o pipeline tambem aceita esse nome
 - `DEPLOY_HOST`: IP ou hostname do servidor
 - `DEPLOY_USER`: usuario SSH do servidor
 - `DEPLOY_APP_PATH`: caminho base do projeto no host. Ex.: `/srv/plaude-like`

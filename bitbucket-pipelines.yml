@@ -51,14 +51,15 @@ definitions:
         script:
           - test -f app/build/web/index.html
           - test -f admin-web/dist/index.html
-          - 'test -n "${SSH_KEY_LINUX_HOST:-}" || { echo "Missing deployment variable: SSH_KEY_LINUX_HOST"; exit 1; }'
+          - export DEPLOY_SSH_KEY_B64="${SSH_KEY_LINUX_HOST:-${SSH_KEY_webrun01:-}}"
+          - 'test -n "${DEPLOY_SSH_KEY_B64:-}" || { echo "Missing deployment variable: SSH_KEY_LINUX_HOST (or legacy SSH_KEY_webrun01)"; exit 1; }'
           - 'test -n "${DEPLOY_HOST:-}" || { echo "Missing deployment variable: DEPLOY_HOST"; exit 1; }'
           - 'test -n "${DEPLOY_USER:-}" || { echo "Missing deployment variable: DEPLOY_USER"; exit 1; }'
           - 'test -n "${DEPLOY_APP_DOMAIN:-}" || { echo "Missing deployment variable: DEPLOY_APP_DOMAIN"; exit 1; }'
           - 'test -n "${DEPLOY_ADMIN_DOMAIN:-}" || { echo "Missing deployment variable: DEPLOY_ADMIN_DOMAIN"; exit 1; }'
           - umask 077
-          - echo "$SSH_KEY_LINUX_HOST" | base64 --decode > ./id_rsa
-          - 'test -s ./id_rsa || { echo "Decoded SSH key is empty. Check SSH_KEY_LINUX_HOST."; exit 1; }'
+          - echo "$DEPLOY_SSH_KEY_B64" | base64 --decode > ./id_rsa
+          - 'test -s ./id_rsa || { echo "Decoded SSH key is empty. Check SSH_KEY_LINUX_HOST or SSH_KEY_webrun01."; exit 1; }'
           - chmod 600 ./id_rsa
           - mkdir -p ~/.ssh
           - chmod 700 ~/.ssh
