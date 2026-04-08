@@ -78,3 +78,21 @@ export async function updateRecording(backendBaseUrl, accessToken, recordingId, 
   const payload = await response.json();
   return payload.data ?? null;
 }
+
+export async function processRecording(backendBaseUrl, accessToken, recordingId, input = {}) {
+  const response = await fetch(`${backendBaseUrl}/recordings/${recordingId}/process`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to process recording: ${response.status}`);
+  }
+
+  const payload = await response.json();
+  return payload.data ?? null;
+}

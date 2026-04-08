@@ -10,7 +10,8 @@
     "dev": "electron .",
     "start": "electron .",
     "test": "node --test",
-    "dist:win": "node ./scripts/prepare-builder-env.mjs && electron-builder --win nsis"
+    "dist:win": "node ./scripts/prepare-builder-env.mjs && electron-builder --win nsis",
+    "dist:mac": "node ./scripts/prepare-builder-env.mjs && electron-builder --mac dmg zip"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.84.0",
@@ -22,7 +23,7 @@
     "electron-builder": "^26.0.12"
   },
   "build": {
-    "appId": "com.plaudelike.meetingcapture",
+    "appId": "com.spotpromo.gravacao.companion",
     "productName": "Meeting Capture Companion",
     "directories": {
       "output": "dist"
@@ -43,6 +44,25 @@
     "asarUnpack": [
       "**/node_modules/ffmpeg-static/**"
     ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "artifactName": "Meeting-Capture-Companion-${version}-${arch}.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build-resources/entitlements.mac.plist",
+      "entitlementsInherit": "build-resources/entitlements.mac.inherit.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "O GravAcao Companion precisa do microfone para capturar a sua voz durante as reunioes.",
+        "NSScreenCaptureUsageDescription": "O GravAcao Companion precisa capturar a tela e o audio do sistema para registrar as reunioes online."
+      }
+    },
+    "dmg": {
+      "artifactName": "Meeting-Capture-Companion-${version}-${arch}.${ext}"
+    },
     "win": {
       "target": [
         {

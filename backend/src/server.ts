@@ -23,6 +23,8 @@ const app = buildApp(recordingService, {
   pushNotificationService,
 });
 
-app.listen(config.PORT, () => {
-  console.log(`plaude-like-backend listening on ${config.APP_BASE_URL}`);
+app.listen(config.PORT, config.HOST, () => {
+  console.log(
+    `plaude-like-backend listening on http://${config.HOST}:${config.PORT} (public: ${config.APP_BASE_URL})`,
+  );
 });

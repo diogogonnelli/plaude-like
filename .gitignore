@@ -4,10 +4,24 @@ app/.flutter-plugins
 app/.flutter-plugins-dependencies
 app/.packages
 app/build/
+app/.idea/
 
 # Node
+node_modules/
 backend/node_modules/
 backend/dist/
+admin-web/node_modules/
+admin-web/dist/
+admin-web/.env*
+!admin-web/.env.example
+meeting-capture-companion/node_modules/
+meeting-capture-companion/dist/
+meeting-capture-companion/.env
+meeting-capture-companion/.env.installer
+meeting-capture-companion/build-resources/companion.env
+*.tsbuildinfo
+.vite/
+.vite-temp/
 
 # IDE / OS
 .idea/
@@ -17,5 +31,11 @@ Thumbs.db
 .DS_Store
 
 # Env
+.env
 backend/.env
 app/.env
+
+# Local artifacts
+audio_files/
+flutter_run.txt
+testar_local.txt

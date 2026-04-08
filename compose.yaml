@@ -5,10 +5,10 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      PORT: 8787
-      APP_BASE_URL: http://localhost:8787
+      PORT: ${BACKEND_PORT:-8787}
+      APP_BASE_URL: ${BACKEND_APP_BASE_URL:-http://localhost:8787}
     ports:
-      - "8787:8787"
+      - "${BACKEND_PORT:-8787}:8787"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 15s
@@ -19,9 +19,24 @@ services:
     build:
       context: ./app
       args:
-        BACKEND_BASE_URL: http://localhost:8787
+        BACKEND_BASE_URL: ${APP_BACKEND_BASE_URL:-http://localhost:8787}
+        SUPABASE_URL: ${APP_SUPABASE_URL:-}
+        SUPABASE_ANON_KEY: ${APP_SUPABASE_ANON_KEY:-}
     ports:
-      - "8080:80"
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  admin-web:
+    build:
+      context: ./admin-web
+      args:
+        VITE_API_BASE_URL: ${ADMIN_API_BASE_URL:-http://localhost:8787}
+        VITE_SUPABASE_URL: ${ADMIN_VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${ADMIN_VITE_SUPABASE_ANON_KEY:-}
+    ports:
+      - "${ADMIN_WEB_PORT:-8081}:80"
     depends_on:
       backend:
         condition: service_healthy

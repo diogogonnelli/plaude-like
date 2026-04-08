@@ -8,159 +8,301 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="shell">
-      <aside class="sidebar">
-        <div class="brand">
-          <div class="kicker">SPOT companion</div>
-          <h1>Meeting Capture</h1>
-          <p>Grava reuniões online localmente e envia para o backend existente do GravAção.</p>
+    <section id="loginSection" class="auth-layout">
+      <div class="auth-copy">
+        <div class="wordmark-lockup">
+          <div class="spot-endorsement">
+            <div class="spot-seal">
+              <span>S</span>
+              <span>P</span>
+              <span class="spot-seal__dot"></span>
+              <span>T</span>
+            </div>
+            <span>SPOT</span>
+          </div>
+          <div class="wordmark">
+            <span class="wordmark__base">Grav</span>
+            <span class="wordmark__accent">Acao</span>
+          </div>
         </div>
-        <div class="status-card">
-          <strong id="accountLabel">Sessão não iniciada</strong>
+        <p class="auth-copy__lead">
+          Captura local, triagem operacional e leitura de gravacoes no mesmo sistema visual do app Flutter.
+        </p>
+        <div class="panel panel--subtle auth-note">
+          <div class="eyebrow">Workflow</div>
+          <strong>SPOT endorsed workflow</strong>
+          <p>Entre com a mesma conta Supabase usada no produto para acessar biblioteca, captura e detalhe completo.</p>
+        </div>
+      </div>
+
+      <section class="panel panel--highlight auth-card">
+        <div class="section-copy">
+          <div class="brand-badge">
+            <span class="brand-badge__dot"></span>
+            <span>Companion desktop</span>
+          </div>
+          <h1>Entrar</h1>
+          <p>Use a mesma conta ja cadastrada no produto principal.</p>
+        </div>
+
+        <form id="loginForm" class="stack-md">
+          <label class="field">
+            <span>Email</span>
+            <input id="emailInput" type="email" required />
+          </label>
+          <label class="field">
+            <span>Senha</span>
+            <input id="passwordInput" type="password" required />
+          </label>
+          <button class="button button--primary button--full" type="submit">Entrar</button>
+        </form>
+
+        <div id="loginMessage" class="inline-message hidden"></div>
+      </section>
+    </section>
+
+    <div id="appShell" class="app-shell hidden">
+      <aside class="sidebar panel">
+        <div class="sidebar__brand">
+          <div class="wordmark-lockup">
+            <div class="spot-endorsement">
+              <div class="spot-seal">
+                <span>S</span>
+                <span>P</span>
+                <span class="spot-seal__dot"></span>
+                <span>T</span>
+              </div>
+              <span>SPOT</span>
+            </div>
+            <div class="wordmark">
+              <span class="wordmark__base">Grav</span>
+              <span class="wordmark__accent">Acao</span>
+            </div>
+          </div>
+          <p class="sidebar__copy">
+            SPOT conectando estrategia, captura, resumo e execucao operacional em uma unica superficie.
+          </p>
+        </div>
+
+        <div class="panel panel--subtle sidebar-card">
+          <div class="eyebrow">Projeto ativo</div>
+          <strong id="activeProjectLabel">Sem projeto</strong>
+          <span id="activeProjectMeta">As novas capturas podem ser enviadas com ou sem projeto.</span>
+        </div>
+
+        <nav class="rail-nav">
+          <button class="rail-nav__button is-active" type="button" data-view="home">Inicio</button>
+          <button class="rail-nav__button" type="button" data-view="library">Biblioteca</button>
+          <button class="rail-nav__button" type="button" data-view="system">Sistema</button>
+        </nav>
+
+        <div class="panel panel--subtle sidebar-card">
+          <div class="eyebrow">Sessao</div>
+          <strong id="accountLabel">Sessao nao iniciada</strong>
           <span id="platformLabel">Plataforma</span>
-          <span id="versionLabel">Versão</span>
+          <span id="versionLabel">Versao</span>
         </div>
+
+        <button id="signOutButton" class="button button--secondary button--full" type="button">Sair</button>
       </aside>
 
       <main class="content">
-        <section id="loginSection" class="card">
-          <div class="section-head">
-            <div>
-              <h2>Entrar</h2>
-              <p>Use a mesma conta Supabase já cadastrada no produto.</p>
-            </div>
-          </div>
-          <form id="loginForm" class="form-grid">
-            <label class="field">
-              <span>Email</span>
-              <input id="emailInput" type="email" required />
-            </label>
-            <label class="field">
-              <span>Senha</span>
-              <input id="passwordInput" type="password" required />
-            </label>
-            <div class="actions">
-              <button class="button primary" type="submit">Entrar</button>
-            </div>
-          </form>
-          <div id="loginMessage" class="inline-message hidden"></div>
-        </section>
+        <div id="appMessage" class="inline-message content-message hidden"></div>
 
-        <section id="appSection" class="hidden app-grid">
-          <section class="card">
+        <div class="content-view" data-view-panel="home">
+          <section id="homeSection" class="home-command-deck">
+            <div class="stack-sm">
+              <h1>Grave agora. Execute depois.</h1>
+              <p class="home-command-deck__project">
+                Projeto para novas gravacoes:
+                <strong id="homeActiveProjectLabel">Sem projeto</strong>
+              </p>
+              <p class="home-command-deck__body">
+                O GravAcao consolida audio, resumo estruturado, evidencias e contexto de chat em uma esteira unica com selo SPOT.
+              </p>
+            </div>
+
+            <div class="home-command-deck__actions">
+              <button id="homeStartButton" class="command-button command-button--primary" type="button">
+                <span class="command-button__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                    <path d="M12 15a3 3 0 0 0 3-3V7a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Zm5-3a1 1 0 1 1 2 0 7 7 0 0 1-6 6.92V22h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-3.08A7 7 0 0 1 5 12a1 1 0 1 1 2 0 5 5 0 1 0 10 0Z" />
+                  </svg>
+                </span>
+                <span>Iniciar captacao</span>
+              </button>
+              <button id="homeUploadButton" class="command-button command-button--secondary" type="button">
+                <span class="command-button__glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                    <path d="M8 3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.41l-3.83-3.83A2 2 0 0 0 12.17 4H8Zm4 1.5V8a1 1 0 0 0 1 1h3.5V19a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4Zm0 8.59V11a1 1 0 1 1 2 0v2.09h1.09a1 1 0 1 1 0 2H14V17a1 1 0 1 1-2 0v-1.91H10.91a1 1 0 1 1 0-2H12Z" />
+                  </svg>
+                </span>
+                <span>Enviar audio</span>
+              </button>
+            </div>
+
+            <div class="home-command-metrics" aria-label="Resumo da biblioteca">
+              <article class="home-command-metric">
+                <div class="home-command-metric__label">Notas</div>
+                <strong id="homeNotesCount">0</strong>
+              </article>
+              <article class="home-command-metric">
+                <div class="home-command-metric__label">Processando</div>
+                <strong id="homeProcessingCount">0</strong>
+              </article>
+              <article class="home-command-metric home-command-metric--accent">
+                <div class="home-command-metric__label">Falhas</div>
+                <strong id="homeFailedCount">0</strong>
+              </article>
+            </div>
+          </section>
+        </div>
+
+        <div class="content-view hidden" data-view-panel="library">
+          <section class="panel panel--highlight">
             <div class="section-head">
-              <div>
-                <h2>Captura manual</h2>
-                <p>Escolha o projeto, o app da reunião e o destino de captura antes de iniciar.</p>
+              <div class="section-copy">
+                <h2>Biblioteca operacional</h2>
+                <p>Busca, filtro por projeto e leitura da esteira por status.</p>
               </div>
-              <button id="signOutButton" class="button ghost" type="button">Sair</button>
+              <button id="refreshRecordingsButton" class="button button--secondary" type="button">Atualizar</button>
             </div>
 
-            <div class="form-grid capture-grid">
+            <div class="toolbar-grid">
+              <label class="field field--wide">
+                <span>Buscar na biblioteca</span>
+                <input id="searchInput" type="search" placeholder="Buscar por titulo, resumo ou transcript" />
+              </label>
+              <label class="field">
+                <span>Projeto</span>
+                <select id="recordingProjectFilterSelect"></select>
+              </label>
+            </div>
+          </section>
+
+          <section id="librarySection" class="library-grid">
+            <section class="panel">
+              <div class="section-head">
+                <div class="section-copy">
+                  <div class="section-copy__top">
+                    <h2>Em andamento</h2>
+                    <span id="processingSectionCount" class="count-pill">0</span>
+                  </div>
+                  <p>Status da esteira que ainda exige processamento.</p>
+                </div>
+              </div>
+              <div id="processingList" class="recording-list"></div>
+            </section>
+
+            <section class="panel">
+              <div class="section-head">
+                <div class="section-copy">
+                  <div class="section-copy__top">
+                    <h2>Notas prontas</h2>
+                    <span id="readySectionCount" class="count-pill">0</span>
+                  </div>
+                  <p>Itens prontos para leitura, exportacao e revisao operacional.</p>
+                </div>
+              </div>
+              <div id="readyList" class="recording-list"></div>
+            </section>
+
+            <section class="panel panel--wide">
+              <div class="section-head">
+                <div class="section-copy">
+                  <div class="section-copy__top">
+                    <h2>Falhas</h2>
+                    <span id="failedSectionCount" class="count-pill">0</span>
+                  </div>
+                  <p>Itens acessiveis para diagnostico, reprocessamento e ajuste de projeto.</p>
+                </div>
+              </div>
+              <div id="failedList" class="recording-list"></div>
+            </section>
+          </section>
+        </div>
+
+        <div class="content-view hidden" data-view-panel="system">
+          <section id="captureSection" class="panel panel--highlight capture-panel">
+            <div class="section-head">
+              <div class="section-copy">
+                <h2>Preferencias de captura</h2>
+                <p>Defina os parametros padrao. A captacao comeca pela tela Inicio.</p>
+              </div>
+            </div>
+
+            <div class="capture-form-grid">
               <label class="field">
                 <span>Projeto</span>
                 <select id="projectSelect"></select>
               </label>
               <label class="field">
-                <span>App da reunião</span>
+                <span>App da reuniao</span>
                 <select id="sourceSelect"></select>
               </label>
-              <label class="field">
-                <span>Tela / janela</span>
+              <label class="field field--target">
+                <span>Tela ou janela</span>
                 <div class="inline-row">
                   <select id="targetSelect"></select>
-                  <button id="refreshTargetsButton" class="button ghost small" type="button">Atualizar</button>
+                  <button id="refreshTargetsButton" class="button button--secondary" type="button">Atualizar</button>
                 </div>
               </label>
-              <label class="field grow">
-                <span>Título</span>
-                <input id="titleInput" type="text" placeholder="Ex.: Reunião semanal Teams" />
+              <label class="field field--wide">
+                <span>Titulo</span>
+                <input id="titleInput" type="text" placeholder="Ex.: Reuniao semanal Teams" />
               </label>
             </div>
 
-            <div class="capture-state">
-              <strong id="captureStatusLabel">Parado</strong>
-              <span id="captureStatusText">Nenhuma gravação em andamento.</span>
-            </div>
-
-            <div class="actions">
-              <button id="startButton" class="button primary" type="button">Iniciar captura</button>
-              <button id="stopButton" class="button danger" type="button" disabled>Parar e enfileirar upload</button>
-              <button id="retryButton" class="button ghost" type="button">Reenviar pendentes</button>
-            </div>
-
-            <div id="appMessage" class="inline-message hidden"></div>
+            <article class="inline-note">
+              <strong>Fluxo</strong>
+              <p>Use o botao de inicio para escolher o microfone e iniciar a captacao com estas preferencias.</p>
+            </article>
           </section>
-
-          <section class="card">
-            <div class="section-head">
-              <div>
-                <h2>Fila local</h2>
-                <p>Uploads são persistidos em disco e reenviados automaticamente ao abrir o app.</p>
-              </div>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Título</th>
-                    <th>Origem</th>
-                    <th>Status</th>
-                    <th>Arquivo</th>
-                  </tr>
-                </thead>
-                <tbody id="queueTableBody"></tbody>
-              </table>
-            </div>
-          </section>
-
-          <section class="card">
-            <div class="section-head">
-              <div>
-                <h2>Gravações do usuário</h2>
-                <p>Lista de todas as gravações já registradas para a conta autenticada.</p>
-              </div>
-              <button id="refreshRecordingsButton" class="button ghost small" type="button">Atualizar</button>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Título</th>
-                    <th>Origem</th>
-                    <th>Status</th>
-                    <th>Criada em</th>
-                  </tr>
-                </thead>
-                <tbody id="recordingsTableBody"></tbody>
-              </table>
-            </div>
-          </section>
-        </section>
+        </div>
       </main>
+    </div>
+
+    <div id="microphonePickerBackdrop" class="dialog-backdrop hidden">
+      <div class="dialog-card dialog-card--compact" role="dialog" aria-modal="true">
+        <div class="section-head">
+          <div class="section-copy">
+            <h2>Selecionar microfone</h2>
+            <p>Escolha a entrada de voz antes de iniciar a captacao.</p>
+          </div>
+          <button id="closeMicrophonePickerButton" class="button button--secondary" type="button">Cancelar</button>
+        </div>
+
+        <div class="stack-md">
+          <label class="field">
+            <span>Microfone</span>
+            <div class="inline-row">
+              <select id="microphonePickerSelect"></select>
+              <button id="refreshMicrophonesButton" class="button button--secondary" type="button">Atualizar</button>
+            </div>
+          </label>
+          <div id="microphonePickerMessage" class="inline-message hidden"></div>
+          <button id="confirmMicrophonePickerButton" class="button button--primary button--full" type="button">
+            Iniciar captacao
+          </button>
+        </div>
+      </div>
     </div>
 
     <div id="recordingDetailBackdrop" class="dialog-backdrop hidden">
       <div class="dialog-card" role="dialog" aria-modal="true">
         <div class="section-head">
-          <div>
-            <h2>Detalhe da gravação</h2>
-            <p>Metadados operacionais, transcript, summary, highlights, action items e erro final.</p>
+          <div class="section-copy">
+            <h2>Detalhe da gravacao</h2>
+            <p>Metadados, resumo, itens estruturados e transcript no mesmo padrao do app.</p>
           </div>
-          <button id="closeDetailButton" class="button ghost small" type="button">Fechar</button>
+          <button id="closeDetailButton" class="button button--secondary" type="button">Fechar</button>
         </div>
 
         <div id="recordingDetailFeedback" class="inline-message hidden"></div>
-
-        <div id="recordingDetailContent" class="detail-pane">
-          <div class="empty-card">
-            <strong>Selecione uma gravação</strong>
-            <span>Abra o detalhe a partir da lista de gravações do usuário.</span>
-          </div>
-        </div>
+        <div id="recordingDetailContent" class="detail-view"></div>
       </div>
     </div>
 
     <script type="module" src="./app.js"></script>
   </body>
-  </html>
+</html>

@@ -256,27 +256,6 @@ class PlaudeApi {
     return ExportArtifact.fromJson(payload['data'] as Map<String, dynamic>);
   }
 
-  Future<void> registerPushDevice({
-    required String token,
-    required String platform,
-  }) async {
-    final response = await _client.post(
-      _uri('/me/push-devices'),
-      headers: await _headers(),
-      body: jsonEncode({'token': token, 'platform': platform}),
-    );
-    _ensureSuccess(response);
-  }
-
-  Future<void> unregisterPushDevice({required String token}) async {
-    final response = await _client.delete(
-      _uri('/me/push-devices'),
-      headers: await _headers(),
-      body: jsonEncode({'token': token}),
-    );
-    _ensureSuccess(response);
-  }
-
   Map<String, dynamic> _decode(http.Response response) {
     _ensureSuccess(response);
     return jsonDecode(response.body) as Map<String, dynamic>;

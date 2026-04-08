@@ -1,9 +1,29 @@
 import 'dotenv/config';
 import { z } from 'zod';
 
+const booleanLikeSchema = z.preprocess((value) => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+  }
+
+  return value;
+}, z.boolean());
+
 const envSchema = z.object({
+  HOST: z.string().default('0.0.0.0'),
   PORT: z.coerce.number().default(8787),
   APP_BASE_URL: z.string().url().default('http://localhost:8787'),
+  TRUST_PROXY: booleanLikeSchema.default(false),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-5-mini'),
   OPENAI_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),

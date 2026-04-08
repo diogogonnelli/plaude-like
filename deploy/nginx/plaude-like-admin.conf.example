@@ -1,0 +1,11 @@
+server {
+  listen 80;
+  server_name admin.seudominio.com;
+
+  root /srv/plaude-like/dist-admin;
+  index index.html;
+
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+}

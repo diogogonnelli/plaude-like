@@ -1,5 +1,8 @@
 node_modules/
 dist/
 captures/
-build-resources/
+build-resources/*
+!build-resources/entitlements.mac.plist
+!build-resources/entitlements.mac.inherit.plist
+build-resources/companion.env
 *.log

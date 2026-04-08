@@ -26,6 +26,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 const HAS_SUPABASE_CONFIG = SUPABASE_URL.length > 0 && SUPABASE_ANON_KEY.length > 0;
+const withoutProjectFilterValue = '__without_project__';
 
 const supabase = HAS_SUPABASE_CONFIG
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -112,14 +113,23 @@ type NoteArtifact = {
   actionItems: string[];
 };
 
+type CaptureMetadata = {
+  sourceApp: 'teams' | 'zoom' | 'meet' | 'system_audio';
+  platform: 'windows' | 'macos';
+  captureMode: 'system_and_mic';
+  helperVersion: string;
+  windowTitle?: string | null;
+};
+
 type Recording = {
   id: string;
   userId: string;
   createdByUserId: string;
   createdByLabel?: string | null;
-  projectId: string;
+  projectId?: string | null;
   title: string;
-  sourceType: 'microphone' | 'upload';
+  sourceType: 'microphone' | 'upload' | 'desktop_meeting';
+  captureMetadata?: CaptureMetadata | null;
   status: RecordingStatus;
   createdAt: string;
   updatedAt: string;
@@ -137,7 +147,7 @@ type Recording = {
 
 type JobRow = {
   recordingId: string;
-  projectId: string;
+  projectId?: string | null;
   title: string;
   status: RecordingStatus;
   transcriptionProvider?: string | null;
@@ -357,6 +367,53 @@ function formatUserLabel(user?: Pick<UserRecord, 'id' | 'email' | 'fullName'> | 
   }
 
   return user.fullName ?? user.email ?? user.id;
+}
+
+function formatCaptureSourceApp(value?: CaptureMetadata['sourceApp'] | null) {
+  switch (value) {
+    case 'teams':
+      return 'Teams';
+    case 'zoom':
+      return 'Zoom';
+    case 'meet':
+      return 'Google Meet';
+    case 'system_audio':
+      return 'Áudio do sistema';
+    default:
+      return '—';
+  }
+}
+
+function formatCapturePlatform(value?: CaptureMetadata['platform'] | null) {
+  switch (value) {
+    case 'windows':
+      return 'Windows';
+    case 'macos':
+      return 'macOS';
+    default:
+      return '—';
+  }
+}
+
+function formatRecordingSource(recording: Pick<Recording, 'sourceType' | 'captureMetadata'>) {
+  switch (recording.sourceType) {
+    case 'microphone':
+      return 'Microfone';
+    case 'upload':
+      return 'Upload';
+    case 'desktop_meeting':
+      return formatCaptureSourceApp(recording.captureMetadata?.sourceApp) === '—'
+        ? 'Reunião online'
+        : formatCaptureSourceApp(recording.captureMetadata?.sourceApp);
+  }
+}
+
+function formatProjectLabel(projectId?: string | null, projects: Project[] = []) {
+  if (!projectId) {
+    return 'Sem projeto';
+  }
+
+  return projects.find((project) => project.id === projectId)?.name ?? projectId;
 }
 
 function useAccessToken() {
@@ -1695,8 +1752,12 @@ function RecordingsPage() {
 
   const query = searchParams.get('query') ?? '';
   const projectId = searchParams.get('projectId') ?? '';
+  const withoutProject = searchParams.get('withoutProject') === 'true';
   const status = searchParams.get('status') ?? '';
   const userId = searchParams.get('userId') ?? '';
+  const sourceApp = searchParams.get('sourceApp') ?? '';
+  const platform = searchParams.get('platform') ?? '';
+  const projectFilterValue = withoutProject ? withoutProjectFilterValue : projectId;
 
   useEffect(() => {
     let cancelled = false;
@@ -1726,17 +1787,23 @@ function RecordingsPage() {
     setLoading(true);
     setError(null);
 
-    const params = new URLSearchParams();
-    if (query) params.set('query', query);
-    if (projectId) params.set('projectId', projectId);
-    if (status) params.set('status', status);
-    if (userId) params.set('userId', userId);
+    async function loadRecordings() {
+      const params = new URLSearchParams();
+      if (query) params.set('query', query);
+      if (withoutProject) params.set('withoutProject', 'true');
+      else if (projectId) params.set('projectId', projectId);
+      if (status) params.set('status', status);
+      if (userId) params.set('userId', userId);
+      if (sourceApp) params.set('sourceApp', sourceApp);
+      if (platform) params.set('platform', platform);
 
-    void apiRequest<{ data: Recording[] }>(`/admin/recordings?${params.toString()}`, token)
-      .then((payload) => {
-        if (cancelled) return;
+      const payload = await apiRequest<{ data: Recording[] }>(`/admin/recordings?${params.toString()}`, token);
+      if (!cancelled) {
         setRecordings(payload.data);
-      })
+      }
+    }
+
+    void loadRecordings()
       .catch((requestError: ApiError) => {
         if (cancelled) return;
         setError(requestError.message);
@@ -1748,7 +1815,7 @@ function RecordingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [projectId, query, status, token, userId]);
+  }, [platform, projectId, query, sourceApp, status, token, userId, withoutProject]);
 
   useEffect(() => {
     if (!recordingId) {
@@ -1788,8 +1855,20 @@ function RecordingsPage() {
     setSearchParams(params, { replace: true });
   }
 
-  function projectNameById(id: string) {
-    return projectOptions.find((project) => project.id === id)?.name ?? id;
+  function updateProjectFilter(value: string) {
+    const params = new URLSearchParams(searchParams);
+    params.delete('projectId');
+    params.delete('withoutProject');
+    if (value === withoutProjectFilterValue) {
+      params.set('withoutProject', 'true');
+    } else if (value) {
+      params.set('projectId', value);
+    }
+    setSearchParams(params, { replace: true });
+  }
+
+  function projectNameById(id?: string | null) {
+    return formatProjectLabel(id, projectOptions);
   }
 
   async function handleReprocess() {
@@ -1830,6 +1909,8 @@ function RecordingsPage() {
       `- Recording ID: ${selectedRecording.id}`,
       `- Projeto: ${projectName}`,
       `- Autor: ${authorName}`,
+      `- Origem: ${formatRecordingSource(selectedRecording)}`,
+      `- Plataforma: ${formatCapturePlatform(selectedRecording.captureMetadata?.platform)}`,
       `- Status: ${statusLabel(selectedRecording.status)}`,
       `- Job ID: ${selectedRecording.transcriptionJobId ?? '—'}`,
       `- Criada em: ${formatDate(selectedRecording.createdAt)}`,
@@ -1875,6 +1956,32 @@ function RecordingsPage() {
     URL.revokeObjectURL(url);
   }
 
+  async function handleSaveRecordingProject(nextProjectId: string | null) {
+    if (!selectedRecording) return;
+    setFeedback(null);
+    setDetailError(null);
+    try {
+      const payload = await apiRequest<{ data: Recording }>(`/admin/recordings/${selectedRecording.id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ projectId: nextProjectId }),
+      });
+      setSelectedRecording(payload.data);
+      const params = new URLSearchParams();
+      if (query) params.set('query', query);
+      if (withoutProject) params.set('withoutProject', 'true');
+      else if (projectId) params.set('projectId', projectId);
+      if (status) params.set('status', status);
+      if (userId) params.set('userId', userId);
+      if (sourceApp) params.set('sourceApp', sourceApp);
+      if (platform) params.set('platform', platform);
+      const refreshed = await apiRequest<{ data: Recording[] }>(`/admin/recordings?${params.toString()}`, token);
+      setRecordings(refreshed.data);
+      setFeedback(nextProjectId ? 'Projeto da gravação atualizado.' : 'Vínculo com projeto removido.');
+    } catch (requestError) {
+      setDetailError(requestError instanceof Error ? requestError.message : 'Falha ao atualizar o projeto da gravação.');
+    }
+  }
+
   const list = (
     <PageCard title="Gravações" subtitle="Filtros reais, detalhe administrativo e reprocessamento explícito.">
       <div className="filters-grid">
@@ -1884,8 +1991,9 @@ function RecordingsPage() {
         </label>
         <label className="field">
           <span>Projeto</span>
-          <select value={projectId} onChange={(event) => updateFilters({ projectId: event.target.value })}>
+          <select value={projectFilterValue} onChange={(event) => updateProjectFilter(event.target.value)}>
             <option value="">Todos</option>
+            <option value={withoutProjectFilterValue}>Sem projeto</option>
             {projectOptions.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -1916,6 +2024,24 @@ function RecordingsPage() {
             ))}
           </select>
         </label>
+        <label className="field">
+          <span>App</span>
+          <select value={sourceApp} onChange={(event) => updateFilters({ sourceApp: event.target.value })}>
+            <option value="">Todos</option>
+            <option value="teams">Teams</option>
+            <option value="zoom">Zoom</option>
+            <option value="meet">Google Meet</option>
+            <option value="system_audio">Áudio do sistema</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>Plataforma</span>
+          <select value={platform} onChange={(event) => updateFilters({ platform: event.target.value })}>
+            <option value="">Todas</option>
+            <option value="windows">Windows</option>
+            <option value="macos">macOS</option>
+          </select>
+        </label>
       </div>
 
       {error ? <InlineFeedback tone="error" message={error} /> : null}
@@ -1929,6 +2055,7 @@ function RecordingsPage() {
             <thead>
               <tr>
                 <th>Título</th>
+                <th>Origem</th>
                 <th>Projeto</th>
                 <th>Status</th>
                 <th>Criada em</th>
@@ -1940,6 +2067,10 @@ function RecordingsPage() {
                 <tr key={recording.id} className={recording.id === recordingId ? 'selected-row' : undefined}>
                   <td>
                     <div className="table-primary">{recording.title}</div>
+                  </td>
+                  <td>
+                    <div className="table-primary">{formatRecordingSource(recording)}</div>
+                    <div className="table-secondary">{formatCapturePlatform(recording.captureMetadata?.platform)}</div>
                   </td>
                   <td>{projectNameById(recording.projectId)}</td>
                   <td>
@@ -1979,9 +2110,11 @@ function RecordingsPage() {
             recording={selectedRecording}
             projectName={selectedRecording ? projectNameById(selectedRecording.projectId) : '—'}
             authorName={selectedRecording?.createdByLabel ?? selectedRecording?.createdByUserId ?? '—'}
+            projectOptions={projectOptions}
             feedback={feedback}
             onClose={() => navigate(`/recordings?${searchParams.toString()}`)}
             onExportMarkdown={handleExportMarkdown}
+            onSaveProjectBinding={handleSaveRecordingProject}
             onReprocess={handleReprocess}
           />
         </DialogFrame>
@@ -1997,10 +2130,18 @@ function RecordingDetailPane(props: {
   recording: Recording | null;
   projectName: string;
   authorName: string;
+  projectOptions: Project[];
   onClose: () => void;
   onExportMarkdown: () => Promise<void>;
+  onSaveProjectBinding: (projectId: string | null) => Promise<void>;
   onReprocess: () => Promise<void>;
 }) {
+  const [projectSelection, setProjectSelection] = useState('');
+
+  useEffect(() => {
+    setProjectSelection(props.recording?.projectId ?? '');
+  }, [props.recording?.id, props.recording?.projectId]);
+
   return (
     <div className="detail-pane">
       {props.feedback ? <InlineFeedback tone="success" message={props.feedback} /> : null}
@@ -2015,6 +2156,8 @@ function RecordingDetailPane(props: {
             <DetailItem label="Recording ID" value={props.recording.id} />
             <DetailItem label="Projeto" value={props.projectName} />
             <DetailItem label="Autor" value={props.authorName} />
+            <DetailItem label="Origem" value={formatRecordingSource(props.recording)} />
+            <DetailItem label="Plataforma" value={formatCapturePlatform(props.recording.captureMetadata?.platform)} />
             <DetailItem label="Status" value={statusLabel(props.recording.status)} />
             <DetailItem label="Job ID" value={props.recording.transcriptionJobId ?? '—'} />
             <DetailItem label="Criada em" value={formatDate(props.recording.createdAt)} />
@@ -2028,6 +2171,25 @@ function RecordingDetailPane(props: {
               </button>
               <button className="button ghost" onClick={() => void props.onExportMarkdown()} disabled={!props.recording}>
                 Exportar markdown
+              </button>
+              <select
+                value={projectSelection}
+                onChange={(event) => setProjectSelection(event.target.value)}
+                disabled={!props.recording}
+              >
+                <option value="">Sem projeto</option>
+                {props.projectOptions.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="button ghost"
+                onClick={() => void props.onSaveProjectBinding(projectSelection || null)}
+                disabled={!props.recording}
+              >
+                Salvar projeto
               </button>
               <button className="button ghost" onClick={props.onClose}>
                 Fechar
@@ -2215,7 +2377,7 @@ function JobsPage() {
                       <div className="table-primary">{job.title}</div>
                       <div className="table-secondary">{job.recordingId}</div>
                     </td>
-                    <td>{job.projectId}</td>
+                    <td>{formatProjectLabel(job.projectId, [])}</td>
                     <td>
                       <StatusPill status={job.status} />
                     </td>

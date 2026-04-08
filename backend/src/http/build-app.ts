@@ -319,6 +319,9 @@ export interface BuildAppOptions {
 
 export function buildApp(recordingService: RecordingService, options: BuildAppOptions = {}) {
   const app = express();
+  if (config.TRUST_PROXY) {
+    app.set('trust proxy', true);
+  }
   const authProvider = options.authProvider ?? new SupabaseRequestAuthProvider();
   const pushNotificationService = options.pushNotificationService;
   const openApiDocument = buildOpenApiDocument(config.APP_BASE_URL);

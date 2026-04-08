@@ -1,6 +1,7 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, session } from 'electron';
-import { join } from 'node:path';
-import { mkdir } from 'node:fs/promises';
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, session } from 'electron';
+import { basename, extname, join } from 'node:path';
+import { copyFile, mkdir } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 
 import { companionConfig } from './src/config.js';
 import { CompanionStore } from './src/store/companion-store.js';
@@ -12,6 +13,7 @@ import {
   getRecording,
   listProjects,
   listRecordings,
+  processRecording,
   updateRecording,
 } from './src/services/backend-client.js';
 import { captureSources } from './src/shared/capture-sources.js';
@@ -23,6 +25,59 @@ const runtime = {
   uploadQueue: null,
   captureManager: null,
 };
+
+function currentPlatformLabel() {
+  return process.platform === 'darwin' ? 'macos' : 'windows';
+}
+
+function mimeTypeForAudioPath(filePath) {
+  switch (extname(filePath).toLowerCase()) {
+    case '.mp3':
+      return 'audio/mpeg';
+    case '.wav':
+      return 'audio/wav';
+    case '.aac':
+      return 'audio/aac';
+    case '.webm':
+      return 'audio/webm';
+    case '.mp4':
+    case '.m4a':
+    default:
+      return 'audio/mp4';
+  }
+}
+
+async function enqueueAudioUpload(filePath, payload = {}) {
+  const importDir = join(app.getPath('userData'), 'captures', 'imports');
+  await mkdir(importDir, { recursive: true });
+
+  const queueId = randomUUID();
+  const extension = extname(filePath).toLowerCase() || '.m4a';
+  const copiedPath = join(importDir, `${queueId}${extension}`);
+  await copyFile(filePath, copiedPath);
+
+  const title = basename(filePath, extname(filePath)) || 'Audio enviado';
+  const queueItem = {
+    id: queueId,
+    filePath: copiedPath,
+    mimeType: mimeTypeForAudioPath(copiedPath),
+    title,
+    projectId: payload.projectId ?? null,
+    sourceType: 'upload',
+    durationMs: null,
+    createdAt: new Date().toISOString(),
+    captureMetadata: {
+      sourceApp: null,
+      platform: currentPlatformLabel(),
+      captureMode: 'file_upload',
+      helperVersion: companionConfig.appVersion,
+      windowTitle: basename(filePath),
+    },
+  };
+
+  await runtime.uploadQueue.enqueueUpload(queueItem);
+  return queueItem;
+}
 
 async function buildBootstrapPayload() {
   const sessionState = runtime.sessionService.getSession();
@@ -36,7 +91,7 @@ async function buildBootstrapPayload() {
 
   return {
     appVersion: companionConfig.appVersion,
-    platform: process.platform === 'darwin' ? 'macos' : 'windows',
+    platform: currentPlatformLabel(),
     session: sessionState,
     queue: runtime.uploadQueue.listQueue(),
     captureSources,
@@ -109,6 +164,20 @@ function registerIpcHandlers() {
     return getRecording(companionConfig.backendBaseUrl, accessToken, payload.recordingId);
   });
 
+  ipcMain.handle('recordings:process', async (_event, payload) => {
+    const accessToken = runtime.sessionService.getAccessToken();
+    if (!accessToken) {
+      return null;
+    }
+
+    return processRecording(
+      companionConfig.backendBaseUrl,
+      accessToken,
+      payload.recordingId,
+      payload.input ?? {},
+    );
+  });
+
   ipcMain.handle('recordings:export-markdown', async (_event, payload) => {
     const accessToken = runtime.sessionService.getAccessToken();
     if (!accessToken) {
@@ -125,6 +194,24 @@ function registerIpcHandlers() {
     }
 
     return updateRecording(companionConfig.backendBaseUrl, accessToken, payload.recordingId, payload.input);
+  });
+
+  ipcMain.handle('audio:pick-upload', async (_event, payload) => {
+    const selection = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        {
+          name: 'Audio',
+          extensions: ['mp3', 'wav', 'm4a', 'aac', 'mp4', 'webm'],
+        },
+      ],
+    });
+
+    if (selection.canceled || selection.filePaths.length === 0) {
+      return null;
+    }
+
+    return enqueueAudioUpload(selection.filePaths[0], payload ?? {});
   });
 
   ipcMain.handle('queue:retry', async () => {
@@ -194,7 +281,7 @@ app.whenReady().then(async () => {
     baseDir: capturesDir,
     uploadQueue: runtime.uploadQueue,
     appVersion: companionConfig.appVersion,
-    platform: process.platform === 'darwin' ? 'macos' : 'windows',
+    platform: currentPlatformLabel(),
   });
 
   session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {

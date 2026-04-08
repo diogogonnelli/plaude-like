@@ -1,0 +1,81 @@
+definitions:
+  steps:
+    - step: &backend_checks
+        name: Backend checks
+        image: node:24-bookworm
+        caches:
+          - node
+        script:
+          - cd backend
+          - npm ci
+          - npm run typecheck
+          - npm test
+          - npm run build
+          - test -f dist/server.js
+
+    - step: &frontend_checks
+        name: Frontend checks
+        image: ghcr.io/cirruslabs/flutter:stable
+        script:
+          - cd app
+          - flutter pub get
+          - flutter analyze
+          - flutter test
+          - flutter build web --release --dart-define=BACKEND_BASE_URL=${APP_BACKEND_BASE_URL:-https://example.invalid/api} --dart-define=SUPABASE_URL=${APP_SUPABASE_URL:-} --dart-define=SUPABASE_ANON_KEY=${APP_SUPABASE_ANON_KEY:-} --dart-define=FIREBASE_API_KEY=${APP_FIREBASE_API_KEY:-} --dart-define=FIREBASE_PROJECT_ID=${APP_FIREBASE_PROJECT_ID:-} --dart-define=FIREBASE_MESSAGING_SENDER_ID=${APP_FIREBASE_MESSAGING_SENDER_ID:-} --dart-define=FIREBASE_ANDROID_APP_ID=${APP_FIREBASE_ANDROID_APP_ID:-} --dart-define=FIREBASE_IOS_APP_ID=${APP_FIREBASE_IOS_APP_ID:-} --dart-define=FIREBASE_STORAGE_BUCKET=${APP_FIREBASE_STORAGE_BUCKET:-}
+          - test -f build/web/index.html
+        artifacts:
+          - app/build/web/**
+
+    - step: &admin_checks
+        name: Admin web build
+        image: node:24-bookworm
+        caches:
+          - node
+        script:
+          - cd admin-web
+          - npm ci
+          - export VITE_API_BASE_URL=${ADMIN_API_BASE_URL:-https://example.invalid/api}
+          - export VITE_SUPABASE_URL=${ADMIN_VITE_SUPABASE_URL:-}
+          - export VITE_SUPABASE_ANON_KEY=${ADMIN_VITE_SUPABASE_ANON_KEY:-}
+          - npm run build
+          - test -f dist/index.html
+        artifacts:
+          - admin-web/dist/**
+
+    - step: &deploy_production
+        name: Deploy production host
+        deployment: production
+        runs-on:
+          - self.hosted
+          - linux.shell
+        script:
+          - test -f app/build/web/index.html
+          - test -f admin-web/dist/index.html
+          - umask 077
+          - echo "$SSH_KEY_LINUX_HOST" | base64 --decode > ./id_rsa
+          - chmod 600 ./id_rsa
+          - mkdir -p ~/.ssh
+          - if [ -n "${DEPLOY_KNOWN_HOST:-}" ]; then printf '%s\n' "$DEPLOY_KNOWN_HOST" >> ~/.ssh/known_hosts; else ssh-keyscan -T 5 "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null; fi
+          - tar -czf app-dist.tar.gz -C app/build/web .
+          - tar -czf admin-dist.tar.gz -C admin-web/dist .
+          - export APP_ARCHIVE_REMOTE=/tmp/plaude-like-app-${BITBUCKET_BUILD_NUMBER}.tar.gz
+          - export ADMIN_ARCHIVE_REMOTE=/tmp/plaude-like-admin-${BITBUCKET_BUILD_NUMBER}.tar.gz
+          - export DEPLOY_REPO_URL="$(git config --get remote.origin.url)"
+          - scp -i ./id_rsa ./app-dist.tar.gz "${DEPLOY_USER}@${DEPLOY_HOST}:${APP_ARCHIVE_REMOTE}"
+          - scp -i ./id_rsa ./admin-dist.tar.gz "${DEPLOY_USER}@${DEPLOY_HOST}:${ADMIN_ARCHIVE_REMOTE}"
+          - ssh -i ./id_rsa "${DEPLOY_USER}@${DEPLOY_HOST}" "APP_ROOT='${DEPLOY_APP_PATH:-/srv/plaude-like}' REPO_URL='${DEPLOY_REPO_URL}' BRANCH='${BITBUCKET_BRANCH}' APP_ARCHIVE='${APP_ARCHIVE_REMOTE}' ADMIN_ARCHIVE='${ADMIN_ARCHIVE_REMOTE}' APP_DOMAIN='${DEPLOY_APP_DOMAIN}' ADMIN_DOMAIN='${DEPLOY_ADMIN_DOMAIN}' BACKEND_SERVICE_NAME='${DEPLOY_BACKEND_SERVICE:-plaude-like-backend}' BACKEND_PORT='${DEPLOY_BACKEND_PORT:-8787}' bash -s" < scripts/deploy-linux-host.sh
+
+pipelines:
+  default:
+    - parallel:
+        - step: *backend_checks
+        - step: *frontend_checks
+        - step: *admin_checks
+
+  branches:
+    main:
+      - parallel:
+          - step: *backend_checks
+          - step: *frontend_checks
+          - step: *admin_checks
+      - step: *deploy_production

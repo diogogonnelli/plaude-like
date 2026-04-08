@@ -5,7 +5,7 @@ Documentação prática da API HTTP do backend do GravAção.
 Base URL de exemplo:
 
 ```text
-https://<seu-backend>.up.railway.app
+https://api.seudominio.com
 ```
 
 Artefatos de documentação quando o backend estiver no ar:
@@ -315,7 +315,7 @@ SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 SUPABASE_PERSISTENCE_MODE=supabase
 SUPABASE_STORAGE_BUCKET=recordings
-APP_BASE_URL=https://seu-backend.up.railway.app
+APP_BASE_URL=https://api.seudominio.com
 ```
 
 Frontend admin:

@@ -26,7 +26,7 @@ npm run dev
 1. Preencha `meeting-capture-companion/.env.installer` com:
 
 ```env
-COMPANION_BACKEND_BASE_URL=https://seu-backend.up.railway.app
+COMPANION_BACKEND_BASE_URL=https://api.seudominio.com
 COMPANION_SUPABASE_URL=https://seu-projeto.supabase.co
 COMPANION_SUPABASE_ANON_KEY=sua_anon_key
 ```
@@ -42,6 +42,35 @@ npm run dist:win
 3. O instalador NSIS será gerado em `meeting-capture-companion/dist/`.
 
 O build embute `companion.env` dentro do pacote, então o usuário final não precisa configurar variáveis manualmente.
+
+## Gerar app macOS
+
+1. Em um MacBook, preencha `meeting-capture-companion/.env.installer` com:
+
+```env
+COMPANION_BACKEND_BASE_URL=https://api.seudominio.com
+COMPANION_SUPABASE_URL=https://seu-projeto.supabase.co
+COMPANION_SUPABASE_ANON_KEY=sua_anon_key
+```
+
+2. Gere os artefatos do macOS:
+
+```bash
+cd meeting-capture-companion
+npm install
+npm run dist:mac
+```
+
+3. Os arquivos serao gerados em `meeting-capture-companion/dist/`:
+
+- `Meeting-Capture-Companion-<version>-<arch>.dmg`
+- `Meeting-Capture-Companion-<version>-<arch>.zip`
+
+Observacoes:
+
+- o build usa as descricoes de permissao de microfone e captura de tela definidas no `electron-builder`
+- a assinatura e a notarizacao dependem do certificado Apple instalado no keychain do Mac que executa o build
+- sem assinatura Apple, o `.dmg` ainda pode ser gerado para teste interno, mas o macOS pode exigir bypass manual do Gatekeeper
 
 ## Escopo do v1
 
