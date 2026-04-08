@@ -51,11 +51,28 @@ definitions:
         script:
           - test -f app/build/web/index.html
           - test -f admin-web/dist/index.html
+          - test -n "${SSH_KEY_LINUX_HOST:-}" || { echo "Missing deployment variable: SSH_KEY_LINUX_HOST"; exit 1; }
+          - test -n "${DEPLOY_HOST:-}" || { echo "Missing deployment variable: DEPLOY_HOST"; exit 1; }
+          - test -n "${DEPLOY_USER:-}" || { echo "Missing deployment variable: DEPLOY_USER"; exit 1; }
+          - test -n "${DEPLOY_APP_DOMAIN:-}" || { echo "Missing deployment variable: DEPLOY_APP_DOMAIN"; exit 1; }
+          - test -n "${DEPLOY_ADMIN_DOMAIN:-}" || { echo "Missing deployment variable: DEPLOY_ADMIN_DOMAIN"; exit 1; }
           - umask 077
           - echo "$SSH_KEY_LINUX_HOST" | base64 --decode > ./id_rsa
+          - test -s ./id_rsa || { echo "Decoded SSH key is empty. Check SSH_KEY_LINUX_HOST."; exit 1; }
           - chmod 600 ./id_rsa
           - mkdir -p ~/.ssh
-          - if [ -n "${DEPLOY_KNOWN_HOST:-}" ]; then printf '%s\n' "$DEPLOY_KNOWN_HOST" >> ~/.ssh/known_hosts; else ssh-keyscan -T 5 "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null; fi
+          - chmod 700 ~/.ssh
+          - touch ~/.ssh/known_hosts
+          - |
+            if [ -n "${DEPLOY_KNOWN_HOST:-}" ]; then
+              printf '%s\n' "$DEPLOY_KNOWN_HOST" >> ~/.ssh/known_hosts
+            else
+              ssh-keyscan -T 5 "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || {
+                echo "Failed to collect SSH host key from DEPLOY_HOST=$DEPLOY_HOST"
+                echo "Set DEPLOY_KNOWN_HOST manually or confirm the host is reachable from the runner."
+                exit 1
+              }
+            fi
           - tar -czf app-dist.tar.gz -C app/build/web .
           - tar -czf admin-dist.tar.gz -C admin-web/dist .
           - export APP_ARCHIVE_REMOTE=/tmp/plaude-like-app-${BITBUCKET_BUILD_NUMBER}.tar.gz
