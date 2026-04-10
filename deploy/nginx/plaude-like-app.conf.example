@@ -2,7 +2,7 @@ server {
   listen 80;
   server_name seudominio.com;
 
-  root /srv/sonora/dist-app;
+  root /storage-apps/www/sonora/dist-app;
   index index.html;
 
   location / {

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-APP_ROOT="${APP_ROOT:-/srv/sonora}"
+APP_ROOT="${APP_ROOT:-/storage-apps/www/sonora}"
 REPO_URL="${REPO_URL:?REPO_URL is required}"
 BRANCH="${BRANCH:-main}"
 APP_ARCHIVE="${APP_ARCHIVE:?APP_ARCHIVE is required}"

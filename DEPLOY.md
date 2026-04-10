@@ -10,12 +10,12 @@
 
 Layout esperado no servidor:
 
-- `/srv/sonora/current`
-- `/srv/sonora/dist-app`
-- `/srv/sonora/dist-admin`
-- `/srv/sonora/shared/backend.env`
-- `/srv/sonora/shared/uploads`
-- `/srv/sonora/shared/logs`
+- `/storage-apps/www/sonora/current`
+- `/storage-apps/www/sonora/dist-app`
+- `/storage-apps/www/sonora/dist-admin`
+- `/storage-apps/www/sonora/shared/backend.env`
+- `/storage-apps/www/sonora/shared/uploads`
+- `/storage-apps/www/sonora/shared/logs`
 
 ## 1. Pre-requisitos do host
 
@@ -34,7 +34,7 @@ Defina no repositorio ou em `Deployments > Production`, no minimo:
 
 - `SSH_KEY_LINUX_HOST`: chave privada em base64 usada pelo pipeline para conectar no host
   - compatibilidade: se sua workspace ja usa a variavel legada `SSH_KEY_webrun01`, o pipeline tambem aceita esse nome
-- `DEPLOY_APP_PATH`: caminho base do projeto no host. Ex.: `/srv/sonora`
+- `DEPLOY_APP_PATH`: caminho base do projeto no host. Ex.: `/storage-apps/www/sonora`
 - `DEPLOY_BACKEND_SERVICE`: opcional. Default `plaude-like-backend`
 - `DEPLOY_BACKEND_PORT`: opcional. Default `8787`
 - `DEPLOY_KNOWN_HOST`: opcional. Linha pronta de `known_hosts` para evitar `ssh-keyscan`
@@ -119,7 +119,7 @@ Na `main`, o pipeline:
 O arquivo persistente fica em:
 
 ```bash
-/srv/sonora/shared/backend.env
+/storage-apps/www/sonora/shared/backend.env
 ```
 
 No primeiro deploy, ele e criado a partir de `backend/.env.example`. Depois disso, o pipeline preserva o arquivo e atualiza somente:
@@ -145,7 +145,7 @@ As demais chaves devem ser mantidas manualmente no host, como:
 Exemplo:
 
 ```bash
-cd /srv/sonora/current
+cd /storage-apps/www/sonora/current
 git checkout <sha>
 cd backend
 npm ci
