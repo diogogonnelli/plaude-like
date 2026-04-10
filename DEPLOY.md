@@ -42,6 +42,7 @@ Defina no repositorio ou em `Deployments > Production`, no minimo:
 - `DEPLOY_BACKEND_SERVICE`: opcional. Default `plaude-like-backend`
 - `DEPLOY_BACKEND_PORT`: opcional. Default `8787`
 - `DEPLOY_KNOWN_HOST`: opcional. Linha pronta de `known_hosts` para evitar `ssh-keyscan`
+- `DEPLOY_REPO_URL`: opcional. URL SSH do repo que o host deve sincronizar. Default `git@bitbucket.org:spotpromo/sonora.git`
 
 Variaveis de build dos frontends:
 
@@ -84,7 +85,7 @@ sudo systemctl reload nginx
 5. Garanta que o usuario do servidor consegue executar:
 
 ```bash
-git ls-remote git@bitbucket.org:workspace/repositorio.git
+git ls-remote git@bitbucket.org:spotpromo/sonora.git
 sudo systemctl restart plaude-like-backend
 sudo systemctl reload nginx
 ```
@@ -99,6 +100,7 @@ Na `main`, o pipeline:
 4. executa `scripts/deploy-linux-host.sh` por SSH
 5. no host, o script:
    - sincroniza `current/` com `origin/main`
+   - usa por padrao o repo SSH `git@bitbucket.org:spotpromo/sonora.git` ou o valor de `DEPLOY_REPO_URL`
    - cria ou preserva `shared/backend.env`
    - fixa `HOST=127.0.0.1`, `PORT`, `APP_BASE_URL=https://<dominio>/api` e `TRUST_PROXY=true`
    - roda `npm ci`, `npm run build` e `npm prune --omit=dev` no backend

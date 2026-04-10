@@ -78,10 +78,11 @@ definitions:
           - tar -czf admin-dist.tar.gz -C admin-web/dist .
           - export APP_ARCHIVE_REMOTE=/tmp/plaude-like-app-${BITBUCKET_BUILD_NUMBER}.tar.gz
           - export ADMIN_ARCHIVE_REMOTE=/tmp/plaude-like-admin-${BITBUCKET_BUILD_NUMBER}.tar.gz
-          - export DEPLOY_REPO_URL="$(git config --get remote.origin.url)"
+          - export DEPLOY_REPO_URL_EFFECTIVE="${DEPLOY_REPO_URL:-${BITBUCKET_GIT_SSH_ORIGIN:-git@bitbucket.org:spotpromo/sonora.git}}"
+          - 'test -n "${DEPLOY_REPO_URL_EFFECTIVE:-}" || { echo "Missing deployment variable: DEPLOY_REPO_URL"; exit 1; }'
           - scp -i ./id_rsa ./app-dist.tar.gz "${DEPLOY_USER}@${DEPLOY_HOST}:${APP_ARCHIVE_REMOTE}"
           - scp -i ./id_rsa ./admin-dist.tar.gz "${DEPLOY_USER}@${DEPLOY_HOST}:${ADMIN_ARCHIVE_REMOTE}"
-          - ssh -i ./id_rsa "${DEPLOY_USER}@${DEPLOY_HOST}" "APP_ROOT='${DEPLOY_APP_PATH:-/srv/plaude-like}' REPO_URL='${DEPLOY_REPO_URL}' BRANCH='${BITBUCKET_BRANCH}' APP_ARCHIVE='${APP_ARCHIVE_REMOTE}' ADMIN_ARCHIVE='${ADMIN_ARCHIVE_REMOTE}' APP_DOMAIN='${DEPLOY_APP_DOMAIN}' ADMIN_DOMAIN='${DEPLOY_ADMIN_DOMAIN}' BACKEND_SERVICE_NAME='${DEPLOY_BACKEND_SERVICE:-plaude-like-backend}' BACKEND_PORT='${DEPLOY_BACKEND_PORT:-8787}' bash -s" < scripts/deploy-linux-host.sh
+          - ssh -i ./id_rsa "${DEPLOY_USER}@${DEPLOY_HOST}" "APP_ROOT='${DEPLOY_APP_PATH:-/srv/plaude-like}' REPO_URL='${DEPLOY_REPO_URL_EFFECTIVE}' BRANCH='${BITBUCKET_BRANCH}' APP_ARCHIVE='${APP_ARCHIVE_REMOTE}' ADMIN_ARCHIVE='${ADMIN_ARCHIVE_REMOTE}' APP_DOMAIN='${DEPLOY_APP_DOMAIN}' ADMIN_DOMAIN='${DEPLOY_ADMIN_DOMAIN}' BACKEND_SERVICE_NAME='${DEPLOY_BACKEND_SERVICE:-plaude-like-backend}' BACKEND_PORT='${DEPLOY_BACKEND_PORT:-8787}' bash -s" < scripts/deploy-linux-host.sh
 
 pipelines:
   default:
