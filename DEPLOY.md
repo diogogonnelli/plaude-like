@@ -35,11 +35,11 @@ Defina no repositorio ou em `Deployments > Production`, no minimo:
 - `SSH_KEY_LINUX_HOST`: chave privada em base64 usada pelo pipeline para conectar no host
   - compatibilidade: se sua workspace ja usa a variavel legada `SSH_KEY_webrun01`, o pipeline tambem aceita esse nome
 - `DEPLOY_APP_PATH`: caminho base do projeto no host. Ex.: `/srv/plaude-like`
-- `DEPLOY_APP_DOMAIN`: dominio principal. Ex.: `seudominio.com`
-- `DEPLOY_ADMIN_DOMAIN`: subdominio do admin. Ex.: `admin.seudominio.com`
 - `DEPLOY_BACKEND_SERVICE`: opcional. Default `plaude-like-backend`
 - `DEPLOY_BACKEND_PORT`: opcional. Default `8787`
 - `DEPLOY_KNOWN_HOST`: opcional. Linha pronta de `known_hosts` para evitar `ssh-keyscan`
+- `DEPLOY_APP_DOMAIN`: opcional. Se informado, o deploy atualiza `APP_BASE_URL=https://<dominio>/api` no backend
+- `DEPLOY_ADMIN_DOMAIN`: opcional. Usado apenas para log e documentacao operacional
 
 Itens fixos no pipeline, no mesmo estilo do projeto `anotacoes`:
 
@@ -105,7 +105,9 @@ Na `main`, o pipeline:
    - sincroniza `current/` com `origin/main`
    - usa por padrao o repo SSH `git@bitbucket.org:spotpromo/sonora.git` ou o valor de `DEPLOY_REPO_URL`
    - cria ou preserva `shared/backend.env`
-   - fixa `HOST=127.0.0.1`, `PORT`, `APP_BASE_URL=https://<dominio>/api` e `TRUST_PROXY=true`
+   - fixa `HOST=127.0.0.1`, `PORT` e `TRUST_PROXY=true`
+   - se `DEPLOY_APP_DOMAIN` estiver definido, atualiza `APP_BASE_URL=https://<dominio>/api`
+   - se `DEPLOY_APP_DOMAIN` nao estiver definido, preserva o `APP_BASE_URL` ja existente em `shared/backend.env`
    - roda `npm ci`, `npm run build` e `npm prune --omit=dev` no backend
    - publica os dois frontends
    - reinicia o backend

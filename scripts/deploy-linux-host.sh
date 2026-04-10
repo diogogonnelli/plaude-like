@@ -6,8 +6,8 @@ REPO_URL="${REPO_URL:?REPO_URL is required}"
 BRANCH="${BRANCH:-main}"
 APP_ARCHIVE="${APP_ARCHIVE:?APP_ARCHIVE is required}"
 ADMIN_ARCHIVE="${ADMIN_ARCHIVE:?ADMIN_ARCHIVE is required}"
-APP_DOMAIN="${APP_DOMAIN:?APP_DOMAIN is required}"
-ADMIN_DOMAIN="${ADMIN_DOMAIN:?ADMIN_DOMAIN is required}"
+APP_DOMAIN="${APP_DOMAIN:-}"
+ADMIN_DOMAIN="${ADMIN_DOMAIN:-}"
 BACKEND_SERVICE_NAME="${BACKEND_SERVICE_NAME:-plaude-like-backend}"
 BACKEND_PORT="${BACKEND_PORT:-8787}"
 BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
@@ -68,7 +68,11 @@ fi
 
 upsert_env "$SHARED_ENV_FILE" "HOST" "$BACKEND_HOST"
 upsert_env "$SHARED_ENV_FILE" "PORT" "$BACKEND_PORT"
-upsert_env "$SHARED_ENV_FILE" "APP_BASE_URL" "https://${APP_DOMAIN}/api"
+if [ -n "$APP_DOMAIN" ]; then
+  upsert_env "$SHARED_ENV_FILE" "APP_BASE_URL" "https://${APP_DOMAIN}/api"
+else
+  log "APP_DOMAIN not provided. Preserving existing APP_BASE_URL in shared/backend.env."
+fi
 upsert_env "$SHARED_ENV_FILE" "TRUST_PROXY" "true"
 
 ln -sfn "$SHARED_ENV_FILE" "$BACKEND_DIR/.env"
@@ -102,4 +106,8 @@ curl --fail --silent --show-error "http://${BACKEND_HOST}:${BACKEND_PORT}/health
 test -f "$DIST_APP_DIR/index.html"
 test -f "$DIST_ADMIN_DIR/index.html"
 
-log "Deploy finished successfully for ${APP_DOMAIN} and ${ADMIN_DOMAIN}"
+if [ -n "$APP_DOMAIN" ] || [ -n "$ADMIN_DOMAIN" ]; then
+  log "Deploy finished successfully for ${APP_DOMAIN:-app-domain-not-set} and ${ADMIN_DOMAIN:-admin-domain-not-set}"
+else
+  log "Deploy finished successfully."
+fi
