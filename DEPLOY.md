@@ -93,6 +93,13 @@ sudo systemctl restart plaude-like-backend
 sudo systemctl reload nginx
 ```
 
+Bootstrap recomendado antes do primeiro deploy:
+
+```bash
+sudo mkdir -p /storage-apps/www/sonora
+sudo chown -R spotti:spotti /storage-apps/www/sonora
+```
+
 ## 4. Como o pipeline faz o deploy
 
 Na `main`, o pipeline:

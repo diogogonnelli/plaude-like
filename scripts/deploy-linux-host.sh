@@ -25,6 +25,29 @@ log() {
   printf '[%s] %s\n' "$(date +%F' '%T)" "$*"
 }
 
+ensure_dir_ready() {
+  local path="$1"
+  local label="$2"
+  local current_user current_group
+
+  current_user="$(id -un)"
+  current_group="$(id -gn)"
+
+  if [ ! -d "$path" ]; then
+    if ! mkdir -p "$path"; then
+      log "ERROR: cannot create ${label} at $path."
+      log "Ensure $(dirname "$path") exists and is writable by ${current_user}:${current_group}."
+      exit 10
+    fi
+  fi
+
+  if [ ! -w "$path" ]; then
+    log "ERROR: ${label} is not writable: $path"
+    log "Fix on server with: sudo chown -R ${current_user}:${current_group} '$APP_ROOT'"
+    exit 11
+  fi
+}
+
 require_file() {
   local path="$1"
   if [ ! -f "$path" ]; then
@@ -45,7 +68,12 @@ upsert_env() {
   fi
 }
 
-mkdir -p "$APP_ROOT" "$SHARED_DIR" "$DIST_APP_DIR" "$DIST_ADMIN_DIR" "$UPLOADS_DIR" "$LOGS_DIR"
+ensure_dir_ready "$APP_ROOT" "app root"
+ensure_dir_ready "$SHARED_DIR" "shared directory"
+ensure_dir_ready "$DIST_APP_DIR" "app dist directory"
+ensure_dir_ready "$DIST_ADMIN_DIR" "admin dist directory"
+ensure_dir_ready "$UPLOADS_DIR" "uploads directory"
+ensure_dir_ready "$LOGS_DIR" "logs directory"
 
 if [ ! -d "$CURRENT_DIR/.git" ]; then
   log "Initializing repository in $CURRENT_DIR"
