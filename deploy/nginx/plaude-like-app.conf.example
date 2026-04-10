@@ -2,7 +2,7 @@ server {
   listen 80;
   server_name seudominio.com;
 
-  root /srv/plaude-like/dist-app;
+  root /srv/sonora/dist-app;
   index index.html;
 
   location / {
