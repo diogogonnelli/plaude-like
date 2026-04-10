@@ -49,37 +49,24 @@ definitions:
           - self.hosted
           - linux.shell
         script:
-          - export DEPLOY_TARGET_HOST=172.18.0.86
-          - export DEPLOY_TARGET_USER=spotti
-          - export DEPLOY_REPO_URL=git@bitbucket.org:spotpromo/sonora.git
+          - echo "==> Iniciando deploy..."
           - test -f app/build/web/index.html
           - test -f admin-web/dist/index.html
-          - export DEPLOY_SSH_KEY_B64="${SSH_KEY_LINUX_HOST:-${SSH_KEY_webrun01:-}}"
-          - 'test -n "${DEPLOY_SSH_KEY_B64:-}" || { echo "Missing deployment variable: SSH_KEY_LINUX_HOST (or legacy SSH_KEY_webrun01)"; exit 1; }'
-          - umask 077
-          - echo "$DEPLOY_SSH_KEY_B64" | base64 --decode > ./id_rsa
-          - 'test -s ./id_rsa || { echo "Decoded SSH key is empty. Check SSH_KEY_LINUX_HOST or SSH_KEY_webrun01."; exit 1; }'
-          - chmod 600 ./id_rsa
-          - mkdir -p ~/.ssh
-          - chmod 700 ~/.ssh
-          - touch ~/.ssh/known_hosts
           - |
-            if [ -n "${DEPLOY_KNOWN_HOST:-}" ]; then
-              printf '%s\n' "$DEPLOY_KNOWN_HOST" >> ~/.ssh/known_hosts
-            else
-              ssh-keyscan -T 5 "$DEPLOY_TARGET_HOST" >> ~/.ssh/known_hosts 2>/dev/null || {
-                echo "Failed to collect SSH host key from DEPLOY_TARGET_HOST=$DEPLOY_TARGET_HOST"
-                echo "Set DEPLOY_KNOWN_HOST manually or confirm the host is reachable from the runner."
-                exit 1
-              }
-            fi
+            umask 077
+            echo "$SSH_KEY_webrun01" | base64 --decode > ./id_rsa
+            chmod 600 ./id_rsa
+          - mkdir -p ~/.ssh
+          - ssh-keyscan -T 5 172.18.0.86 >> ~/.ssh/known_hosts 2>/dev/null || true
+          - 'test -s ./id_rsa || { echo "Decoded SSH key is empty. Check SSH_KEY_webrun01."; exit 1; }'
           - tar -czf app-dist.tar.gz -C app/build/web .
           - tar -czf admin-dist.tar.gz -C admin-web/dist .
           - export APP_ARCHIVE_REMOTE=/tmp/plaude-like-app-${BITBUCKET_BUILD_NUMBER}.tar.gz
           - export ADMIN_ARCHIVE_REMOTE=/tmp/plaude-like-admin-${BITBUCKET_BUILD_NUMBER}.tar.gz
-          - scp -i ./id_rsa ./app-dist.tar.gz "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${APP_ARCHIVE_REMOTE}"
-          - scp -i ./id_rsa ./admin-dist.tar.gz "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${ADMIN_ARCHIVE_REMOTE}"
-          - ssh -i ./id_rsa "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "APP_ROOT='${DEPLOY_APP_PATH:-/storage-apps/www/sonora}' REPO_URL='${DEPLOY_REPO_URL}' BRANCH='${BITBUCKET_BRANCH}' APP_ARCHIVE='${APP_ARCHIVE_REMOTE}' ADMIN_ARCHIVE='${ADMIN_ARCHIVE_REMOTE}' APP_DOMAIN='${DEPLOY_APP_DOMAIN:-}' ADMIN_DOMAIN='${DEPLOY_ADMIN_DOMAIN:-}' BACKEND_SERVICE_NAME='${DEPLOY_BACKEND_SERVICE:-plaude-like-backend}' BACKEND_PORT='${DEPLOY_BACKEND_PORT:-8787}' bash -s" < scripts/deploy-linux-host.sh
+          - scp -i ./id_rsa ./app-dist.tar.gz spotti@172.18.0.86:${APP_ARCHIVE_REMOTE}
+          - scp -i ./id_rsa ./admin-dist.tar.gz spotti@172.18.0.86:${ADMIN_ARCHIVE_REMOTE}
+          - ssh -i ./id_rsa spotti@172.18.0.86 "APP_ROOT='${DEPLOY_APP_PATH:-/storage-apps/www/sonora}' REPO_URL='git@bitbucket.org:spotpromo/sonora.git' BRANCH='main' APP_ARCHIVE='${APP_ARCHIVE_REMOTE}' ADMIN_ARCHIVE='${ADMIN_ARCHIVE_REMOTE}' APP_DOMAIN='${DEPLOY_APP_DOMAIN:-}' ADMIN_DOMAIN='${DEPLOY_ADMIN_DOMAIN:-}' BACKEND_SERVICE_NAME='${DEPLOY_BACKEND_SERVICE:-plaude-like-backend}' BACKEND_PORT='${DEPLOY_BACKEND_PORT:-8787}' bash -s" < scripts/deploy-linux-host.sh
+          - echo "==> Deploy concluido!"
 
 pipelines:
   default:

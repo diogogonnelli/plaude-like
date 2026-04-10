@@ -32,12 +32,10 @@ Layout esperado no servidor:
 
 Defina no repositorio ou em `Deployments > Production`, no minimo:
 
-- `SSH_KEY_LINUX_HOST`: chave privada em base64 usada pelo pipeline para conectar no host
-  - compatibilidade: se sua workspace ja usa a variavel legada `SSH_KEY_webrun01`, o pipeline tambem aceita esse nome
+- `SSH_KEY_webrun01`: chave privada em base64 usada pelo pipeline para conectar no host
 - `DEPLOY_APP_PATH`: caminho base do projeto no host. Ex.: `/storage-apps/www/sonora`
 - `DEPLOY_BACKEND_SERVICE`: opcional. Default `plaude-like-backend`
 - `DEPLOY_BACKEND_PORT`: opcional. Default `8787`
-- `DEPLOY_KNOWN_HOST`: opcional. Linha pronta de `known_hosts` para evitar `ssh-keyscan`
 - `DEPLOY_APP_DOMAIN`: opcional. Se informado, o deploy atualiza `APP_BASE_URL=https://<dominio>/api` no backend
 - `DEPLOY_ADMIN_DOMAIN`: opcional. Usado apenas para log e documentacao operacional
 
