@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Profile;
-use App\Models\Project;
 use App\Models\Recording;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -36,7 +35,10 @@ class RecordingTest extends TestCase
 
     private function authHeaders(): array
     {
-        return ['Authorization' => "Bearer {$this->token}"];
+        return [
+            'Authorization' => "Bearer {$this->token}",
+            'Accept' => 'application/json',
+        ];
     }
 
     public function test_list_recordings_empty(): void
@@ -51,7 +53,7 @@ class RecordingTest extends TestCase
     {
         $response = $this->postJson('/api/recordings', [
             'title' => 'Reunião de teste',
-            'source_type' => 'mic_capture',
+            'source_type' => 'microphone',
         ], $this->authHeaders());
 
         $response->assertCreated()
@@ -105,7 +107,7 @@ class RecordingTest extends TestCase
 
         $response = $this->deleteJson("/api/recordings/{$recording->id}", [], $this->authHeaders());
 
-        $response->assertOk();
+        $response->assertNoContent();
         $this->assertDatabaseMissing('recordings', ['id' => $recording->id]);
     }
 
@@ -113,16 +115,27 @@ class RecordingTest extends TestCase
     {
         Storage::fake('recordings');
 
-        $file = UploadedFile::fake()->create('audio.wav', 1024);
-
-        $response = $this->postJson('/api/recordings/upload', [
+        $recording = Recording::create([
+            'user_id' => $this->user->id,
+            'created_by_user_id' => $this->user->id,
             'title' => 'Uploaded Recording',
             'source_type' => 'upload',
-            'file' => $file,
+            'status' => 'uploaded',
+        ]);
+
+        $file = UploadedFile::fake()->create('audio.wav', 1024);
+
+        $response = $this->post("/api/recordings/{$recording->id}/upload", [
+            'audio' => $file,
         ], $this->authHeaders());
 
-        $response->assertCreated()
+        $response->assertOk()
             ->assertJsonPath('data.title', 'Uploaded Recording');
+
+        $recording->refresh();
+
+        $this->assertNotNull($recording->audio_path);
+        Storage::disk('recordings')->assertExists($recording->audio_path);
     }
 
     public function test_cannot_access_other_users_recording(): void

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\PersonalAccessToken;
 use Tests\TestCase;
 
 class AuthTest extends TestCase
@@ -45,6 +46,7 @@ class AuthTest extends TestCase
         $response = $this->postJson('/api/auth/login', [
             'email' => 'test@sonora.app',
             'password' => 'password',
+            'device_name' => 'phpunit',
         ]);
 
         $response->assertOk()
@@ -60,9 +62,11 @@ class AuthTest extends TestCase
         $response = $this->postJson('/api/auth/login', [
             'email' => 'test@sonora.app',
             'password' => 'wrong',
+            'device_name' => 'phpunit',
         ]);
 
-        $response->assertUnauthorized();
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
     }
 
     public function test_me_returns_authenticated_user(): void
@@ -89,13 +93,14 @@ class AuthTest extends TestCase
     {
         $user = $this->createUser();
         $token = $user->createToken('test')->plainTextToken;
+        [$tokenId] = explode('|', $token, 2);
+
+        $this->assertNotNull(PersonalAccessToken::find($tokenId));
 
         $this->postJson('/api/auth/logout', [], [
             'Authorization' => "Bearer {$token}",
         ])->assertOk();
 
-        $this->getJson('/api/auth/me', [
-            'Authorization' => "Bearer {$token}",
-        ])->assertUnauthorized();
+        $this->assertNull(PersonalAccessToken::find($tokenId));
     }
 }
