@@ -172,7 +172,7 @@ After=network.target
 Type=simple
 WorkingDirectory=$BACKEND_DIR
 EnvironmentFile=$SHARED_ENV_FILE
-ExecStart=$LOCAL_NODE_BIN $BACKEND_DIR/dist/server.js
+ExecStart=/bin/bash -c 'exec $LOCAL_NODE_BIN $BACKEND_DIR/dist/server.js'
 Restart=always
 RestartSec=3
 StandardOutput=append:$LOGS_DIR/backend.log
@@ -191,12 +191,22 @@ UNIT
   systemctl --user enable "$BACKEND_SERVICE_NAME" 2>/dev/null || true
   loginctl enable-linger "$(whoami)" 2>/dev/null || true
 
-  if systemctl --user restart "$BACKEND_SERVICE_NAME" 2>/dev/null; then
-    log "Backend started via user systemd service."
+  if ! systemctl --user restart "$BACKEND_SERVICE_NAME" 2>/dev/null; then
+    log "Warning: user systemd restart failed."
+    return 1
+  fi
+
+  log "Backend started via user systemd service. Verifying..."
+  sleep 3
+
+  if systemctl --user is-active --quiet "$BACKEND_SERVICE_NAME" 2>/dev/null; then
+    log "User systemd service is active."
     return 0
   fi
 
-  log "Warning: user systemd restart failed."
+  log "Warning: user systemd service exited immediately. Checking logs..."
+  systemctl --user status --no-pager "$BACKEND_SERVICE_NAME" 2>&1 || true
+  systemctl --user stop "$BACKEND_SERVICE_NAME" 2>/dev/null || true
   return 1
 }
 
