@@ -77,7 +77,7 @@ require_bundled_node_runtime() {
 }
 
 run_systemctl() {
-  local output=""
+  local output="" systemctl_bin=""
 
   if output="$(systemctl "$@" 2>&1)"; then
     return 0
@@ -87,9 +87,16 @@ run_systemctl() {
     return 0
   fi
 
-  if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
-    sudo -n systemctl "$@"
-    return $?
+  if command -v sudo >/dev/null 2>&1; then
+    for systemctl_bin in /bin/systemctl /usr/bin/systemctl; do
+      if [ -x "$systemctl_bin" ] && sudo -n "$systemctl_bin" "$@" >/dev/null 2>&1; then
+        return 0
+      fi
+    done
+
+    if sudo -n systemctl "$@" >/dev/null 2>&1; then
+      return 0
+    fi
   fi
 
   if [ "$(id -u)" -eq 0 ]; then
