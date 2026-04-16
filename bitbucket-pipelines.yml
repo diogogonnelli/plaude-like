@@ -1,29 +1,32 @@
 definitions:
   steps:
     - step: &backend_checks
-        name: Backend checks
-        image: node:24-bookworm
+        name: Backend checks (Laravel)
+        image: php:8.2-cli
         caches:
-          - node
+          - composer
         script:
-          - cd backend
-          - npm ci
-          - npm run typecheck
-          - npm test
-          - npm run build
-          - npm prune --omit=dev
-          - mkdir -p .runtime/node/bin
-          - cp "$(command -v node)" .runtime/node/bin/node
-          - chmod +x .runtime/node/bin/node
-          - ./.runtime/node/bin/node --version
-          - test -f dist/server.js
-          - test -d node_modules
+          - apt-get update && apt-get install -y unzip git libzip-dev gnupg2 curl apt-transport-https
+          - docker-php-ext-install zip pcntl
+          # Install SQL Server driver prerequisites
+          - curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+          - echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql-release.list
+          - apt-get update && ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+          - pecl install sqlsrv pdo_sqlsrv && docker-php-ext-enable sqlsrv pdo_sqlsrv
+          - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+          - cd backend-laravel
+          - composer install --no-interaction --prefer-dist --optimize-autoloader
+          - cp .env.example .env
+          - php artisan key:generate
+          - php artisan config:cache
+          - php artisan route:cache
+          - echo "Backend build OK"
         artifacts:
-          - backend/.runtime/**
-          - backend/dist/**
-          - backend/node_modules/**
-          - backend/package.json
-          - backend/package-lock.json
+          - backend-laravel/vendor/**
+          - backend-laravel/bootstrap/cache/**
+          - backend-laravel/composer.json
+          - backend-laravel/composer.lock
+          - backend-laravel/artisan
 
     - step: &frontend_checks
         name: Frontend checks
@@ -33,26 +36,10 @@ definitions:
           - flutter pub get
           - flutter analyze
           - flutter test
-          - flutter build web --release --dart-define=BACKEND_BASE_URL=${APP_BACKEND_BASE_URL:-https://example.invalid/api} --dart-define=SUPABASE_URL=${APP_SUPABASE_URL:-} --dart-define=SUPABASE_ANON_KEY=${APP_SUPABASE_ANON_KEY:-} --dart-define=FIREBASE_API_KEY=${APP_FIREBASE_API_KEY:-} --dart-define=FIREBASE_PROJECT_ID=${APP_FIREBASE_PROJECT_ID:-} --dart-define=FIREBASE_MESSAGING_SENDER_ID=${APP_FIREBASE_MESSAGING_SENDER_ID:-} --dart-define=FIREBASE_ANDROID_APP_ID=${APP_FIREBASE_ANDROID_APP_ID:-} --dart-define=FIREBASE_IOS_APP_ID=${APP_FIREBASE_IOS_APP_ID:-} --dart-define=FIREBASE_STORAGE_BUCKET=${APP_FIREBASE_STORAGE_BUCKET:-}
+          - flutter build web --release --dart-define=BACKEND_BASE_URL=${APP_BACKEND_BASE_URL:-https://example.invalid} --dart-define=AUTH_ENABLED=true
           - test -f build/web/index.html
         artifacts:
           - app/build/web/**
-
-    - step: &admin_checks
-        name: Admin web build
-        image: node:24-bookworm
-        caches:
-          - node
-        script:
-          - cd admin-web
-          - npm ci
-          - export VITE_API_BASE_URL=${ADMIN_API_BASE_URL:-https://example.invalid/api}
-          - export VITE_SUPABASE_URL=${ADMIN_VITE_SUPABASE_URL:-}
-          - export VITE_SUPABASE_ANON_KEY=${ADMIN_VITE_SUPABASE_ANON_KEY:-}
-          - npm run build
-          - test -f dist/index.html
-        artifacts:
-          - admin-web/dist/**
 
     - step: &deploy_production
         name: Deploy production host
@@ -62,10 +49,8 @@ definitions:
           - linux.shell
         script:
           - echo "==> Iniciando deploy..."
-          - test -f backend/dist/server.js
-          - test -d backend/node_modules
+          - test -d backend-laravel/vendor
           - test -f app/build/web/index.html
-          - test -f admin-web/dist/index.html
           - |
             umask 077
             echo "$SSH_KEY_webrun01" | base64 --decode > ./id_rsa
@@ -74,15 +59,12 @@ definitions:
           - ssh-keyscan -T 5 172.18.0.86 >> ~/.ssh/known_hosts 2>/dev/null || true
           - 'test -s ./id_rsa || { echo "Decoded SSH key is empty. Check SSH_KEY_webrun01."; exit 1; }'
           - tar -czf app-dist.tar.gz -C app/build/web .
-          - tar -czf admin-dist.tar.gz -C admin-web/dist .
-          - tar -czf backend-runtime.tar.gz -C backend .runtime dist node_modules package.json package-lock.json
+          - tar -czf backend-laravel.tar.gz -C backend-laravel .
           - export APP_ARCHIVE_REMOTE=/tmp/sonora-app-${BITBUCKET_BUILD_NUMBER}.tar.gz
-          - export ADMIN_ARCHIVE_REMOTE=/tmp/sonora-admin-${BITBUCKET_BUILD_NUMBER}.tar.gz
           - export BACKEND_ARCHIVE_REMOTE=/tmp/sonora-backend-${BITBUCKET_BUILD_NUMBER}.tar.gz
           - scp -i ./id_rsa ./app-dist.tar.gz spotti@172.18.0.86:${APP_ARCHIVE_REMOTE}
-          - scp -i ./id_rsa ./admin-dist.tar.gz spotti@172.18.0.86:${ADMIN_ARCHIVE_REMOTE}
-          - scp -i ./id_rsa ./backend-runtime.tar.gz spotti@172.18.0.86:${BACKEND_ARCHIVE_REMOTE}
-          - ssh -i ./id_rsa spotti@172.18.0.86 "APP_ROOT='${DEPLOY_APP_PATH:-/storage-apps/www/sonora}' REPO_URL='git@bitbucket.org:spotpromo/sonora.git' BRANCH='main' BACKEND_ARCHIVE='${BACKEND_ARCHIVE_REMOTE}' APP_ARCHIVE='${APP_ARCHIVE_REMOTE}' ADMIN_ARCHIVE='${ADMIN_ARCHIVE_REMOTE}' APP_DOMAIN='${DEPLOY_APP_DOMAIN:-}' ADMIN_DOMAIN='${DEPLOY_ADMIN_DOMAIN:-}' BACKEND_SERVICE_NAME='${DEPLOY_BACKEND_SERVICE:-sonora-backend}' BACKEND_PORT='${DEPLOY_BACKEND_PORT:-8787}' RELOAD_NGINX='${DEPLOY_RELOAD_NGINX:-0}' bash -s" < scripts/deploy-linux-host.sh
+          - scp -i ./id_rsa ./backend-laravel.tar.gz spotti@172.18.0.86:${BACKEND_ARCHIVE_REMOTE}
+          - ssh -i ./id_rsa spotti@172.18.0.86 "APP_ROOT='${DEPLOY_APP_PATH:-/storage-apps/www/sonora}' REPO_URL='git@bitbucket.org:spotpromo/sonora.git' BRANCH='main' BACKEND_ARCHIVE='${BACKEND_ARCHIVE_REMOTE}' APP_ARCHIVE='${APP_ARCHIVE_REMOTE}' APP_DOMAIN='${DEPLOY_APP_DOMAIN:-}' RELOAD_NGINX='${DEPLOY_RELOAD_NGINX:-0}' bash -s" < scripts/deploy-linux-host.sh
           - echo "==> Deploy concluido!"
 
 pipelines:
@@ -90,12 +72,10 @@ pipelines:
     - parallel:
         - step: *backend_checks
         - step: *frontend_checks
-        - step: *admin_checks
 
   branches:
     main:
       - parallel:
           - step: *backend_checks
           - step: *frontend_checks
-          - step: *admin_checks
       - step: *deploy_production

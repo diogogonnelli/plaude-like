@@ -1,0 +1,45 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    /* Typography */
+    --font-sans: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Montserrat', ui-sans-serif, system-ui, sans-serif;
+
+    /* Brand Colors */
+    --color-canvas: #F7F8FA;
+    --color-canvas-alt: #F0F4F8;
+    --color-surface: #FFFFFF;
+    --color-surface-muted: #F8F9FB;
+    --color-stroke: #D8DADF;
+    --color-stroke-strong: #B6BBC4;
+    --color-shell: #666362;
+    --color-shell-dark: #3F3D3C;
+    --color-text: #1F252C;
+    --color-text-muted: #6E7680;
+    --color-accent: #DE0C2F;
+    --color-accent-soft: #F05A6C;
+    --color-positive: #02B663;
+    --color-warning: #FF6D37;
+    --color-info: #2934F1;
+
+    /* Spacing */
+    --spacing-xxs: 4px;
+    --spacing-xs: 8px;
+    --spacing-sm: 12px;
+    --spacing-md: 16px;
+    --spacing-lg: 20px;
+    --spacing-xl: 24px;
+    --spacing-xxl: 32px;
+
+    /* Radius */
+    --radius-sm: 14px;
+    --radius-md: 20px;
+    --radius-lg: 28px;
+    --radius-xl: 36px;
+    --radius-pill: 999px;
+}

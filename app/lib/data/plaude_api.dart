@@ -17,8 +17,10 @@ class PlaudeApi {
   final http.Client _client;
 
   Uri _uri(String path, [Map<String, String>? query]) {
-    return Uri.parse(baseUrl).replace(
-      path: path,
+    final base = Uri.parse(baseUrl);
+    final apiPath = '/api$path';
+    return base.replace(
+      path: apiPath,
       queryParameters: query?.isEmpty == true ? null : query,
     );
   }
@@ -267,6 +269,35 @@ class PlaudeApi {
         'Request failed with ${response.statusCode}: ${response.body}',
       );
     }
+  }
+
+  /// Authenticate with email/password, returns {token, user}.
+  Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
+  }) async {
+    final response = await _client.post(
+      _uri('/auth/login'),
+      headers: await _headers(),
+      body: jsonEncode({'email': email, 'password': password}),
+    );
+    final payload = _decode(response);
+    return payload['data'] as Map<String, dynamic>;
+  }
+
+  /// Revoke the current token.
+  Future<void> logout() async {
+    await _client.post(_uri('/auth/logout'), headers: await _headers());
+  }
+
+  /// Get the current authenticated user.
+  Future<Map<String, dynamic>> me() async {
+    final response = await _client.get(
+      _uri('/auth/me'),
+      headers: await _headers(),
+    );
+    final payload = _decode(response);
+    return payload['data'] as Map<String, dynamic>;
   }
 }
 

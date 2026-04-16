@@ -175,7 +175,7 @@ class _LoginCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Use uma conta provisionada no Supabase Auth para acessar o fluxo autenticado do aplicativo.',
+            'Use suas credenciais para acessar o aplicativo.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 20),

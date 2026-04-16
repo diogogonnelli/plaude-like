@@ -1,19 +1,11 @@
 class AppConfig {
   static const backendBaseUrl = String.fromEnvironment(
     'BACKEND_BASE_URL',
-    defaultValue: 'http://localhost:8787',
+    defaultValue: 'http://localhost:8000',
   );
 
-  static const supabaseUrl = String.fromEnvironment(
-    'SUPABASE_URL',
-    defaultValue: '',
+  static const authEnabled = bool.fromEnvironment(
+    'AUTH_ENABLED',
+    defaultValue: true,
   );
-
-  static const supabaseAnonKey = String.fromEnvironment(
-    'SUPABASE_ANON_KEY',
-    defaultValue: '',
-  );
-
-  static bool get hasSupabase =>
-      supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 }

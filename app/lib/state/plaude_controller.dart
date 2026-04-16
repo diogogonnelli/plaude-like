@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app/app_config.dart';
 import '../data/demo_content.dart';
@@ -16,19 +16,18 @@ import '../data/plaude_api.dart';
 const recordingFilterAll = '__all__';
 const recordingFilterNone = '__none__';
 
-class PlaudeController extends ChangeNotifier {
-  PlaudeController({
-    required this.api,
-    this.supabaseClient,
-    bool? authRequiredOverride,
-  }) : _authRequired = authRequiredOverride ?? AppConfig.hasSupabase;
+const _tokenKey = 'sonora_auth_token';
 
-  final PlaudeApi api;
-  final SupabaseClient? supabaseClient;
+class PlaudeController extends ChangeNotifier {
+  PlaudeController({required String baseUrl, bool authRequired = true})
+    : _authRequired = authRequired {
+    api = PlaudeApi(baseUrl: baseUrl, accessTokenProvider: () async => _token);
+  }
+
+  late final PlaudeApi api;
   final bool _authRequired;
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _player = AudioPlayer();
-  StreamSubscription<AuthState>? _authSubscription;
 
   List<Project> _projects = const [];
   List<RecordingNote> _recordings = [];
@@ -43,16 +42,17 @@ class PlaudeController extends ChangeNotifier {
   String? _notice;
   String? _selectedProjectForNewRecordings;
   String _recordingProjectFilterValue = recordingFilterAll;
-  Session? _session;
+  String? _token;
+  String? _userEmail;
   final Set<String> _processingIds = <String>{};
   final Set<String> _chatBusyIds = <String>{};
 
   bool get requiresAuth => _authRequired;
   bool get authReady => _authReady;
   bool get authBusy => _authBusy;
-  bool get isAuthenticated => !_authRequired || _session != null;
-  String? get sessionEmail => _session?.user.email;
-  String? get accessToken => _session?.accessToken;
+  bool get isAuthenticated => !_authRequired || _token != null;
+  String? get sessionEmail => _userEmail;
+  String? get accessToken => _token;
   List<Project> get projects => _projects;
   List<RecordingNote> get allRecordings => List.unmodifiable(_recordings);
   bool get isLoading => _isLoading;
@@ -60,7 +60,8 @@ class PlaudeController extends ChangeNotifier {
   bool get isRecording => _isRecording;
   String? get notice => _notice;
   String get searchQuery => _searchQuery;
-  String? get selectedProjectForNewRecordings => _selectedProjectForNewRecordings;
+  String? get selectedProjectForNewRecordings =>
+      _selectedProjectForNewRecordings;
   String get recordingProjectFilterValue => _recordingProjectFilterValue;
   String? get activeProjectId => _selectedProjectForNewRecordings;
   Project? get selectedProjectForNewRecordingProject {
@@ -70,6 +71,7 @@ class PlaudeController extends ChangeNotifier {
     }
     return null;
   }
+
   Project? get activeProject => selectedProjectForNewRecordingProject;
 
   List<RecordingNote> get recordings => _filteredRecordings();
@@ -91,23 +93,24 @@ class PlaudeController extends ChangeNotifier {
       .toList();
 
   Future<void> bootstrap() async {
-    if (_authRequired && supabaseClient != null) {
-      _session = supabaseClient!.auth.currentSession;
+    if (_authRequired) {
+      final prefs = await SharedPreferences.getInstance();
+      _token = prefs.getString(_tokenKey);
       _authReady = true;
-      _authSubscription ??= supabaseClient!.auth.onAuthStateChange.listen((
-        event,
-      ) {
-        _session = event.session;
-        if (_session == null) {
-          _clearSignedOutState();
-        } else {
-          unawaited(refresh());
-        }
-        notifyListeners();
-      });
 
-      if (_session != null) {
-        await refresh();
+      if (_token != null) {
+        try {
+          final userData = await api.me();
+          _userEmail = userData['email'] as String?;
+          await refresh();
+        } catch (_) {
+          // Token expired or invalid — clear it
+          _token = null;
+          _userEmail = null;
+          await prefs.remove(_tokenKey);
+          _isLoading = false;
+          notifyListeners();
+        }
       } else {
         _isLoading = false;
         notifyListeners();
@@ -120,20 +123,19 @@ class PlaudeController extends ChangeNotifier {
   }
 
   Future<void> signIn(String email, String password) async {
-    if (supabaseClient == null) {
-      throw StateError('Supabase Auth não está configurado.');
-    }
-
     _authBusy = true;
     _notice = null;
     notifyListeners();
 
     try {
-      final response = await supabaseClient!.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-      _session = response.session;
+      final data = await api.login(email: email, password: password);
+      _token = data['token'] as String;
+      final user = data['user'] as Map<String, dynamic>;
+      _userEmail = user['email'] as String?;
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_tokenKey, _token!);
+
       _notice = 'Sessão iniciada.';
       await refresh();
     } finally {
@@ -146,8 +148,17 @@ class PlaudeController extends ChangeNotifier {
     _authBusy = true;
     notifyListeners();
     try {
-      await supabaseClient?.auth.signOut();
-      _session = null;
+      if (_token != null) {
+        try {
+          await api.logout();
+        } catch (_) {
+          // Ignore logout errors (token might already be invalid)
+        }
+      }
+      _token = null;
+      _userEmail = null;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_tokenKey);
       _clearSignedOutState();
     } finally {
       _authBusy = false;
@@ -156,7 +167,7 @@ class PlaudeController extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
-    if (_authRequired && _session == null) {
+    if (_authRequired && _token == null) {
       _isLoading = false;
       notifyListeners();
       return;
@@ -170,16 +181,21 @@ class PlaudeController extends ChangeNotifier {
       if (_backendAvailable) {
         _projects = await api.listProjects();
         if (_selectedProjectForNewRecordings != null &&
-            !_projects.any((project) => project.id == _selectedProjectForNewRecordings)) {
+            !_projects.any(
+              (project) => project.id == _selectedProjectForNewRecordings,
+            )) {
           _selectedProjectForNewRecordings = null;
         }
         if (_recordingProjectFilterValue != recordingFilterAll &&
             _recordingProjectFilterValue != recordingFilterNone &&
-            !_projects.any((project) => project.id == _recordingProjectFilterValue)) {
+            !_projects.any(
+              (project) => project.id == _recordingProjectFilterValue,
+            )) {
           _recordingProjectFilterValue = recordingFilterAll;
         }
         _recordings = await api.listRecordings(
-          projectId: _recordingProjectFilterValue == recordingFilterAll ||
+          projectId:
+              _recordingProjectFilterValue == recordingFilterAll ||
                   _recordingProjectFilterValue == recordingFilterNone
               ? null
               : _recordingProjectFilterValue,
@@ -787,7 +803,10 @@ class PlaudeController extends ChangeNotifier {
     );
   }
 
-  Future<void> updateRecordingProject(String recordingId, String? projectId) async {
+  Future<void> updateRecordingProject(
+    String recordingId,
+    String? projectId,
+  ) async {
     final current = findById(recordingId);
     if (current == null) {
       _notice = 'Gravação não encontrada.';
@@ -795,7 +814,8 @@ class PlaudeController extends ChangeNotifier {
       return;
     }
 
-    if (projectId != null && !_projects.any((project) => project.id == projectId)) {
+    if (projectId != null &&
+        !_projects.any((project) => project.id == projectId)) {
       _notice = 'Projeto inválido para vínculo.';
       notifyListeners();
       return;
@@ -983,7 +1003,8 @@ class PlaudeController extends ChangeNotifier {
 
   List<RecordingNote> _filteredRecordings() {
     return _recordings.where((recording) {
-      if (_recordingProjectFilterValue == recordingFilterNone && recording.projectId != null) {
+      if (_recordingProjectFilterValue == recordingFilterNone &&
+          recording.projectId != null) {
         return false;
       }
       if (_recordingProjectFilterValue != recordingFilterAll &&

@@ -38,7 +38,7 @@ dependencies:
   provider: ^6.1.5+1
   http: ^1.6.0
   intl: ^0.20.2
-  supabase_flutter: ^2.12.2
+  shared_preferences: ^2.5.3
   record: ^6.2.0
   just_audio: ^0.10.5
   file_picker: ^10.3.10
