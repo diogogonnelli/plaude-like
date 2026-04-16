@@ -77,7 +77,13 @@ require_bundled_node_runtime() {
 }
 
 run_systemctl() {
-  if systemctl "$@" >/dev/null 2>&1; then
+  local output=""
+
+  if output="$(systemctl "$@" 2>&1)"; then
+    return 0
+  fi
+
+  if output="$(systemctl --user "$@" 2>&1)"; then
     return 0
   fi
 
@@ -169,7 +175,8 @@ require_file "$DIST_ADMIN_DIR/index.html"
 log "Restarting backend service"
 if ! run_systemctl restart "$BACKEND_SERVICE_NAME"; then
   log "ERROR: cannot restart backend service '$BACKEND_SERVICE_NAME' without interactive sudo."
-  log "Allow passwordless sudo for 'systemctl restart $BACKEND_SERVICE_NAME' or run the deploy as a privileged user."
+  log "If this is a user service, confirm 'systemctl --user restart $BACKEND_SERVICE_NAME' works for $(id -un)."
+  log "Otherwise allow passwordless sudo for 'systemctl restart $BACKEND_SERVICE_NAME' or run the deploy as a privileged user."
   exit 30
 fi
 

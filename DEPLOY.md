@@ -110,6 +110,13 @@ spotti ALL=NOPASSWD: /bin/systemctl restart plaude-like-backend
 spotti ALL=NOPASSWD: /bin/systemctl reload nginx
 ```
 
+Se o backend estiver configurado como service de usuario, valide com:
+
+```bash
+systemctl --user restart plaude-like-backend
+systemctl --user status plaude-like-backend
+```
+
 ## 4. Como o pipeline faz o deploy
 
 Na `main`, o pipeline:
