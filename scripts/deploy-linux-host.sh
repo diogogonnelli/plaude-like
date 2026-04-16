@@ -30,6 +30,40 @@ log() {
   printf '[%s] %s\n' "$(date +%F' '%T)" "$*"
 }
 
+check_backend_health() {
+  curl --fail --silent --show-error "http://${BACKEND_HOST}:${BACKEND_PORT}/health" >/dev/null
+}
+
+wait_for_backend_health() {
+  local attempts="${1:-10}" sleep_seconds="${2:-3}" try=1
+
+  while [ "$try" -le "$attempts" ]; do
+    if check_backend_health; then
+      return 0
+    fi
+
+    if [ "$try" -lt "$attempts" ]; then
+      sleep "$sleep_seconds"
+    fi
+
+    try=$((try + 1))
+  done
+
+  return 1
+}
+
+print_service_diagnostics() {
+  log "Collecting backend service diagnostics for '$BACKEND_SERVICE_NAME'."
+
+  systemctl status --no-pager "$BACKEND_SERVICE_NAME" 2>&1 || true
+  systemctl --user status --no-pager "$BACKEND_SERVICE_NAME" 2>&1 || true
+
+  if command -v sudo >/dev/null 2>&1; then
+    sudo -n /bin/systemctl status --no-pager "$BACKEND_SERVICE_NAME" 2>&1 || true
+    sudo -n /usr/bin/systemctl status --no-pager "$BACKEND_SERVICE_NAME" 2>&1 || true
+  fi
+}
+
 ensure_dir_ready() {
   local path="$1"
   local label="$2"
@@ -181,9 +215,11 @@ require_file "$DIST_APP_DIR/index.html"
 require_file "$DIST_ADMIN_DIR/index.html"
 
 SERVICE_RESTARTED=0
+HOOK_EXECUTED=0
 
 if [ -x "$POST_HOOK" ]; then
   log "Running post-deploy hook"
+  HOOK_EXECUTED=1
   if "$POST_HOOK" "$APP_ROOT"; then
     SERVICE_RESTARTED=1
   else
@@ -213,8 +249,32 @@ log "Running smoke checks"
 test -f "$DIST_APP_DIR/index.html"
 test -f "$DIST_ADMIN_DIR/index.html"
 
-if [ "$SERVICE_RESTARTED" = "1" ]; then
-  curl --fail --silent --show-error "http://${BACKEND_HOST}:${BACKEND_PORT}/health" >/dev/null
+if wait_for_backend_health 5 2; then
+  log "Backend health check passed."
+elif [ "$HOOK_EXECUTED" = "1" ]; then
+  log "Backend is still down after post-deploy hook. Trying direct service restart."
+  if run_systemctl restart "$BACKEND_SERVICE_NAME"; then
+    SERVICE_RESTARTED=1
+    if [ "$RELOAD_NGINX" = "1" ]; then
+      log "Reloading nginx"
+      if ! run_systemctl reload nginx; then
+        log "Warning: could not reload nginx automatically."
+        log "Reload nginx manually or handle it inside $POST_HOOK."
+      fi
+    fi
+  else
+    log "Warning: direct service restart was not permitted."
+  fi
+
+  if ! wait_for_backend_health 10 3; then
+    print_service_diagnostics
+    log "ERROR: backend health check failed after deploy."
+    exit 40
+  fi
+elif [ "$SERVICE_RESTARTED" = "1" ]; then
+  print_service_diagnostics
+  log "ERROR: backend health check failed after automatic restart."
+  exit 41
 else
   log "Skipping backend health check because no automatic restart was performed."
 fi
