@@ -11,7 +11,14 @@ definitions:
           - npm run typecheck
           - npm test
           - npm run build
+          - npm prune --omit=dev
           - test -f dist/server.js
+          - test -d node_modules
+        artifacts:
+          - backend/dist/**
+          - backend/node_modules/**
+          - backend/package.json
+          - backend/package-lock.json
 
     - step: &frontend_checks
         name: Frontend checks
@@ -50,6 +57,8 @@ definitions:
           - linux.shell
         script:
           - echo "==> Iniciando deploy..."
+          - test -f backend/dist/server.js
+          - test -d backend/node_modules
           - test -f app/build/web/index.html
           - test -f admin-web/dist/index.html
           - |
@@ -61,11 +70,14 @@ definitions:
           - 'test -s ./id_rsa || { echo "Decoded SSH key is empty. Check SSH_KEY_webrun01."; exit 1; }'
           - tar -czf app-dist.tar.gz -C app/build/web .
           - tar -czf admin-dist.tar.gz -C admin-web/dist .
+          - tar -czf backend-runtime.tar.gz -C backend dist node_modules package.json package-lock.json
           - export APP_ARCHIVE_REMOTE=/tmp/plaude-like-app-${BITBUCKET_BUILD_NUMBER}.tar.gz
           - export ADMIN_ARCHIVE_REMOTE=/tmp/plaude-like-admin-${BITBUCKET_BUILD_NUMBER}.tar.gz
+          - export BACKEND_ARCHIVE_REMOTE=/tmp/plaude-like-backend-${BITBUCKET_BUILD_NUMBER}.tar.gz
           - scp -i ./id_rsa ./app-dist.tar.gz spotti@172.18.0.86:${APP_ARCHIVE_REMOTE}
           - scp -i ./id_rsa ./admin-dist.tar.gz spotti@172.18.0.86:${ADMIN_ARCHIVE_REMOTE}
-          - ssh -i ./id_rsa spotti@172.18.0.86 "APP_ROOT='${DEPLOY_APP_PATH:-/storage-apps/www/sonora}' REPO_URL='git@bitbucket.org:spotpromo/sonora.git' BRANCH='main' APP_ARCHIVE='${APP_ARCHIVE_REMOTE}' ADMIN_ARCHIVE='${ADMIN_ARCHIVE_REMOTE}' APP_DOMAIN='${DEPLOY_APP_DOMAIN:-}' ADMIN_DOMAIN='${DEPLOY_ADMIN_DOMAIN:-}' BACKEND_SERVICE_NAME='${DEPLOY_BACKEND_SERVICE:-plaude-like-backend}' BACKEND_PORT='${DEPLOY_BACKEND_PORT:-8787}' bash -s" < scripts/deploy-linux-host.sh
+          - scp -i ./id_rsa ./backend-runtime.tar.gz spotti@172.18.0.86:${BACKEND_ARCHIVE_REMOTE}
+          - ssh -i ./id_rsa spotti@172.18.0.86 "APP_ROOT='${DEPLOY_APP_PATH:-/storage-apps/www/sonora}' REPO_URL='git@bitbucket.org:spotpromo/sonora.git' BRANCH='main' BACKEND_ARCHIVE='${BACKEND_ARCHIVE_REMOTE}' APP_ARCHIVE='${APP_ARCHIVE_REMOTE}' ADMIN_ARCHIVE='${ADMIN_ARCHIVE_REMOTE}' APP_DOMAIN='${DEPLOY_APP_DOMAIN:-}' ADMIN_DOMAIN='${DEPLOY_ADMIN_DOMAIN:-}' BACKEND_SERVICE_NAME='${DEPLOY_BACKEND_SERVICE:-plaude-like-backend}' BACKEND_PORT='${DEPLOY_BACKEND_PORT:-8787}' bash -s" < scripts/deploy-linux-host.sh
           - echo "==> Deploy concluido!"
 
 pipelines:

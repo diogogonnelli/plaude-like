@@ -4,6 +4,7 @@ set -Eeuo pipefail
 APP_ROOT="${APP_ROOT:-/storage-apps/www/sonora}"
 REPO_URL="${REPO_URL:?REPO_URL is required}"
 BRANCH="${BRANCH:-main}"
+BACKEND_ARCHIVE="${BACKEND_ARCHIVE:?BACKEND_ARCHIVE is required}"
 APP_ARCHIVE="${APP_ARCHIVE:?APP_ARCHIVE is required}"
 ADMIN_ARCHIVE="${ADMIN_ARCHIVE:?ADMIN_ARCHIVE is required}"
 APP_DOMAIN="${APP_DOMAIN:-}"
@@ -56,6 +57,25 @@ require_file() {
   fi
 }
 
+require_node_runtime() {
+  if command -v node >/dev/null 2>&1; then
+    log "Using node: $(command -v node) ($(node --version))"
+    return 0
+  fi
+
+  for candidate in /usr/local/bin/node /usr/bin/node; do
+    if [ -x "$candidate" ]; then
+      export PATH="$(dirname "$candidate"):$PATH"
+      log "Using node: $candidate ($("$candidate" --version))"
+      return 0
+    fi
+  done
+
+  log "ERROR: node not found on host."
+  log "Install Node.js 20+ on the server and ensure it is available to systemd and the deploy user."
+  exit 20
+}
+
 upsert_env() {
   local file="$1"
   local key="$2"
@@ -105,12 +125,15 @@ upsert_env "$SHARED_ENV_FILE" "TRUST_PROXY" "true"
 
 ln -sfn "$SHARED_ENV_FILE" "$BACKEND_DIR/.env"
 
-log "Installing backend dependencies"
-cd "$BACKEND_DIR"
-npm ci
-npm run build
-npm prune --omit=dev
+require_file "$BACKEND_ARCHIVE"
+require_node_runtime
+
+log "Publishing backend runtime artifact"
+rm -rf "$BACKEND_DIR/dist" "$BACKEND_DIR/node_modules"
+tar -xzf "$BACKEND_ARCHIVE" -C "$BACKEND_DIR"
+rm -f "$BACKEND_ARCHIVE"
 require_file "$BACKEND_DIR/dist/server.js"
+test -d "$BACKEND_DIR/node_modules"
 
 require_file "$APP_ARCHIVE"
 require_file "$ADMIN_ARCHIVE"

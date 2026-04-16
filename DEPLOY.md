@@ -20,7 +20,7 @@ Layout esperado no servidor:
 ## 1. Pre-requisitos do host
 
 - Linux com `nginx`
-- Node.js 20+ e `npm`
+- Node.js 20+
 - `git`
 - `curl`
 - `systemd`
@@ -103,8 +103,8 @@ sudo chown -R spotti:spotti /storage-apps/www/sonora
 Na `main`, o pipeline:
 
 1. valida `backend`, `app` e `admin-web`
-2. gera os artefatos `app/build/web` e `admin-web/dist`
-3. envia dois `.tar.gz` para o host
+2. gera os artefatos de runtime do `backend`, `app/build/web` e `admin-web/dist`
+3. envia tres `.tar.gz` para o host
 4. executa `scripts/deploy-linux-host.sh` por SSH
 5. no host, o script:
    - sincroniza `current/` com `origin/main`
@@ -113,7 +113,7 @@ Na `main`, o pipeline:
    - fixa `HOST=127.0.0.1`, `PORT` e `TRUST_PROXY=true`
    - se `DEPLOY_APP_DOMAIN` estiver definido, atualiza `APP_BASE_URL=https://<dominio>/api`
    - se `DEPLOY_APP_DOMAIN` nao estiver definido, preserva o `APP_BASE_URL` ja existente em `shared/backend.env`
-   - roda `npm ci`, `npm run build` e `npm prune --omit=dev` no backend
+   - publica o runtime do backend gerado no CI
    - publica os dois frontends
    - reinicia o backend
    - recarrega o `nginx`
