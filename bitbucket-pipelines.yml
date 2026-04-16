@@ -2,6 +2,21 @@ pipelines:
   branches:
     main:
       - step:
+          name: "Build Laravel Web Assets"
+          image: node:20
+          caches:
+            - node
+          script:
+            - echo "==> Gerando build web do backend-laravel..."
+            - cd backend-laravel
+            - npm ci
+            - npm run build
+            - test -f public/build/manifest.json
+            - ls -la public/build | sed 's/^/  /'
+          artifacts:
+            - backend-laravel/public/build/**
+
+      - step:
           name: "Deploy Sonora"
           deployment: production
           runs-on:
@@ -16,8 +31,12 @@ pipelines:
             - mkdir -p ~/.ssh
             - ssh-keyscan -T 5 172.18.0.86 >> ~/.ssh/known_hosts 2>/dev/null || true
             - 'test -s ./id_rsa || { echo "Decoded SSH key is empty. Check SSH_KEY_webrun01."; exit 1; }'
+            - test -f backend-laravel/public/build/manifest.json
+            - tar -czf backend-laravel-public-build-artifact.tar.gz -C backend-laravel/public build
+            - scp -i ./id_rsa ./backend-laravel-public-build-artifact.tar.gz spotti@172.18.0.86:/tmp/sonora-backend-laravel-build-${BITBUCKET_BUILD_NUMBER}.tar.gz
             - |
-              ssh -i ./id_rsa spotti@172.18.0.86 "APP_DOMAIN='${DEPLOY_APP_DOMAIN:-}' bash -s" <<'BASH'
+              BUILD_ARCHIVE="/tmp/sonora-backend-laravel-build-${BITBUCKET_BUILD_NUMBER}.tar.gz"
+              ssh -i ./id_rsa spotti@172.18.0.86 "APP_DOMAIN='${DEPLOY_APP_DOMAIN:-}' BUILD_ARCHIVE='$BUILD_ARCHIVE' bash -s" <<'BASH'
               set -Eeuo pipefail
 
               APP_PATH="${APP_PATH:-/storage-apps/www/sonora}"
@@ -29,6 +48,7 @@ pipelines:
               POST_HOOK="/home/spotti/post-deploy.sh"
               PHP_FPM_SERVICE="${PHP_FPM_SERVICE:-php8.2-fpm}"
               BACKEND_DIR="$APP_PATH/backend-laravel"
+              PUBLIC_PREFIX_DEFAULT="/backend-laravel/public"
 
               log(){ printf "[%s] %s\n" "$(date +%F' '%T)" "$*"; }
               assert_runtime_writable() {
@@ -75,7 +95,6 @@ pipelines:
                 return 1
               }
 
-              # ── Check permissions ──
               if [ -d "$APP_PATH" ] && [ ! -w "$APP_PATH" ]; then
                 log "ERROR: $APP_PATH existe, mas nao esta gravavel para $(whoami)."
                 log "Ajuste owner/permissoes do diretorio antes de rodar o deploy."
@@ -88,7 +107,6 @@ pipelines:
                 exit 11
               fi
 
-              # ── Git clone/fetch ──
               if [ ! -d "$APP_PATH" ]; then
                 log "App directory does not exist. Cloning into $APP_PATH..."
                 mkdir -p "$APP_PATH" 2>/dev/null || true
@@ -134,7 +152,6 @@ pipelines:
 
               cd "$APP_PATH"
 
-              # ── .env management ──
               if [ ! -f "$BACKEND_DIR/.env" ] && [ -f "$BACKEND_DIR/.env.example" ]; then
                 cp "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
                 log "Arquivo .env criado a partir de .env.example."
@@ -147,8 +164,8 @@ pipelines:
               fi
               upsert_env "APP_ENV" "production"
               upsert_env "APP_DEBUG" "false"
+              upsert_env "PUBLIC_PREFIX" "$PUBLIC_PREFIX_DEFAULT"
 
-              # ── Composer install ──
               if ! "$COMPOSER_BIN" --version >/dev/null 2>&1; then
                 for c in /usr/local/bin/composer /usr/bin/composer; do
                   [ -x "$c" ] && COMPOSER_BIN="$c" && break
@@ -164,7 +181,17 @@ pipelines:
               cd "$BACKEND_DIR"
               "$COMPOSER_BIN" install --no-dev --prefer-dist --no-interaction --optimize-autoloader
 
-              # ── Storage directories ──
+              if [ ! -f "$BUILD_ARCHIVE" ]; then
+                log "ERROR: artifact de frontend nao encontrado em $BUILD_ARCHIVE."
+                exit 21
+              fi
+
+              log "Atualizando public/build..."
+              rm -rf "$BACKEND_DIR/public/build"
+              tar -xzf "$BUILD_ARCHIVE" -C "$BACKEND_DIR/public"
+              rm -f "$BUILD_ARCHIVE"
+              test -f "$BACKEND_DIR/public/build/manifest.json"
+
               mkdir -p "$BACKEND_DIR/bootstrap/cache"
               mkdir -p "$BACKEND_DIR/storage/logs"
               mkdir -p "$BACKEND_DIR/storage/framework/cache/data"
@@ -179,24 +206,19 @@ pipelines:
               assert_runtime_writable "$BACKEND_DIR/storage/framework/views"
               assert_runtime_writable "$BACKEND_DIR/storage/app/recordings"
 
-              # Storage link
               "$PHP_BIN" artisan storage:link 2>/dev/null || true
 
-              # ── APP_KEY ──
               if [ -f "$BACKEND_DIR/.env" ] && grep -q '^APP_KEY=$' "$BACKEND_DIR/.env"; then
                 log "Gerando APP_KEY..."
                 "$PHP_BIN" artisan key:generate --force || true
               fi
 
-              # ── Maintenance mode ──
               log "Entrando em maintenance mode..."
               "$PHP_BIN" artisan down || true
 
-              # ── Migrations ──
               log "Executando migrations..."
               "$PHP_BIN" artisan migrate --force || true
 
-              # ── Cache management ──
               log "Clearing caches..."
               "$PHP_BIN" artisan config:clear || true
               "$PHP_BIN" artisan route:clear || true
@@ -209,75 +231,11 @@ pipelines:
               "$PHP_BIN" artisan route:cache || true
               "$PHP_BIN" artisan view:cache || true
 
-              # ── Seed profiles ──
               "$PHP_BIN" artisan db:seed --class=ProfileSeeder --force --no-interaction 2>/dev/null || true
 
-              # ── Leaving maintenance mode ──
               log "Leaving maintenance mode..."
               "$PHP_BIN" artisan up || true
 
-              # ── Nginx config ──
-              NGINX_CONF="/etc/nginx/sites-available/sonora.conf"
-              NGINX_ENABLED="/etc/nginx/sites-enabled/sonora.conf"
-              NGINX_DOMAIN="${APP_DOMAIN:-sonora.spotpromo.com.br}"
-              NGINX_TMP="/tmp/sonora-nginx-$$.conf"
-
-              cat > "$NGINX_TMP" <<NGINXEOF
-              server {
-                  listen 80;
-                  server_name ${NGINX_DOMAIN};
-                  root ${BACKEND_DIR}/public;
-
-                  add_header X-Frame-Options "SAMEORIGIN";
-                  add_header X-Content-Type-Options "nosniff";
-
-                  index index.php index.html;
-
-                  charset utf-8;
-
-                  location / {
-                      try_files \$uri \$uri/ /index.php?\$query_string;
-                  }
-
-                  location = /favicon.ico { access_log off; log_not_found off; }
-                  location = /robots.txt  { access_log off; log_not_found off; }
-
-                  error_page 404 /index.php;
-
-                  location ~ \.php$ {
-                      fastcgi_pass unix:/run/php/php8.2-fpm.sock;
-                      fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
-                      include fastcgi_params;
-                  }
-
-                  location ~ /\.(?!well-known).* {
-                      deny all;
-                  }
-
-                  client_max_body_size 100M;
-              }
-              NGINXEOF
-
-              # Remove leading whitespace from heredoc indentation
-              sed -i 's/^              //' "$NGINX_TMP"
-
-              if run_with_privilege cp "$NGINX_TMP" "$NGINX_CONF"; then
-                log "Nginx config written to $NGINX_CONF"
-                if [ ! -e "$NGINX_ENABLED" ]; then
-                  run_with_privilege ln -sfn "$NGINX_CONF" "$NGINX_ENABLED" || true
-                fi
-                if run_with_privilege nginx -t 2>&1; then
-                  run_with_privilege systemctl reload nginx
-                  log "Nginx reloaded."
-                else
-                  log "Warning: nginx config test failed, not reloading."
-                fi
-              else
-                log "Warning: could not write nginx config (no sudo?). Skipping."
-              fi
-              rm -f "$NGINX_TMP"
-
-              # ── Restart services ──
               if [ -x "$POST_HOOK" ]; then
                 log "Running post-deploy hook..."
                 "$POST_HOOK" "$APP_PATH" || true
@@ -289,6 +247,40 @@ pipelines:
                   log "Warning: could not restart PHP-FPM automatically."
                 fi
               fi
+
+              PUBLIC_DOMAIN="${APP_DOMAIN:-sonora.spotpromo.com.br}"
+              PUBLIC_BASE_URL="https://${PUBLIC_DOMAIN}"
+              ROOT_HEADERS="/tmp/sonora-root-headers-$$.txt"
+
+              log "Executando smoke checks em ${PUBLIC_BASE_URL}..."
+              curl -sS -D "$ROOT_HEADERS" -o /dev/null "$PUBLIC_BASE_URL/"
+              ROOT_STATUS="$(awk 'toupper($1) ~ /^HTTP/ { code=$2 } END { print code }' "$ROOT_HEADERS")"
+              ROOT_LOCATION="$(awk 'BEGIN { IGNORECASE=1 } /^Location:/ { print $2 }' "$ROOT_HEADERS" | tr -d '\r' | tail -n 1)"
+              rm -f "$ROOT_HEADERS"
+
+              if [ "$ROOT_STATUS" != "301" ] && [ "$ROOT_STATUS" != "302" ]; then
+                log "ERROR: / deveria redirecionar para /login, mas retornou status $ROOT_STATUS."
+                exit 30
+              fi
+
+              case "$ROOT_LOCATION" in
+                "/login"|"$PUBLIC_BASE_URL/login")
+                  ;;
+                *)
+                  log "ERROR: / deveria redirecionar para /login, mas retornou Location='$ROOT_LOCATION'."
+                  exit 31
+                  ;;
+              esac
+
+              curl -fsS "$PUBLIC_BASE_URL/login" >/dev/null || {
+                log "ERROR: smoke check falhou em $PUBLIC_BASE_URL/login."
+                exit 32
+              }
+
+              curl -fsS "$PUBLIC_BASE_URL/api/health" >/dev/null || {
+                log "ERROR: smoke check falhou em $PUBLIC_BASE_URL/api/health."
+                exit 33
+              }
 
               log "Deploy finished successfully."
               BASH

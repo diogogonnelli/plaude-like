@@ -1,94 +1,69 @@
-# Guia de Deploy (Bitbucket Pipelines + Linux + Nginx)
+# Guia de Deploy (Laravel pela raiz do repositorio)
 
-## Visao geral da arquitetura
+## Visao geral
 
-- monorepo com `backend`, `app` e `admin-web`
-- `backend` Node/Express como servico `systemd`
-- `app` Flutter Web publicado como estatico em `dist-app/`
-- `admin-web` React/Vite publicado como estatico em `dist-admin/`
-- `nginx` servindo os dois frontends e fazendo proxy de `/api` para o backend
+O deploy de producao do Sonora segue o mesmo molde operacional do `assinatura-web`:
 
-Layout esperado no servidor:
+- o dominio publico aponta para a **raiz do checkout** em `/storage-apps/www/sonora`
+- o `index.php` na raiz encaminha para `backend-laravel/public/index.php`
+- os assets do Laravel continuam fisicamente em `backend-laravel/public/build`
+- o pipeline gera `public/build` no CI e publica esse artefato no host
+- o pipeline **nao** altera configuracao de `nginx` no servidor
 
-- `/storage-apps/www/sonora/current`
-- `/storage-apps/www/sonora/dist-app`
-- `/storage-apps/www/sonora/dist-admin`
-- `/storage-apps/www/sonora/shared/backend.env`
-- `/storage-apps/www/sonora/shared/uploads`
-- `/storage-apps/www/sonora/shared/logs`
+Layout esperado no host:
 
-## 1. Pre-requisitos do host
+- `/storage-apps/www/sonora/index.php`
+- `/storage-apps/www/sonora/backend-laravel`
+- `/storage-apps/www/sonora/backend-laravel/public/build`
+
+## Pre-requisitos do host
 
 - Linux com `nginx`
 - `git`
 - `curl`
 - `systemd`
+- `php` e `composer`
 - usuario de deploy com acesso SSH
-- usuario de deploy com permissao para reiniciar o servico do backend
+- usuario de deploy com permissao para reiniciar o `php-fpm` ou executar um `post-deploy.sh`
 - acesso SSH do host ao repositorio Bitbucket para `git clone` e `git fetch`
 
-## 2. Variaveis do Bitbucket
+## Variaveis do Bitbucket
 
 Defina no repositorio ou em `Deployments > Production`, no minimo:
 
 - `SSH_KEY_webrun01`: chave privada em base64 usada pelo pipeline para conectar no host
-- `DEPLOY_APP_PATH`: caminho base do projeto no host. Ex.: `/storage-apps/www/sonora`
-- `DEPLOY_BACKEND_SERVICE`: opcional. Default `sonora-backend`
-- `DEPLOY_BACKEND_PORT`: opcional. Default `8787`
-- `DEPLOY_RELOAD_NGINX`: opcional. Default `0`. Use `1` apenas quando precisar recarregar configuracao do nginx
-- `DEPLOY_APP_DOMAIN`: opcional. Se informado, o deploy atualiza `APP_BASE_URL=https://<dominio>/api` no backend
-- `DEPLOY_ADMIN_DOMAIN`: opcional. Usado apenas para log e documentacao operacional
+- `DEPLOY_APP_DOMAIN`: opcional. Se informado, o deploy atualiza `APP_URL=https://<dominio>`
 
-Itens fixos no pipeline, no mesmo estilo do projeto `anotacoes`:
+Itens fixos no pipeline:
 
 - host SSH: `172.18.0.86`
 - usuario SSH: `spotti`
 - repositorio sincronizado no host: `git@bitbucket.org:spotpromo/sonora.git`
+- caminho do app no host: `/storage-apps/www/sonora`
 
-Variaveis de build dos frontends:
+## Configuracao do nginx
 
-- `APP_BACKEND_BASE_URL=https://seudominio.com/api`
-- `APP_SUPABASE_URL`
-- `APP_SUPABASE_ANON_KEY`
-- `APP_FIREBASE_API_KEY`
-- `APP_FIREBASE_PROJECT_ID`
-- `APP_FIREBASE_MESSAGING_SENDER_ID`
-- `APP_FIREBASE_ANDROID_APP_ID`
-- `APP_FIREBASE_IOS_APP_ID`
-- `APP_FIREBASE_STORAGE_BUCKET`
-- `ADMIN_API_BASE_URL=https://seudominio.com/api`
-- `ADMIN_VITE_SUPABASE_URL`
-- `ADMIN_VITE_SUPABASE_ANON_KEY`
+Use `deploy/nginx/sonora-laravel.conf.example` como base. O ponto importante e:
 
-## 3. Primeiro deploy no host
+- `root /storage-apps/www/sonora;`
+- `try_files $uri $uri/ /index.php?$query_string;`
 
-1. Copie e ajuste o unit file em `deploy/systemd/sonora-backend.service.example`.
-2. Instale o servico:
+Isso permite que o `nginx` sirva diretamente:
 
-```bash
-sudo cp deploy/systemd/sonora-backend.service.example /etc/systemd/system/sonora-backend.service
-sudo systemctl daemon-reload
-sudo systemctl enable sonora-backend
-```
+- `/index.php` na raiz do checkout
+- `/backend-laravel/public/build/*`
+- `/backend-laravel/public/storage/*`
 
-3. Copie e ajuste os arquivos de `nginx`:
-
-- `deploy/nginx/sonora-app.conf.example`
-- `deploy/nginx/sonora-admin.conf.example`
-
-4. Ative os sites e valide:
+Exemplo de validacao:
 
 ```bash
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-5. Garanta que o usuario do servidor consegue executar:
+O arquivo `deploy/nginx/sonora-app.conf.example` agora e apenas legado. Ele documenta o fluxo antigo do Flutter Web estatico e nao deve ser usado como raiz publica principal.
 
-```bash
-git ls-remote git@bitbucket.org:spotpromo/sonora.git
-sudo systemctl restart sonora-backend
-```
+## Primeiro deploy no host
 
 Bootstrap recomendado antes do primeiro deploy:
 
@@ -97,7 +72,7 @@ sudo mkdir -p /storage-apps/www/sonora
 sudo chown -R spotti:spotti /storage-apps/www/sonora
 ```
 
-No mesmo padrao do `assinatura-web`, voce pode delegar restarts a um hook opcional no host:
+Se quiser manter um hook no mesmo estilo do `assinatura-web`:
 
 ```bash
 cat >/home/spotti/post-deploy.sh <<'BASH'
@@ -105,8 +80,7 @@ cat >/home/spotti/post-deploy.sh <<'BASH'
 set -euo pipefail
 
 APP_ROOT="${1:-/storage-apps/www/sonora}"
-sudo /bin/systemctl restart sonora-backend
-sudo /bin/systemctl reload nginx
+sudo /bin/systemctl restart php8.2-fpm
 BASH
 
 chmod +x /home/spotti/post-deploy.sh
@@ -121,86 +95,57 @@ sudo visudo
 Adicione algo como:
 
 ```text
-spotti ALL=NOPASSWD: /bin/systemctl restart sonora-backend
-spotti ALL=NOPASSWD: /bin/systemctl reload nginx
+spotti ALL=NOPASSWD: /bin/systemctl restart php8.2-fpm
 ```
 
-Se o backend estiver configurado como service de usuario, valide com:
-
-```bash
-systemctl --user restart sonora-backend
-systemctl --user status sonora-backend
-```
-
-## 4. Como o pipeline faz o deploy
+## Como o pipeline faz o deploy
 
 Na `main`, o pipeline:
 
-1. valida `backend`, `app` e `admin-web`
-2. gera os artefatos de runtime do `backend`, `app/build/web` e `admin-web/dist`
-3. envia tres `.tar.gz` para o host
-4. executa `scripts/deploy-linux-host.sh` por SSH
-5. no host, o script:
-   - sincroniza `current/` com `origin/main`
-   - usa por padrao o repo SSH `git@bitbucket.org:spotpromo/sonora.git` ou o valor de `DEPLOY_REPO_URL`
-   - cria ou preserva `shared/backend.env`
-   - fixa `HOST=127.0.0.1`, `PORT` e `TRUST_PROXY=true`
-   - publica um runtime Node empacotado no CI e injeta esse binario no `PATH` do servico via `shared/backend.env`
-   - se `DEPLOY_APP_DOMAIN` estiver definido, atualiza `APP_BASE_URL=https://<dominio>/api`
-   - se `DEPLOY_APP_DOMAIN` nao estiver definido, preserva o `APP_BASE_URL` ja existente em `shared/backend.env`
-   - publica o runtime do backend gerado no CI
-   - publica os dois frontends
-   - tenta executar `/home/spotti/post-deploy.sh` se o arquivo existir
-   - se o hook nao existir, tenta reiniciar o backend diretamente
-   - recarrega o `nginx` apenas se `DEPLOY_RELOAD_NGINX=1`
-   - valida `http://127.0.0.1:<porta>/health`
+1. gera `backend-laravel/public/build` em uma etapa `node:20`
+2. publica esse build como artefato do CI
+3. envia o artefato `.tar.gz` para o host
+4. por SSH, sincroniza o checkout com `origin/main`
+5. preserva ou cria `backend-laravel/.env`
+6. fixa:
+   - `APP_ENV=production`
+   - `APP_DEBUG=false`
+   - `PUBLIC_PREFIX=/backend-laravel/public`
+   - `APP_URL=https://<dominio>` quando `DEPLOY_APP_DOMAIN` estiver definido
+7. executa `composer install`
+8. atualiza `backend-laravel/public/build` com o artefato do CI
+9. roda `storage:link`, migrations, caches e seed de perfis
+10. reinicia o `php-fpm` ou executa `post-deploy.sh`
+11. executa smoke checks obrigatorios:
+   - `/` precisa redirecionar para `/login`
+   - `/login` precisa responder `200`
+   - `/api/health` precisa responder `200`
 
-## 5. Backend `.env`
+## Backend `.env`
 
-O arquivo persistente fica em:
-
-```bash
-/storage-apps/www/sonora/shared/backend.env
-```
-
-No primeiro deploy, ele e criado a partir de `backend/.env.example`. Depois disso, o pipeline preserva o arquivo e atualiza somente:
-
-- `HOST`
-- `PORT`
-- `APP_BASE_URL`
-- `TRUST_PROXY`
-
-As demais chaves devem ser mantidas manualmente no host, como:
-
-- `OPENAI_API_KEY`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- credenciais do Firebase
-
-## 6. Rollback basico
-
-1. No host, volte o repositorio para o commit desejado em `current/`.
-2. Republique os artefatos estaticos correspondentes, se necessario.
-3. Reinicie o backend e recarregue o `nginx`.
-
-Exemplo:
+O arquivo persistente continua em:
 
 ```bash
-cd /storage-apps/www/sonora/current
-git checkout <sha>
-cd backend
-npm ci
-npm run build
-npm prune --omit=dev
-sudo systemctl restart sonora-backend
-sudo systemctl reload nginx
+/storage-apps/www/sonora/backend-laravel/.env
 ```
 
-## 7. Checklist pos-deploy
+No primeiro deploy, ele e criado a partir de `backend-laravel/.env.example`. Depois disso, o pipeline preserva o arquivo e atualiza apenas as chaves operacionais do deploy.
 
-- `curl -f http://127.0.0.1:8787/health`
-- `https://seudominio.com` entrega o app Flutter
-- `https://admin.seudominio.com` entrega o admin
-- `https://seudominio.com/api/health` responde externamente
-- `shared/backend.env` preserva os segredos esperados
-- `dist-app/index.html` e `dist-admin/index.html` existem no host
+A nova chave relevante para publicacao pela raiz e:
+
+```bash
+PUBLIC_PREFIX=/backend-laravel/public
+```
+
+Ela controla as URLs geradas para:
+
+- assets do Vite em producao
+- disco `public` do Laravel (`/storage`)
+
+## Checklist pos-deploy
+
+- `https://sonora.spotpromo.com.br/` redireciona para `/login`
+- `https://sonora.spotpromo.com.br/login` responde `200`
+- `https://sonora.spotpromo.com.br/api/health` responde `200`
+- `backend-laravel/public/build/manifest.json` existe no host
+- `backend-laravel/public/storage` existe ou foi recriado por `storage:link`

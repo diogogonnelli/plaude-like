@@ -1,3 +1,6 @@
+# LEGACY: este exemplo servia o Flutter Web estatico como raiz publica.
+# O modelo atual de producao usa o backend-laravel pela raiz do repositorio.
+# Nao use este arquivo para o dominio principal do Sonora.
 server {
   listen 80;
   server_name seudominio.com;
