@@ -12,6 +12,7 @@ ADMIN_DOMAIN="${ADMIN_DOMAIN:-}"
 BACKEND_SERVICE_NAME="${BACKEND_SERVICE_NAME:-plaude-like-backend}"
 BACKEND_PORT="${BACKEND_PORT:-8787}"
 BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
+RELOAD_NGINX="${RELOAD_NGINX:-0}"
 
 CURRENT_DIR="$APP_ROOT/current"
 SHARED_DIR="$APP_ROOT/shared"
@@ -58,22 +59,53 @@ require_file() {
 }
 
 require_node_runtime() {
+  local node_bin node_version node_major
+
   if command -v node >/dev/null 2>&1; then
-    log "Using node: $(command -v node) ($(node --version))"
+    node_bin="$(command -v node)"
+  else
+    for candidate in /usr/local/bin/node /usr/bin/node; do
+      if [ -x "$candidate" ]; then
+        export PATH="$(dirname "$candidate"):$PATH"
+        node_bin="$candidate"
+        break
+      fi
+    done
+  fi
+
+  if [ -z "${node_bin:-}" ]; then
+    log "ERROR: node not found on host."
+    log "Install Node.js 20+ on the server and ensure it is available to systemd and the deploy user."
+    exit 20
+  fi
+
+  node_version="$("$node_bin" --version)"
+  node_major="$("$node_bin" -p "process.versions.node.split('.')[0]")"
+  log "Using node: $node_bin ($node_version)"
+
+  if [ "$node_major" -lt 20 ]; then
+    log "ERROR: Node.js $node_version found, but backend requires Node.js >=20."
+    log "Update the host runtime and the systemd service to use Node.js 20+ before deploying."
+    exit 21
+  fi
+}
+
+run_systemctl() {
+  if systemctl "$@" >/dev/null 2>&1; then
     return 0
   fi
 
-  for candidate in /usr/local/bin/node /usr/bin/node; do
-    if [ -x "$candidate" ]; then
-      export PATH="$(dirname "$candidate"):$PATH"
-      log "Using node: $candidate ($("$candidate" --version))"
-      return 0
-    fi
-  done
+  if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+    sudo -n systemctl "$@"
+    return $?
+  fi
 
-  log "ERROR: node not found on host."
-  log "Install Node.js 20+ on the server and ensure it is available to systemd and the deploy user."
-  exit 20
+  if [ "$(id -u)" -eq 0 ]; then
+    systemctl "$@"
+    return $?
+  fi
+
+  return 1
 }
 
 upsert_env() {
@@ -148,9 +180,20 @@ require_file "$DIST_APP_DIR/index.html"
 require_file "$DIST_ADMIN_DIR/index.html"
 
 log "Restarting backend service"
-sudo systemctl enable "$BACKEND_SERVICE_NAME" >/dev/null 2>&1 || true
-sudo systemctl restart "$BACKEND_SERVICE_NAME"
-sudo systemctl reload nginx
+if ! run_systemctl restart "$BACKEND_SERVICE_NAME"; then
+  log "ERROR: cannot restart backend service '$BACKEND_SERVICE_NAME' without interactive sudo."
+  log "Allow passwordless sudo for 'systemctl restart $BACKEND_SERVICE_NAME' or run the deploy as a privileged user."
+  exit 30
+fi
+
+if [ "$RELOAD_NGINX" = "1" ]; then
+  log "Reloading nginx"
+  if ! run_systemctl reload nginx; then
+    log "ERROR: cannot reload nginx without interactive sudo."
+    log "Allow passwordless sudo for 'systemctl reload nginx' or set RELOAD_NGINX=0."
+    exit 31
+  fi
+fi
 
 log "Running smoke checks"
 curl --fail --silent --show-error "http://${BACKEND_HOST}:${BACKEND_PORT}/health" >/dev/null

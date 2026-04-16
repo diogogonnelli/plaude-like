@@ -25,7 +25,7 @@ Layout esperado no servidor:
 - `curl`
 - `systemd`
 - usuario de deploy com acesso SSH
-- usuario de deploy com permissao para `sudo systemctl restart plaude-like-backend` e `sudo systemctl reload nginx`
+- usuario de deploy com permissao para reiniciar o servico do backend
 - acesso SSH do host ao repositorio Bitbucket para `git clone` e `git fetch`
 
 ## 2. Variaveis do Bitbucket
@@ -36,6 +36,7 @@ Defina no repositorio ou em `Deployments > Production`, no minimo:
 - `DEPLOY_APP_PATH`: caminho base do projeto no host. Ex.: `/storage-apps/www/sonora`
 - `DEPLOY_BACKEND_SERVICE`: opcional. Default `plaude-like-backend`
 - `DEPLOY_BACKEND_PORT`: opcional. Default `8787`
+- `DEPLOY_RELOAD_NGINX`: opcional. Default `0`. Use `1` apenas quando precisar recarregar configuracao do nginx
 - `DEPLOY_APP_DOMAIN`: opcional. Se informado, o deploy atualiza `APP_BASE_URL=https://<dominio>/api` no backend
 - `DEPLOY_ADMIN_DOMAIN`: opcional. Usado apenas para log e documentacao operacional
 
@@ -87,8 +88,8 @@ sudo systemctl reload nginx
 
 ```bash
 git ls-remote git@bitbucket.org:spotpromo/sonora.git
+node --version
 sudo systemctl restart plaude-like-backend
-sudo systemctl reload nginx
 ```
 
 Bootstrap recomendado antes do primeiro deploy:
@@ -96,6 +97,19 @@ Bootstrap recomendado antes do primeiro deploy:
 ```bash
 sudo mkdir -p /storage-apps/www/sonora
 sudo chown -R spotti:spotti /storage-apps/www/sonora
+```
+
+Se o deploy rodar como `spotti`, libere ao menos:
+
+```bash
+sudo visudo
+```
+
+Adicione algo como:
+
+```text
+spotti ALL=NOPASSWD: /bin/systemctl restart plaude-like-backend
+spotti ALL=NOPASSWD: /bin/systemctl reload nginx
 ```
 
 ## 4. Como o pipeline faz o deploy
@@ -116,7 +130,7 @@ Na `main`, o pipeline:
    - publica o runtime do backend gerado no CI
    - publica os dois frontends
    - reinicia o backend
-   - recarrega o `nginx`
+   - recarrega o `nginx` apenas se `DEPLOY_RELOAD_NGINX=1`
    - valida `http://127.0.0.1:<porta>/health`
 
 ## 5. Backend `.env`

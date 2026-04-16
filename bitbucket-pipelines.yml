@@ -77,7 +77,7 @@ definitions:
           - scp -i ./id_rsa ./app-dist.tar.gz spotti@172.18.0.86:${APP_ARCHIVE_REMOTE}
           - scp -i ./id_rsa ./admin-dist.tar.gz spotti@172.18.0.86:${ADMIN_ARCHIVE_REMOTE}
           - scp -i ./id_rsa ./backend-runtime.tar.gz spotti@172.18.0.86:${BACKEND_ARCHIVE_REMOTE}
-          - ssh -i ./id_rsa spotti@172.18.0.86 "APP_ROOT='${DEPLOY_APP_PATH:-/storage-apps/www/sonora}' REPO_URL='git@bitbucket.org:spotpromo/sonora.git' BRANCH='main' BACKEND_ARCHIVE='${BACKEND_ARCHIVE_REMOTE}' APP_ARCHIVE='${APP_ARCHIVE_REMOTE}' ADMIN_ARCHIVE='${ADMIN_ARCHIVE_REMOTE}' APP_DOMAIN='${DEPLOY_APP_DOMAIN:-}' ADMIN_DOMAIN='${DEPLOY_ADMIN_DOMAIN:-}' BACKEND_SERVICE_NAME='${DEPLOY_BACKEND_SERVICE:-plaude-like-backend}' BACKEND_PORT='${DEPLOY_BACKEND_PORT:-8787}' bash -s" < scripts/deploy-linux-host.sh
+          - ssh -i ./id_rsa spotti@172.18.0.86 "APP_ROOT='${DEPLOY_APP_PATH:-/storage-apps/www/sonora}' REPO_URL='git@bitbucket.org:spotpromo/sonora.git' BRANCH='main' BACKEND_ARCHIVE='${BACKEND_ARCHIVE_REMOTE}' APP_ARCHIVE='${APP_ARCHIVE_REMOTE}' ADMIN_ARCHIVE='${ADMIN_ARCHIVE_REMOTE}' APP_DOMAIN='${DEPLOY_APP_DOMAIN:-}' ADMIN_DOMAIN='${DEPLOY_ADMIN_DOMAIN:-}' BACKEND_SERVICE_NAME='${DEPLOY_BACKEND_SERVICE:-plaude-like-backend}' BACKEND_PORT='${DEPLOY_BACKEND_PORT:-8787}' RELOAD_NGINX='${DEPLOY_RELOAD_NGINX:-0}' bash -s" < scripts/deploy-linux-host.sh
           - echo "==> Deploy concluido!"
 
 pipelines:
