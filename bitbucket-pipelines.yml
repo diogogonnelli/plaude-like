@@ -165,6 +165,8 @@ pipelines:
               upsert_env "APP_ENV" "production"
               upsert_env "APP_DEBUG" "false"
               upsert_env "PUBLIC_PREFIX" "$PUBLIC_PREFIX_DEFAULT"
+              upsert_env "APP_MAINTENANCE_DRIVER" "file"
+              rm -f "$BACKEND_DIR/bootstrap/cache/config.php"
 
               if ! "$COMPOSER_BIN" --version >/dev/null 2>&1; then
                 for c in /usr/local/bin/composer /usr/bin/composer; do
@@ -206,12 +208,17 @@ pipelines:
               assert_runtime_writable "$BACKEND_DIR/storage/framework/views"
               assert_runtime_writable "$BACKEND_DIR/storage/app/recordings"
 
-              "$PHP_BIN" artisan storage:link 2>/dev/null || true
+              if [ ! -L "$BACKEND_DIR/public/storage" ]; then
+                "$PHP_BIN" artisan storage:link 2>/dev/null || true
+              fi
 
               if [ -f "$BACKEND_DIR/.env" ] && grep -q '^APP_KEY=$' "$BACKEND_DIR/.env"; then
                 log "Gerando APP_KEY..."
                 "$PHP_BIN" artisan key:generate --force || true
               fi
+
+              log "Clearing config cache before maintenance mode..."
+              "$PHP_BIN" artisan config:clear || true
 
               log "Entrando em maintenance mode..."
               "$PHP_BIN" artisan down || true
