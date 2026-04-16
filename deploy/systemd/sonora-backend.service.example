@@ -1,5 +1,5 @@
 [Unit]
-Description=Plaude-like backend API
+Description=Sonora backend API
 After=network.target
 
 [Service]

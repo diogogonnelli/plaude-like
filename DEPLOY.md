@@ -33,7 +33,7 @@ Defina no repositorio ou em `Deployments > Production`, no minimo:
 
 - `SSH_KEY_webrun01`: chave privada em base64 usada pelo pipeline para conectar no host
 - `DEPLOY_APP_PATH`: caminho base do projeto no host. Ex.: `/storage-apps/www/sonora`
-- `DEPLOY_BACKEND_SERVICE`: opcional. Default `plaude-like-backend`
+- `DEPLOY_BACKEND_SERVICE`: opcional. Default `sonora-backend`
 - `DEPLOY_BACKEND_PORT`: opcional. Default `8787`
 - `DEPLOY_RELOAD_NGINX`: opcional. Default `0`. Use `1` apenas quando precisar recarregar configuracao do nginx
 - `DEPLOY_APP_DOMAIN`: opcional. Se informado, o deploy atualiza `APP_BASE_URL=https://<dominio>/api` no backend
@@ -62,19 +62,19 @@ Variaveis de build dos frontends:
 
 ## 3. Primeiro deploy no host
 
-1. Copie e ajuste o unit file em `deploy/systemd/plaude-like-backend.service.example`.
+1. Copie e ajuste o unit file em `deploy/systemd/sonora-backend.service.example`.
 2. Instale o servico:
 
 ```bash
-sudo cp deploy/systemd/plaude-like-backend.service.example /etc/systemd/system/plaude-like-backend.service
+sudo cp deploy/systemd/sonora-backend.service.example /etc/systemd/system/sonora-backend.service
 sudo systemctl daemon-reload
-sudo systemctl enable plaude-like-backend
+sudo systemctl enable sonora-backend
 ```
 
 3. Copie e ajuste os arquivos de `nginx`:
 
-- `deploy/nginx/plaude-like-app.conf.example`
-- `deploy/nginx/plaude-like-admin.conf.example`
+- `deploy/nginx/sonora-app.conf.example`
+- `deploy/nginx/sonora-admin.conf.example`
 
 4. Ative os sites e valide:
 
@@ -87,7 +87,7 @@ sudo systemctl reload nginx
 
 ```bash
 git ls-remote git@bitbucket.org:spotpromo/sonora.git
-sudo systemctl restart plaude-like-backend
+sudo systemctl restart sonora-backend
 ```
 
 Bootstrap recomendado antes do primeiro deploy:
@@ -95,6 +95,21 @@ Bootstrap recomendado antes do primeiro deploy:
 ```bash
 sudo mkdir -p /storage-apps/www/sonora
 sudo chown -R spotti:spotti /storage-apps/www/sonora
+```
+
+No mesmo padrao do `assinatura-web`, voce pode delegar restarts a um hook opcional no host:
+
+```bash
+cat >/home/spotti/post-deploy.sh <<'BASH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="${1:-/storage-apps/www/sonora}"
+sudo /bin/systemctl restart sonora-backend
+sudo /bin/systemctl reload nginx
+BASH
+
+chmod +x /home/spotti/post-deploy.sh
 ```
 
 Se o deploy rodar como `spotti`, libere ao menos:
@@ -106,15 +121,15 @@ sudo visudo
 Adicione algo como:
 
 ```text
-spotti ALL=NOPASSWD: /bin/systemctl restart plaude-like-backend
+spotti ALL=NOPASSWD: /bin/systemctl restart sonora-backend
 spotti ALL=NOPASSWD: /bin/systemctl reload nginx
 ```
 
 Se o backend estiver configurado como service de usuario, valide com:
 
 ```bash
-systemctl --user restart plaude-like-backend
-systemctl --user status plaude-like-backend
+systemctl --user restart sonora-backend
+systemctl --user status sonora-backend
 ```
 
 ## 4. Como o pipeline faz o deploy
@@ -135,7 +150,8 @@ Na `main`, o pipeline:
    - se `DEPLOY_APP_DOMAIN` nao estiver definido, preserva o `APP_BASE_URL` ja existente em `shared/backend.env`
    - publica o runtime do backend gerado no CI
    - publica os dois frontends
-   - reinicia o backend
+   - tenta executar `/home/spotti/post-deploy.sh` se o arquivo existir
+   - se o hook nao existir, tenta reiniciar o backend diretamente
    - recarrega o `nginx` apenas se `DEPLOY_RELOAD_NGINX=1`
    - valida `http://127.0.0.1:<porta>/health`
 
@@ -176,7 +192,7 @@ cd backend
 npm ci
 npm run build
 npm prune --omit=dev
-sudo systemctl restart plaude-like-backend
+sudo systemctl restart sonora-backend
 sudo systemctl reload nginx
 ```
 

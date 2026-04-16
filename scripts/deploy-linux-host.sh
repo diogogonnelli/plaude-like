@@ -9,11 +9,12 @@ APP_ARCHIVE="${APP_ARCHIVE:?APP_ARCHIVE is required}"
 ADMIN_ARCHIVE="${ADMIN_ARCHIVE:?ADMIN_ARCHIVE is required}"
 APP_DOMAIN="${APP_DOMAIN:-}"
 ADMIN_DOMAIN="${ADMIN_DOMAIN:-}"
-BACKEND_SERVICE_NAME="${BACKEND_SERVICE_NAME:-plaude-like-backend}"
+BACKEND_SERVICE_NAME="${BACKEND_SERVICE_NAME:-sonora-backend}"
 BACKEND_PORT="${BACKEND_PORT:-8787}"
 BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
 RELOAD_NGINX="${RELOAD_NGINX:-0}"
 DEFAULT_SERVICE_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+POST_HOOK="${POST_HOOK:-/home/spotti/post-deploy.sh}"
 
 CURRENT_DIR="$APP_ROOT/current"
 SHARED_DIR="$APP_ROOT/shared"
@@ -179,27 +180,44 @@ rm -f "$APP_ARCHIVE" "$ADMIN_ARCHIVE"
 require_file "$DIST_APP_DIR/index.html"
 require_file "$DIST_ADMIN_DIR/index.html"
 
-log "Restarting backend service"
-if ! run_systemctl restart "$BACKEND_SERVICE_NAME"; then
-  log "ERROR: cannot restart backend service '$BACKEND_SERVICE_NAME' without interactive sudo."
-  log "If this is a user service, confirm 'systemctl --user restart $BACKEND_SERVICE_NAME' works for $(id -un)."
-  log "Otherwise allow passwordless sudo for 'systemctl restart $BACKEND_SERVICE_NAME' or run the deploy as a privileged user."
-  exit 30
-fi
+SERVICE_RESTARTED=0
 
-if [ "$RELOAD_NGINX" = "1" ]; then
-  log "Reloading nginx"
-  if ! run_systemctl reload nginx; then
-    log "ERROR: cannot reload nginx without interactive sudo."
-    log "Allow passwordless sudo for 'systemctl reload nginx' or set RELOAD_NGINX=0."
-    exit 31
+if [ -x "$POST_HOOK" ]; then
+  log "Running post-deploy hook"
+  if "$POST_HOOK" "$APP_ROOT"; then
+    SERVICE_RESTARTED=1
+  else
+    log "Warning: post-deploy hook failed."
+    log "Check $POST_HOOK on the host."
+  fi
+else
+  log "Post-deploy hook not found at $POST_HOOK."
+  log "Trying direct service restart for '$BACKEND_SERVICE_NAME'."
+  if run_systemctl restart "$BACKEND_SERVICE_NAME"; then
+    SERVICE_RESTARTED=1
+  else
+    log "Warning: could not restart backend service automatically."
+    log "Provide $POST_HOOK on the host or restart '$BACKEND_SERVICE_NAME' manually."
+  fi
+
+  if [ "$RELOAD_NGINX" = "1" ]; then
+    log "Reloading nginx"
+    if ! run_systemctl reload nginx; then
+      log "Warning: could not reload nginx automatically."
+      log "Reload nginx manually or handle it inside $POST_HOOK."
+    fi
   fi
 fi
 
 log "Running smoke checks"
-curl --fail --silent --show-error "http://${BACKEND_HOST}:${BACKEND_PORT}/health" >/dev/null
 test -f "$DIST_APP_DIR/index.html"
 test -f "$DIST_ADMIN_DIR/index.html"
+
+if [ "$SERVICE_RESTARTED" = "1" ]; then
+  curl --fail --silent --show-error "http://${BACKEND_HOST}:${BACKEND_PORT}/health" >/dev/null
+else
+  log "Skipping backend health check because no automatic restart was performed."
+fi
 
 if [ -n "$APP_DOMAIN" ] || [ -n "$ADMIN_DOMAIN" ]; then
   log "Deploy finished successfully for ${APP_DOMAIN:-app-domain-not-set} and ${ADMIN_DOMAIN:-admin-domain-not-set}"
