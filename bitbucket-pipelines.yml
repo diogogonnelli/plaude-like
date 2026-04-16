@@ -12,9 +12,14 @@ definitions:
           - npm test
           - npm run build
           - npm prune --omit=dev
+          - mkdir -p .runtime/node/bin
+          - cp "$(command -v node)" .runtime/node/bin/node
+          - chmod +x .runtime/node/bin/node
+          - ./.runtime/node/bin/node --version
           - test -f dist/server.js
           - test -d node_modules
         artifacts:
+          - backend/.runtime/**
           - backend/dist/**
           - backend/node_modules/**
           - backend/package.json
@@ -70,7 +75,7 @@ definitions:
           - 'test -s ./id_rsa || { echo "Decoded SSH key is empty. Check SSH_KEY_webrun01."; exit 1; }'
           - tar -czf app-dist.tar.gz -C app/build/web .
           - tar -czf admin-dist.tar.gz -C admin-web/dist .
-          - tar -czf backend-runtime.tar.gz -C backend dist node_modules package.json package-lock.json
+          - tar -czf backend-runtime.tar.gz -C backend .runtime dist node_modules package.json package-lock.json
           - export APP_ARCHIVE_REMOTE=/tmp/plaude-like-app-${BITBUCKET_BUILD_NUMBER}.tar.gz
           - export ADMIN_ARCHIVE_REMOTE=/tmp/plaude-like-admin-${BITBUCKET_BUILD_NUMBER}.tar.gz
           - export BACKEND_ARCHIVE_REMOTE=/tmp/plaude-like-backend-${BITBUCKET_BUILD_NUMBER}.tar.gz

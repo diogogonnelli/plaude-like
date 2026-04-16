@@ -13,6 +13,7 @@ BACKEND_SERVICE_NAME="${BACKEND_SERVICE_NAME:-plaude-like-backend}"
 BACKEND_PORT="${BACKEND_PORT:-8787}"
 BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
 RELOAD_NGINX="${RELOAD_NGINX:-0}"
+DEFAULT_SERVICE_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 CURRENT_DIR="$APP_ROOT/current"
 SHARED_DIR="$APP_ROOT/shared"
@@ -22,6 +23,7 @@ SHARED_ENV_FILE="$SHARED_DIR/backend.env"
 UPLOADS_DIR="$SHARED_DIR/uploads"
 LOGS_DIR="$SHARED_DIR/logs"
 BACKEND_DIR="$CURRENT_DIR/backend"
+LOCAL_NODE_BIN="$BACKEND_DIR/.runtime/node/bin/node"
 
 log() {
   printf '[%s] %s\n' "$(date +%F' '%T)" "$*"
@@ -58,35 +60,19 @@ require_file() {
   fi
 }
 
-require_node_runtime() {
-  local node_bin node_version node_major
+require_bundled_node_runtime() {
+  local node_version node_major
 
-  if command -v node >/dev/null 2>&1; then
-    node_bin="$(command -v node)"
-  else
-    for candidate in /usr/local/bin/node /usr/bin/node; do
-      if [ -x "$candidate" ]; then
-        export PATH="$(dirname "$candidate"):$PATH"
-        node_bin="$candidate"
-        break
-      fi
-    done
-  fi
+  require_file "$LOCAL_NODE_BIN"
+  chmod +x "$LOCAL_NODE_BIN"
 
-  if [ -z "${node_bin:-}" ]; then
-    log "ERROR: node not found on host."
-    log "Install Node.js 20+ on the server and ensure it is available to systemd and the deploy user."
-    exit 20
-  fi
-
-  node_version="$("$node_bin" --version)"
-  node_major="$("$node_bin" -p "process.versions.node.split('.')[0]")"
-  log "Using node: $node_bin ($node_version)"
+  node_version="$("$LOCAL_NODE_BIN" --version)"
+  node_major="$("$LOCAL_NODE_BIN" -p "process.versions.node.split('.')[0]")"
+  log "Using bundled node: $LOCAL_NODE_BIN ($node_version)"
 
   if [ "$node_major" -lt 20 ]; then
-    log "ERROR: Node.js $node_version found, but backend requires Node.js >=20."
-    log "Update the host runtime and the systemd service to use Node.js 20+ before deploying."
-    exit 21
+    log "ERROR: bundled Node.js $node_version is below the required major version."
+    exit 20
   fi
 }
 
@@ -148,6 +134,7 @@ fi
 
 upsert_env "$SHARED_ENV_FILE" "HOST" "$BACKEND_HOST"
 upsert_env "$SHARED_ENV_FILE" "PORT" "$BACKEND_PORT"
+upsert_env "$SHARED_ENV_FILE" "PATH" "$BACKEND_DIR/.runtime/node/bin:$DEFAULT_SERVICE_PATH"
 if [ -n "$APP_DOMAIN" ]; then
   upsert_env "$SHARED_ENV_FILE" "APP_BASE_URL" "https://${APP_DOMAIN}/api"
 else
@@ -158,12 +145,12 @@ upsert_env "$SHARED_ENV_FILE" "TRUST_PROXY" "true"
 ln -sfn "$SHARED_ENV_FILE" "$BACKEND_DIR/.env"
 
 require_file "$BACKEND_ARCHIVE"
-require_node_runtime
 
 log "Publishing backend runtime artifact"
-rm -rf "$BACKEND_DIR/dist" "$BACKEND_DIR/node_modules"
+rm -rf "$BACKEND_DIR/.runtime" "$BACKEND_DIR/dist" "$BACKEND_DIR/node_modules"
 tar -xzf "$BACKEND_ARCHIVE" -C "$BACKEND_DIR"
 rm -f "$BACKEND_ARCHIVE"
+require_bundled_node_runtime
 require_file "$BACKEND_DIR/dist/server.js"
 test -d "$BACKEND_DIR/node_modules"
 

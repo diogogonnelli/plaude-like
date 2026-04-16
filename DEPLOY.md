@@ -20,7 +20,6 @@ Layout esperado no servidor:
 ## 1. Pre-requisitos do host
 
 - Linux com `nginx`
-- Node.js 20+
 - `git`
 - `curl`
 - `systemd`
@@ -88,7 +87,6 @@ sudo systemctl reload nginx
 
 ```bash
 git ls-remote git@bitbucket.org:spotpromo/sonora.git
-node --version
 sudo systemctl restart plaude-like-backend
 ```
 
@@ -125,6 +123,7 @@ Na `main`, o pipeline:
    - usa por padrao o repo SSH `git@bitbucket.org:spotpromo/sonora.git` ou o valor de `DEPLOY_REPO_URL`
    - cria ou preserva `shared/backend.env`
    - fixa `HOST=127.0.0.1`, `PORT` e `TRUST_PROXY=true`
+   - publica um runtime Node empacotado no CI e injeta esse binario no `PATH` do servico via `shared/backend.env`
    - se `DEPLOY_APP_DOMAIN` estiver definido, atualiza `APP_BASE_URL=https://<dominio>/api`
    - se `DEPLOY_APP_DOMAIN` nao estiver definido, preserva o `APP_BASE_URL` ja existente em `shared/backend.env`
    - publica o runtime do backend gerado no CI
