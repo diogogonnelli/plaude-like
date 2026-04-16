@@ -23,6 +23,7 @@ DIST_ADMIN_DIR="$APP_ROOT/dist-admin"
 SHARED_ENV_FILE="$SHARED_DIR/backend.env"
 UPLOADS_DIR="$SHARED_DIR/uploads"
 LOGS_DIR="$SHARED_DIR/logs"
+PIDFILE="$SHARED_DIR/backend.pid"
 BACKEND_DIR="$CURRENT_DIR/backend"
 LOCAL_NODE_BIN="$BACKEND_DIR/.runtime/node/bin/node"
 
@@ -154,6 +155,106 @@ upsert_env() {
   fi
 }
 
+provision_user_service() {
+  local user_service_dir="$HOME/.config/systemd/user"
+  local service_file="$user_service_dir/${BACKEND_SERVICE_NAME}.service"
+
+  export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+  mkdir -p "$user_service_dir" 2>/dev/null || return 1
+
+  cat > "$service_file" <<UNIT
+[Unit]
+Description=Sonora backend API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$BACKEND_DIR
+EnvironmentFile=$SHARED_ENV_FILE
+ExecStart=$LOCAL_NODE_BIN $BACKEND_DIR/dist/server.js
+Restart=always
+RestartSec=3
+StandardOutput=append:$LOGS_DIR/backend.log
+StandardError=append:$LOGS_DIR/backend.log
+
+[Install]
+WantedBy=default.target
+UNIT
+
+  if ! systemctl --user daemon-reload 2>/dev/null; then
+    log "Warning: user systemd daemon-reload failed."
+    rm -f "$service_file"
+    return 1
+  fi
+
+  systemctl --user enable "$BACKEND_SERVICE_NAME" 2>/dev/null || true
+  loginctl enable-linger "$(whoami)" 2>/dev/null || true
+
+  if systemctl --user restart "$BACKEND_SERVICE_NAME" 2>/dev/null; then
+    log "Backend started via user systemd service."
+    return 0
+  fi
+
+  log "Warning: user systemd restart failed."
+  return 1
+}
+
+stop_backend_process() {
+  if [ -f "$PIDFILE" ]; then
+    local old_pid
+    old_pid=$(cat "$PIDFILE" 2>/dev/null || echo "")
+    if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
+      kill "$old_pid" 2>/dev/null || true
+      local i=0
+      while [ "$i" -lt 10 ] && kill -0 "$old_pid" 2>/dev/null; do
+        sleep 0.5
+        i=$((i + 1))
+      done
+      if kill -0 "$old_pid" 2>/dev/null; then
+        kill -9 "$old_pid" 2>/dev/null || true
+      fi
+    fi
+    rm -f "$PIDFILE"
+  fi
+
+  if command -v fuser >/dev/null 2>&1; then
+    fuser -k "${BACKEND_PORT}/tcp" 2>/dev/null || true
+    sleep 1
+  fi
+}
+
+start_backend_direct() {
+  stop_backend_process
+  log "Starting backend as detached process (PID file: $PIDFILE)."
+
+  set -a
+  . "$SHARED_ENV_FILE"
+  set +a
+
+  pushd "$BACKEND_DIR" > /dev/null
+  nohup "$LOCAL_NODE_BIN" dist/server.js >> "$LOGS_DIR/backend.log" 2>&1 &
+  echo $! > "$PIDFILE"
+  disown $! 2>/dev/null || true
+  popd > /dev/null
+}
+
+restart_backend() {
+  if run_systemctl restart "$BACKEND_SERVICE_NAME" 2>/dev/null; then
+    log "Backend restarted via systemctl."
+    return 0
+  fi
+
+  log "System service not available. Trying user-level systemd service."
+  if provision_user_service; then
+    return 0
+  fi
+
+  log "User systemd not available. Starting backend as detached process."
+  start_backend_direct
+  return 0
+}
+
 ensure_dir_ready "$APP_ROOT" "app root"
 ensure_dir_ready "$SHARED_DIR" "shared directory"
 ensure_dir_ready "$DIST_APP_DIR" "app dist directory"
@@ -229,11 +330,10 @@ if [ -x "$POST_HOOK" ]; then
 else
   log "Post-deploy hook not found at $POST_HOOK."
   log "Trying direct service restart for '$BACKEND_SERVICE_NAME'."
-  if run_systemctl restart "$BACKEND_SERVICE_NAME"; then
+  if restart_backend; then
     SERVICE_RESTARTED=1
   else
     log "Warning: could not restart backend service automatically."
-    log "Provide $POST_HOOK on the host or restart '$BACKEND_SERVICE_NAME' manually."
   fi
 
   if [ "$RELOAD_NGINX" = "1" ]; then
@@ -252,18 +352,15 @@ test -f "$DIST_ADMIN_DIR/index.html"
 if wait_for_backend_health 5 2; then
   log "Backend health check passed."
 elif [ "$HOOK_EXECUTED" = "1" ]; then
-  log "Backend is still down after post-deploy hook. Trying direct service restart."
-  if run_systemctl restart "$BACKEND_SERVICE_NAME"; then
+  log "Backend is still down after post-deploy hook. Trying alternative restart strategies."
+  if restart_backend; then
     SERVICE_RESTARTED=1
     if [ "$RELOAD_NGINX" = "1" ]; then
       log "Reloading nginx"
-      if ! run_systemctl reload nginx; then
-        log "Warning: could not reload nginx automatically."
-        log "Reload nginx manually or handle it inside $POST_HOOK."
-      fi
+      run_systemctl reload nginx 2>/dev/null || true
     fi
   else
-    log "Warning: direct service restart was not permitted."
+    log "Warning: all restart strategies failed."
   fi
 
   if ! wait_for_backend_health 10 3; then
