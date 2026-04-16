@@ -1,81 +1,234 @@
-definitions:
-  steps:
-    - step: &backend_checks
-        name: Backend checks (Laravel)
-        image: php:8.2-cli
-        caches:
-          - composer
-        script:
-          - apt-get update && apt-get install -y unzip git libzip-dev gnupg2 curl apt-transport-https
-          - docker-php-ext-install zip pcntl
-          # Install SQL Server driver prerequisites
-          - curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
-          - echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql-release.list
-          - apt-get update && ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
-          - pecl install sqlsrv pdo_sqlsrv && docker-php-ext-enable sqlsrv pdo_sqlsrv
-          - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-          - cd backend-laravel
-          - composer install --no-interaction --prefer-dist --optimize-autoloader
-          - cp .env.example .env
-          - php artisan key:generate
-          - php artisan config:cache
-          - php artisan route:cache
-          - echo "Backend build OK"
-        artifacts:
-          - backend-laravel/vendor/**
-          - backend-laravel/bootstrap/cache/**
-          - backend-laravel/composer.json
-          - backend-laravel/composer.lock
-          - backend-laravel/artisan
-
-    - step: &frontend_checks
-        name: Frontend checks
-        image: ghcr.io/cirruslabs/flutter:stable
-        script:
-          - cd app
-          - flutter pub get
-          - flutter analyze
-          - flutter test
-          - flutter build web --release --dart-define=BACKEND_BASE_URL=${APP_BACKEND_BASE_URL:-https://example.invalid} --dart-define=AUTH_ENABLED=true
-          - test -f build/web/index.html
-        artifacts:
-          - app/build/web/**
-
-    - step: &deploy_production
-        name: Deploy production host
-        deployment: production
-        runs-on:
-          - self.hosted
-          - linux.shell
-        script:
-          - echo "==> Iniciando deploy..."
-          - test -d backend-laravel/vendor
-          - test -f app/build/web/index.html
-          - |
-            umask 077
-            echo "$SSH_KEY_webrun01" | base64 --decode > ./id_rsa
-            chmod 600 ./id_rsa
-          - mkdir -p ~/.ssh
-          - ssh-keyscan -T 5 172.18.0.86 >> ~/.ssh/known_hosts 2>/dev/null || true
-          - 'test -s ./id_rsa || { echo "Decoded SSH key is empty. Check SSH_KEY_webrun01."; exit 1; }'
-          - tar -czf app-dist.tar.gz -C app/build/web .
-          - tar -czf backend-laravel.tar.gz -C backend-laravel .
-          - export APP_ARCHIVE_REMOTE=/tmp/sonora-app-${BITBUCKET_BUILD_NUMBER}.tar.gz
-          - export BACKEND_ARCHIVE_REMOTE=/tmp/sonora-backend-${BITBUCKET_BUILD_NUMBER}.tar.gz
-          - scp -i ./id_rsa ./app-dist.tar.gz spotti@172.18.0.86:${APP_ARCHIVE_REMOTE}
-          - scp -i ./id_rsa ./backend-laravel.tar.gz spotti@172.18.0.86:${BACKEND_ARCHIVE_REMOTE}
-          - ssh -i ./id_rsa spotti@172.18.0.86 "APP_ROOT='${DEPLOY_APP_PATH:-/storage-apps/www/sonora}' REPO_URL='git@bitbucket.org:spotpromo/sonora.git' BRANCH='main' BACKEND_ARCHIVE='${BACKEND_ARCHIVE_REMOTE}' APP_ARCHIVE='${APP_ARCHIVE_REMOTE}' APP_DOMAIN='${DEPLOY_APP_DOMAIN:-}' RELOAD_NGINX='${DEPLOY_RELOAD_NGINX:-0}' bash -s" < scripts/deploy-linux-host.sh
-          - echo "==> Deploy concluido!"
-
 pipelines:
-  default:
-    - parallel:
-        - step: *backend_checks
-        - step: *frontend_checks
-
   branches:
     main:
-      - parallel:
-          - step: *backend_checks
-          - step: *frontend_checks
-      - step: *deploy_production
+      - step:
+          name: "Deploy Sonora"
+          deployment: production
+          runs-on:
+            - 'self.hosted'
+            - 'linux.shell'
+          script:
+            - echo "==> Iniciando deploy..."
+            - |
+              umask 077
+              echo "$SSH_KEY_webrun01" | base64 --decode > ./id_rsa
+              chmod 600 ./id_rsa
+            - mkdir -p ~/.ssh
+            - ssh-keyscan -T 5 172.18.0.86 >> ~/.ssh/known_hosts 2>/dev/null || true
+            - 'test -s ./id_rsa || { echo "Decoded SSH key is empty. Check SSH_KEY_webrun01."; exit 1; }'
+            - |
+              ssh -i ./id_rsa spotti@172.18.0.86 "APP_DOMAIN='${DEPLOY_APP_DOMAIN:-}' bash -s" <<'BASH'
+              set -Eeuo pipefail
+
+              APP_PATH="${APP_PATH:-/storage-apps/www/sonora}"
+              REPO="git@bitbucket.org:spotpromo/sonora.git"
+              BRANCH="main"
+              PHP_BIN="${PHP_BIN:-php}"
+              COMPOSER_BIN="${COMPOSER_BIN:-composer}"
+              ENV_BACKUP="/tmp/sonora-env.backup"
+              POST_HOOK="/home/spotti/post-deploy.sh"
+              PHP_FPM_SERVICE="${PHP_FPM_SERVICE:-php8.2-fpm}"
+              BACKEND_DIR="$APP_PATH/backend-laravel"
+
+              log(){ printf "[%s] %s\n" "$(date +%F' '%T)" "$*"; }
+              assert_runtime_writable() {
+                target="$1"
+                probe="$target/.deploy-write-test-$$"
+                mkdir -p "$target"
+                : > "$probe"
+                rm -f "$probe"
+              }
+              mark_safe_directory(){ git config --global --add safe.directory "$APP_PATH" >/dev/null 2>&1 || true; }
+              ensure_origin_remote(){
+                if git remote get-url origin >/dev/null 2>&1; then
+                  git remote set-url origin "$REPO"
+                else
+                  git remote add origin "$REPO"
+                fi
+              }
+              backup_env(){ [ -f "$BACKEND_DIR/.env" ] && cp "$BACKEND_DIR/.env" "$ENV_BACKUP" || true; }
+              restore_env(){ [ ! -f "$BACKEND_DIR/.env" ] && [ -f "$ENV_BACKUP" ] && cp "$ENV_BACKUP" "$BACKEND_DIR/.env" || true; }
+              purge_checkout_blockers(){ find "$APP_PATH" -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.env' -exec rm -rf {} +; }
+              normalize_checkout_perms(){
+                [ -d "$APP_PATH" ] || return 0
+                find "$APP_PATH" -path "$APP_PATH/.git" -prune -o \( -type d -exec chmod u+rwx {} + \) -o \( -type f -exec chmod u+rw {} + \) 2>/dev/null || true
+              }
+              upsert_env(){
+                key="$1"
+                value="$2"
+                [ -f "$BACKEND_DIR/.env" ] || return 0
+                if grep -q "^${key}=" "$BACKEND_DIR/.env"; then
+                  sed -i "s|^${key}=.*|${key}=${value}|" "$BACKEND_DIR/.env"
+                else
+                  printf "\n%s=%s\n" "$key" "$value" >> "$BACKEND_DIR/.env"
+                fi
+              }
+              run_with_privilege(){
+                if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+                  sudo -n "$@"
+                  return $?
+                fi
+                if [ "$(id -u)" -eq 0 ]; then
+                  "$@"
+                  return $?
+                fi
+                return 1
+              }
+
+              # ── Check permissions ──
+              if [ -d "$APP_PATH" ] && [ ! -w "$APP_PATH" ]; then
+                log "ERROR: $APP_PATH existe, mas nao esta gravavel para $(whoami)."
+                log "Ajuste owner/permissoes do diretorio antes de rodar o deploy."
+                exit 10
+              fi
+
+              APP_PARENT="$(dirname "$APP_PATH")"
+              if [ ! -d "$APP_PATH" ] && [ ! -w "$APP_PARENT" ]; then
+                log "ERROR: $APP_PARENT nao esta gravavel para $(whoami), entao $APP_PATH nao pode ser criado."
+                exit 11
+              fi
+
+              # ── Git clone/fetch ──
+              if [ ! -d "$APP_PATH" ]; then
+                log "App directory does not exist. Cloning into $APP_PATH..."
+                mkdir -p "$APP_PATH" 2>/dev/null || true
+                if git clone --branch "$BRANCH" --depth 1 "$REPO" "$APP_PATH" 2>/dev/null; then
+                  log "Direct clone completed."
+                else
+                  log "Direct clone failed. Initializing repo in place..."
+                  mkdir -p "$APP_PATH" || true
+                  cd "$APP_PATH"
+                  backup_env
+                  git init
+                  mark_safe_directory
+                  ensure_origin_remote
+                  purge_checkout_blockers
+                  git fetch origin "$BRANCH" --depth=1
+                  git checkout -B "$BRANCH" "origin/$BRANCH"
+                  restore_env
+                fi
+              elif [ ! -d "$APP_PATH/.git" ]; then
+                log "App directory exists without .git. Initializing repo in place..."
+                cd "$APP_PATH"
+                backup_env
+                git init
+                mark_safe_directory
+                ensure_origin_remote
+                purge_checkout_blockers
+                git fetch origin "$BRANCH" --depth=1
+                git checkout -B "$BRANCH" "origin/$BRANCH"
+                restore_env
+              else
+                cd "$APP_PATH"
+                mark_safe_directory
+                ensure_origin_remote
+                log "Syncing repository..."
+                normalize_checkout_perms
+                git fetch origin "$BRANCH" --prune
+                git reset --hard >/dev/null 2>&1 || true
+                git clean -fd
+                git checkout -B "$BRANCH" "origin/$BRANCH"
+                git reset --hard "origin/$BRANCH"
+                git clean -fd
+              fi
+
+              cd "$APP_PATH"
+
+              # ── .env management ──
+              if [ ! -f "$BACKEND_DIR/.env" ] && [ -f "$BACKEND_DIR/.env.example" ]; then
+                cp "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
+                log "Arquivo .env criado a partir de .env.example."
+              else
+                log "Arquivo .env mantido no servidor."
+              fi
+
+              if [ -n "${APP_DOMAIN:-}" ]; then
+                upsert_env "APP_URL" "https://${APP_DOMAIN}"
+              fi
+              upsert_env "APP_ENV" "production"
+              upsert_env "APP_DEBUG" "false"
+
+              # ── Composer install ──
+              if ! "$COMPOSER_BIN" --version >/dev/null 2>&1; then
+                for c in /usr/local/bin/composer /usr/bin/composer; do
+                  [ -x "$c" ] && COMPOSER_BIN="$c" && break
+                done
+              fi
+
+              if ! "$COMPOSER_BIN" --version >/dev/null 2>&1; then
+                log "ERROR: composer nao encontrado."
+                exit 20
+              fi
+
+              log "Running composer install..."
+              cd "$BACKEND_DIR"
+              "$COMPOSER_BIN" install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+
+              # ── Storage directories ──
+              mkdir -p "$BACKEND_DIR/bootstrap/cache"
+              mkdir -p "$BACKEND_DIR/storage/logs"
+              mkdir -p "$BACKEND_DIR/storage/framework/cache/data"
+              mkdir -p "$BACKEND_DIR/storage/framework/sessions"
+              mkdir -p "$BACKEND_DIR/storage/framework/views"
+              mkdir -p "$BACKEND_DIR/storage/app/recordings"
+              chmod -R a+rwX "$BACKEND_DIR/bootstrap/cache" "$BACKEND_DIR/storage" || true
+              assert_runtime_writable "$BACKEND_DIR/bootstrap/cache"
+              assert_runtime_writable "$BACKEND_DIR/storage/logs"
+              assert_runtime_writable "$BACKEND_DIR/storage/framework/cache/data"
+              assert_runtime_writable "$BACKEND_DIR/storage/framework/sessions"
+              assert_runtime_writable "$BACKEND_DIR/storage/framework/views"
+              assert_runtime_writable "$BACKEND_DIR/storage/app/recordings"
+
+              # Storage link
+              "$PHP_BIN" artisan storage:link 2>/dev/null || true
+
+              # ── APP_KEY ──
+              if [ -f "$BACKEND_DIR/.env" ] && grep -q '^APP_KEY=$' "$BACKEND_DIR/.env"; then
+                log "Gerando APP_KEY..."
+                "$PHP_BIN" artisan key:generate --force || true
+              fi
+
+              # ── Maintenance mode ──
+              log "Entrando em maintenance mode..."
+              "$PHP_BIN" artisan down || true
+
+              # ── Migrations ──
+              log "Executando migrations..."
+              "$PHP_BIN" artisan migrate --force || true
+
+              # ── Cache management ──
+              log "Clearing caches..."
+              "$PHP_BIN" artisan config:clear || true
+              "$PHP_BIN" artisan route:clear || true
+              "$PHP_BIN" artisan view:clear || true
+              "$PHP_BIN" artisan cache:clear || true
+              "$PHP_BIN" artisan package:discover --ansi || true
+
+              log "Rebuilding production caches..."
+              "$PHP_BIN" artisan config:cache || true
+              "$PHP_BIN" artisan route:cache || true
+              "$PHP_BIN" artisan view:cache || true
+
+              # ── Seed profiles ──
+              "$PHP_BIN" artisan db:seed --class=ProfileSeeder --force --no-interaction 2>/dev/null || true
+
+              # ── Leaving maintenance mode ──
+              log "Leaving maintenance mode..."
+              "$PHP_BIN" artisan up || true
+
+              # ── Restart services ──
+              if [ -x "$POST_HOOK" ]; then
+                log "Running post-deploy hook..."
+                "$POST_HOOK" "$APP_PATH" || true
+              else
+                log "Restarting PHP-FPM ($PHP_FPM_SERVICE)..."
+                if run_with_privilege systemctl restart "$PHP_FPM_SERVICE"; then
+                  log "PHP-FPM restarted."
+                else
+                  log "Warning: could not restart PHP-FPM automatically."
+                fi
+              fi
+
+              log "Deploy finished successfully."
+              BASH
+            - echo "==> Deploy concluido!"
