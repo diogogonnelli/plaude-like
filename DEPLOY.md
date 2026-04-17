@@ -9,6 +9,7 @@ O deploy de producao do Sonora deve seguir o mesmo modelo operacional do `assina
 - os assets do Laravel ficam em `/storage-apps/www/sonora/public/build`
 - o pipeline gera `public/build` no CI e publica esse artefato no host
 - o pipeline nao tenta alterar `nginx`; ele assume o mesmo contrato de host do `assinatura-web`
+- a superficie web exposta em producao precisa caber em `/`, porque esse host nao encaminha rotas Laravel arbitrarias como `/login`
 
 Layout esperado no host:
 
@@ -42,18 +43,14 @@ Itens fixos no pipeline:
 - repositorio sincronizado no host: `git@bitbucket.org:spotpromo/sonora.git`
 - caminho do app no host: `/storage-apps/www/sonora`
 
-## Configuracao do nginx
+## Contrato do host
 
-Use `deploy/nginx/sonora-laravel.conf.example` como base. O ponto importante e:
+No host atual, o contrato garantido pelo `nginx` e:
 
 - `root /storage-apps/www/sonora;`
-- `try_files $uri $uri/ /index.php?$query_string;`
-
-Isso permite que o `nginx` sirva diretamente:
-
-- `/index.php` na raiz do checkout
-- `/public/build/*`
-- `/public/storage/*`
+- `/` executa o `index.php` da raiz
+- `/public/build/*` e `/public/storage/*` sao servidos como arquivos estaticos
+- nao conte com rewrites adicionais para rotas Laravel como `/login` ou `/api/health`
 
 Exemplo de validacao:
 
@@ -118,10 +115,9 @@ Na `main`, o pipeline:
 9. roda `storage:link`, migrations, caches e seed de perfis
 10. reinicia o `php-fpm` ou executa `post-deploy.sh`
 11. executa smoke checks obrigatorios:
-   - `/` precisa redirecionar para `/login`
-   - `/login` precisa responder `200`
-   - `/login` precisa referenciar assets em `/public/build/`
-   - `/api/health` precisa responder `200`
+   - `/` precisa responder `200`
+   - `/` precisa referenciar assets em `/public/build/`
+   - `/` precisa retornar a shell web esperada, seja a tela de login ou o painel autenticado
    - `/public/build/manifest.json` precisa responder `200`
 
 ## Runtime `.env`
@@ -142,9 +138,10 @@ PUBLIC_PREFIX=public
 
 ## Checklist pos-deploy
 
-- `https://sonora.spotpromo.com.br/` redireciona para `/login`
-- `https://sonora.spotpromo.com.br/login` responde `200`
-- `https://sonora.spotpromo.com.br/api/health` responde `200`
+- `https://sonora.spotpromo.com.br/` responde `200`
+- `/` renderiza a pagina unica do Sonora
+- guests veem o formulario de login em `/`
+- usuarios autenticados veem o painel em `/`
 - `index.php` existe na raiz
 - `public/index.php` existe no host
 - `public/build/manifest.json` existe no host

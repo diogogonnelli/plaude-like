@@ -2,64 +2,81 @@
 
 namespace Tests\Feature;
 
-use App\Providers\AppServiceProvider;
+use App\Models\Profile;
+use App\Models\User;
 use App\Support\PublicAssetUrl;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class WebAccessTest extends TestCase
 {
-    public function test_guest_root_redirects_to_login(): void
-    {
-        $response = $this->get('/');
+    use RefreshDatabase;
 
-        $response->assertRedirect('/login');
-    }
-
-    public function test_guest_root_redirect_uses_https_when_request_is_forwarded_over_tls(): void
-    {
-        $response = $this->withServerVariables([
-            'REMOTE_ADDR' => '10.0.0.10',
-            'HTTP_HOST' => 'sonora.spotpromo.com.br',
-            'HTTP_X_FORWARDED_FOR' => '203.0.113.25',
-            'HTTP_X_FORWARDED_HOST' => 'sonora.spotpromo.com.br',
-            'HTTP_X_FORWARDED_PORT' => '443',
-            'HTTP_X_FORWARDED_PROTO' => 'https',
-        ])->get('http://sonora.spotpromo.com.br/');
-
-        $response->assertRedirect('https://sonora.spotpromo.com.br/login');
-    }
-
-    public function test_guest_root_redirect_uses_https_in_production_even_without_forwarded_proto(): void
-    {
-        config(['app.url' => 'https://sonora.spotpromo.com.br']);
-
-        $originalEnvironment = $this->app['env'];
-        $this->app['env'] = 'production';
-        URL::forceScheme(null);
-        (new AppServiceProvider($this->app))->boot();
-
-        try {
-            $response = $this->withServerVariables([
-                'HTTP_HOST' => 'sonora.spotpromo.com.br',
-            ])->get('http://sonora.spotpromo.com.br/');
-
-            $response->assertRedirect('https://sonora.spotpromo.com.br/login');
-        } finally {
-            URL::forceScheme(null);
-            $this->app['env'] = $originalEnvironment;
-        }
-    }
-
-    public function test_login_page_renders(): void
+    public function test_guest_root_renders_login_page(): void
     {
         $this->fakeBuiltAssets();
 
-        $response = $this->get('/login');
+        $response = $this->get('/');
 
         $response->assertOk()
-            ->assertSee('Sonora');
+            ->assertSee('Sonora')
+            ->assertSee('Entrar');
+    }
+
+    public function test_guest_login_route_redirects_to_root(): void
+    {
+        $response = $this->get('/login');
+
+        $response->assertRedirect('/');
+    }
+
+    public function test_guest_can_authenticate_from_root_form(): void
+    {
+        $user = $this->createUserWithProfile('user', [
+            'email' => 'user@example.com',
+            'password' => 'secret-1234',
+        ]);
+        $this->fakeBuiltAssets();
+
+        $response = $this->post('/', [
+            'intent' => 'login',
+            'email' => $user->email,
+            'password' => 'secret-1234',
+        ]);
+
+        $response->assertRedirect('/');
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_authenticated_root_renders_one_page_dashboard_for_regular_user(): void
+    {
+        $user = $this->createUserWithProfile('user');
+        $this->actingAs($user);
+        $this->fakeBuiltAssets();
+
+        $response = $this->get('/');
+
+        $response->assertOk()
+            ->assertSee('Resumo')
+            ->assertSee('Gravacoes Recentes')
+            ->assertSee('Projetos')
+            ->assertDontSee('Administracao');
+    }
+
+    public function test_authenticated_root_renders_admin_navigation_for_admin_user(): void
+    {
+        $user = $this->createUserWithProfile('admin');
+        $this->actingAs($user);
+        $this->fakeBuiltAssets();
+
+        $response = $this->get('/');
+
+        $response->assertOk()
+            ->assertSee('Administracao')
+            ->assertSee('Usuarios')
+            ->assertSee('Perfis');
     }
 
     public function test_root_index_wrapper_exists(): void
@@ -71,9 +88,8 @@ class WebAccessTest extends TestCase
         );
     }
 
-    public function test_login_page_uses_public_prefixed_build_asset_urls_when_request_comes_from_root_wrapper(): void
+    public function test_root_page_uses_public_prefixed_build_asset_urls_when_request_comes_from_root_wrapper(): void
     {
-        config(['app.public_prefix' => '']);
         $this->fakeBuiltAssets([
             'resources/css/app.css' => ['file' => 'assets/app-test.css'],
             'resources/js/app.js' => ['file' => 'assets/app-test.js'],
@@ -81,16 +97,15 @@ class WebAccessTest extends TestCase
 
         $response = $this->withServerVariables([
             'SCRIPT_FILENAME' => base_path('index.php'),
-        ])->get('/login');
+        ])->get('/');
 
         $response->assertOk()
             ->assertSee('/public/build/assets/app-test.css', false)
             ->assertSee('/public/build/assets/app-test.js', false);
     }
 
-    public function test_login_page_uses_direct_build_asset_urls_when_request_comes_from_public_entry(): void
+    public function test_root_page_uses_direct_build_asset_urls_when_request_comes_from_public_entry(): void
     {
-        config(['app.public_prefix' => '']);
         $this->fakeBuiltAssets([
             'resources/css/app.css' => ['file' => 'assets/app-test.css'],
             'resources/js/app.js' => ['file' => 'assets/app-test.js'],
@@ -98,7 +113,7 @@ class WebAccessTest extends TestCase
 
         $response = $this->withServerVariables([
             'SCRIPT_FILENAME' => public_path('index.php'),
-        ])->get('/login');
+        ])->get('/');
 
         $response->assertOk()
             ->assertSee('/build/assets/app-test.css', false)
@@ -107,11 +122,33 @@ class WebAccessTest extends TestCase
 
     public function test_public_asset_url_prefixes_public_when_request_uses_root_wrapper(): void
     {
+        $this->fakeBuiltAssets();
+
         $this->withServerVariables([
             'SCRIPT_FILENAME' => base_path('index.php'),
-        ])->get('/login');
+        ])->get('/');
 
         $this->assertSame('/public/build/app.js', PublicAssetUrl::toUrl('build/app.js'));
+    }
+
+    private function createUserWithProfile(string $profileCode, array $overrides = []): User
+    {
+        $profile = Profile::query()->firstOrCreate(
+            ['code' => $profileCode],
+            [
+                'name' => $profileCode === 'admin' ? 'Administrador' : 'Usuario',
+                'description' => 'Perfil de teste',
+                'is_system' => true,
+            ]
+        );
+
+        return User::query()->create(array_merge([
+            'email' => $profileCode.'-'.Str::uuid().'@example.com',
+            'full_name' => ucfirst($profileCode).' Teste',
+            'profile_id' => $profile->id,
+            'password' => 'secret-1234',
+            'is_active' => true,
+        ], $overrides));
     }
 
     private function fakeBuiltAssets(?array $manifest = null): void

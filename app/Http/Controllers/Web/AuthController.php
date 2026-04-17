@@ -6,17 +6,19 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\View\View;
 
 class AuthController extends Controller
 {
-    public function showLogin(): View|RedirectResponse
+    public function submit(Request $request): RedirectResponse
     {
-        if (Auth::check()) {
-            return redirect()->route('dashboard');
-        }
+        return $request->input('intent') === 'logout'
+            ? $this->logout($request)
+            : $this->login($request);
+    }
 
-        return view('auth.login');
+    public function showLogin(): RedirectResponse
+    {
+        return redirect()->route('home');
     }
 
     public function login(Request $request): RedirectResponse
@@ -28,20 +30,24 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
-            return redirect()->intended(route('dashboard'));
+
+            return redirect()->intended(route('home'));
         }
 
         return back()->withErrors([
-            'email' => 'Credenciais inválidas.',
+            'email' => 'Credenciais invalidas.',
         ])->onlyInput('email');
     }
 
     public function logout(Request $request): RedirectResponse
     {
-        Auth::logout();
+        if (Auth::check()) {
+            Auth::logout();
+        }
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        return redirect()->route('home');
     }
 }

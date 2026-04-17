@@ -26,8 +26,7 @@ class Project extends Model
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'project_members')
-            ->withPivot('role')
-            ->withTimestamps(createdAtColumn: 'created_at', updatedAtColumn: false);
+            ->withPivot(['role', 'created_at']);
     }
 
     public function recordings(): HasMany

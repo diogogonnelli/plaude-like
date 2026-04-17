@@ -3,7 +3,7 @@
 @section('page-title', 'Dashboard')
 
 @section('sidebar')
-    <a href="{{ route('dashboard') }}" class="block px-md py-sm rounded-sm bg-white/10 text-white font-bold">
+    <a href="{{ route('home') }}" class="block px-md py-sm rounded-sm bg-white/10 text-white font-bold">
         Dashboard
     </a>
 @endsection
