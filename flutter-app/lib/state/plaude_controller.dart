@@ -8,7 +8,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../app/app_config.dart';
 import '../data/demo_content.dart';
 import '../data/models.dart';
 import '../data/plaude_api.dart';
@@ -43,6 +42,7 @@ class PlaudeController extends ChangeNotifier {
   String? _selectedProjectForNewRecordings;
   String _recordingProjectFilterValue = recordingFilterAll;
   String? _token;
+  String? _userId;
   String? _userEmail;
   final Set<String> _processingIds = <String>{};
   final Set<String> _chatBusyIds = <String>{};
@@ -101,11 +101,13 @@ class PlaudeController extends ChangeNotifier {
       if (_token != null) {
         try {
           final userData = await api.me();
+          _userId = userData['id'] as String?;
           _userEmail = userData['email'] as String?;
           await refresh();
         } catch (_) {
           // Token expired or invalid — clear it
           _token = null;
+          _userId = null;
           _userEmail = null;
           await prefs.remove(_tokenKey);
           _isLoading = false;
@@ -131,6 +133,7 @@ class PlaudeController extends ChangeNotifier {
       final data = await api.login(email: email, password: password);
       _token = data['token'] as String;
       final user = data['user'] as Map<String, dynamic>;
+      _userId = user['id'] as String?;
       _userEmail = user['email'] as String?;
 
       final prefs = await SharedPreferences.getInstance();
@@ -156,6 +159,7 @@ class PlaudeController extends ChangeNotifier {
         }
       }
       _token = null;
+      _userId = null;
       _userEmail = null;
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_tokenKey);
@@ -271,7 +275,7 @@ class PlaudeController extends ChangeNotifier {
   }
 
   String authorLabelFor(String createdByUserId) {
-    if (_session?.user.id == createdByUserId) {
+    if (_userId != null && _userId == createdByUserId) {
       return _friendlySessionName();
     }
 
@@ -1043,7 +1047,7 @@ class PlaudeController extends ChangeNotifier {
   }
 
   String _friendlySessionName() {
-    final email = _session?.user.email;
+    final email = _userEmail;
     if (email == null || email.isEmpty) {
       return 'Você';
     }
@@ -1066,7 +1070,6 @@ class PlaudeController extends ChangeNotifier {
 
   @override
   void dispose() {
-    unawaited(_authSubscription?.cancel());
     unawaited(_recorder.dispose());
     unawaited(_player.dispose());
     super.dispose();
