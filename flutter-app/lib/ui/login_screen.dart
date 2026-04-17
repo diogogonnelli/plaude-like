@@ -30,115 +30,36 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: BrandBackground(
         child: SafeArea(
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1120),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final wide = constraints.maxWidth >= 900;
-                    final narrative = _BrandNarrative(
-                      backendAvailable: controller.backendAvailable,
-                    );
-                    final form = _LoginCard(
-                      emailController: _emailController,
-                      passwordController: _passwordController,
-                      authBusy: controller.authBusy,
-                      error: _error,
-                      onSubmit: () async {
-                        setState(() => _error = null);
-                        try {
-                          await controller.signIn(
-                            _emailController.text.trim(),
-                            _passwordController.text,
-                          );
-                        } catch (error) {
-                          setState(() {
-                            _error = error is Exception
-                                ? error.toString().replaceFirst(
-                                    'Exception: ',
-                                    '',
-                                  )
-                                : 'Falha ao autenticar.';
-                          });
-                        }
-                      },
-                    );
-
-                    if (!wide) {
-                      return ListView(
-                        shrinkWrap: true,
-                        children: [form, const SizedBox(height: 16), narrative],
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 448),
+                child: _LoginCard(
+                  emailController: _emailController,
+                  passwordController: _passwordController,
+                  authBusy: controller.authBusy,
+                  error: _error,
+                  onSubmit: () async {
+                    setState(() => _error = null);
+                    try {
+                      await controller.signIn(
+                        _emailController.text.trim(),
+                        _passwordController.text,
                       );
+                    } catch (error) {
+                      setState(() {
+                        _error = error is Exception
+                            ? error.toString().replaceFirst('Exception: ', '')
+                            : 'Falha ao autenticar.';
+                      });
                     }
-
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(flex: 5, child: form),
-                        const SizedBox(width: 16),
-                        Expanded(flex: 7, child: narrative),
-                      ],
-                    );
                   },
                 ),
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _BrandNarrative extends StatelessWidget {
-  const _BrandNarrative({required this.backendAvailable});
-
-  final bool backendAvailable;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(BrandRadius.xl),
-        gradient: BrandColors.heroGradient,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const BrandWordmark(
-            compact: true,
-            textColor: Colors.white,
-            subtitleColor: Colors.white70,
-          ),
-          const SizedBox(height: 18),
-          BrandBadge(
-            label: backendAvailable
-                ? 'SPOT backend pronto'
-                : 'Aguardando backend',
-            backgroundColor: Colors.white.withValues(alpha: 0.12),
-            foregroundColor: Colors.white,
-            borderColor: Colors.white.withValues(alpha: 0.2),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Captação, estrutura e execução na mesma operação.',
-            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-              color: Colors.white,
-              fontSize: 34,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'GravAção é o produto de captação operacional co-branded com SPOT para transformar áudio em contexto acionável.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Colors.white.withValues(alpha: 0.86),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -162,28 +83,34 @@ class _LoginCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BrandPanel(
+      key: const Key('login-card'),
       highlight: true,
+      padding: const EdgeInsets.fromLTRB(32, 32, 32, 28),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SpotEndorsement(),
-          const SizedBox(height: 18),
           Text(
-            'Entrar no GravAção',
-            style: Theme.of(context).textTheme.headlineMedium,
+            'Sonora',
+            textAlign: TextAlign.center,
+            style: BrandTypography.wordmark(
+              size: 34,
+              color: BrandColors.shellDark,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Use suas credenciais para acessar o aplicativo.',
+            'Gravacao inteligente em uma unica pagina.',
+            textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 20),
           TextField(
             controller: emailController,
+            autofocus: true,
             keyboardType: TextInputType.emailAddress,
             decoration: const InputDecoration(
-              labelText: 'Email',
+              labelText: 'E-mail',
               prefixIcon: Icon(Icons.alternate_email_rounded),
             ),
           ),

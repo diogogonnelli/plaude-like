@@ -2,10 +2,10 @@
 
 @section('body')
 <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-shell-dark via-shell to-accent">
-    <div class="bg-surface rounded-lg shadow-xl p-xxl w-full max-w-md">
+    <div class="bg-surface rounded-lg shadow-xl p-xxl w-full max-w-[448px]">
         <div class="text-center mb-xl">
             <span class="font-display text-3xl font-black tracking-tight text-shell-dark">Sonora</span>
-            <p class="text-text-muted mt-xs">GravAção — Gravação Inteligente</p>
+            <p class="text-text-muted mt-xs">Gravacao inteligente em uma unica pagina.</p>
         </div>
 
         @if ($errors->any())

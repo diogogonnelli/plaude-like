@@ -8,7 +8,7 @@
 @section('body')
 @if (! $isAuthenticated)
     <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-shell-dark via-shell to-accent px-lg py-xl">
-        <div class="bg-surface rounded-lg shadow-xl p-xxl w-full max-w-md border border-stroke">
+        <div class="bg-surface rounded-lg shadow-xl p-xxl w-full max-w-[448px] border border-stroke">
             <div class="text-center mb-xl">
                 <span class="font-display text-3xl font-black tracking-tight text-shell-dark">Sonora</span>
                 <p class="text-text-muted mt-xs">Gravacao inteligente em uma unica pagina.</p>

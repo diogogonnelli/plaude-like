@@ -22,6 +22,7 @@ class WebAccessTest extends TestCase
 
         $response->assertOk()
             ->assertSee('Sonora')
+            ->assertSee('max-w-[448px]', false)
             ->assertSee('Entrar');
     }
 
