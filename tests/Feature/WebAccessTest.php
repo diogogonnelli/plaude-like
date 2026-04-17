@@ -15,6 +15,20 @@ class WebAccessTest extends TestCase
         $response->assertRedirect('/login');
     }
 
+    public function test_guest_root_redirect_uses_https_when_request_is_forwarded_over_tls(): void
+    {
+        $response = $this->withServerVariables([
+            'REMOTE_ADDR' => '10.0.0.10',
+            'HTTP_HOST' => 'sonora.spotpromo.com.br',
+            'HTTP_X_FORWARDED_FOR' => '203.0.113.25',
+            'HTTP_X_FORWARDED_HOST' => 'sonora.spotpromo.com.br',
+            'HTTP_X_FORWARDED_PORT' => '443',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+        ])->get('http://sonora.spotpromo.com.br/');
+
+        $response->assertRedirect('https://sonora.spotpromo.com.br/login');
+    }
+
     public function test_login_page_renders(): void
     {
         $this->fakeBuiltAssets();
