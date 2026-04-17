@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Providers\AppServiceProvider;
 use App\Support\PublicAssetUrl;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 class WebAccessTest extends TestCase
@@ -27,6 +29,27 @@ class WebAccessTest extends TestCase
         ])->get('http://sonora.spotpromo.com.br/');
 
         $response->assertRedirect('https://sonora.spotpromo.com.br/login');
+    }
+
+    public function test_guest_root_redirect_uses_https_in_production_even_without_forwarded_proto(): void
+    {
+        config(['app.url' => 'https://sonora.spotpromo.com.br']);
+
+        $originalEnvironment = $this->app['env'];
+        $this->app['env'] = 'production';
+        URL::forceScheme(null);
+        (new AppServiceProvider($this->app))->boot();
+
+        try {
+            $response = $this->withServerVariables([
+                'HTTP_HOST' => 'sonora.spotpromo.com.br',
+            ])->get('http://sonora.spotpromo.com.br/');
+
+            $response->assertRedirect('https://sonora.spotpromo.com.br/login');
+        } finally {
+            URL::forceScheme(null);
+            $this->app['env'] = $originalEnvironment;
+        }
     }
 
     public function test_login_page_renders(): void
