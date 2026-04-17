@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\PublicAssetUrl;
 use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 
@@ -24,7 +25,16 @@ class WebAccessTest extends TestCase
             ->assertSee('Sonora');
     }
 
-    public function test_login_page_uses_root_public_build_asset_urls(): void
+    public function test_root_index_wrapper_exists(): void
+    {
+        $this->assertFileExists(base_path('index.php'));
+        $this->assertStringContainsString(
+            "require __DIR__.'/public/index.php';",
+            File::get(base_path('index.php'))
+        );
+    }
+
+    public function test_login_page_uses_public_prefixed_build_asset_urls_when_request_comes_from_root_wrapper(): void
     {
         config(['app.public_prefix' => '']);
         $this->fakeBuiltAssets([
@@ -32,11 +42,39 @@ class WebAccessTest extends TestCase
             'resources/js/app.js' => ['file' => 'assets/app-test.js'],
         ]);
 
-        $response = $this->get('/login');
+        $response = $this->withServerVariables([
+            'SCRIPT_FILENAME' => base_path('index.php'),
+        ])->get('/login');
+
+        $response->assertOk()
+            ->assertSee('/public/build/assets/app-test.css', false)
+            ->assertSee('/public/build/assets/app-test.js', false);
+    }
+
+    public function test_login_page_uses_direct_build_asset_urls_when_request_comes_from_public_entry(): void
+    {
+        config(['app.public_prefix' => '']);
+        $this->fakeBuiltAssets([
+            'resources/css/app.css' => ['file' => 'assets/app-test.css'],
+            'resources/js/app.js' => ['file' => 'assets/app-test.js'],
+        ]);
+
+        $response = $this->withServerVariables([
+            'SCRIPT_FILENAME' => public_path('index.php'),
+        ])->get('/login');
 
         $response->assertOk()
             ->assertSee('/build/assets/app-test.css', false)
             ->assertSee('/build/assets/app-test.js', false);
+    }
+
+    public function test_public_asset_url_prefixes_public_when_request_uses_root_wrapper(): void
+    {
+        $this->withServerVariables([
+            'SCRIPT_FILENAME' => base_path('index.php'),
+        ])->get('/login');
+
+        $this->assertSame('/public/build/app.js', PublicAssetUrl::toUrl('build/app.js'));
     }
 
     private function fakeBuiltAssets(?array $manifest = null): void

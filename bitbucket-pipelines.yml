@@ -190,7 +190,7 @@ pipelines:
               fi
               upsert_env "APP_ENV" "production"
               upsert_env "APP_DEBUG" "false"
-              upsert_env "PUBLIC_PREFIX" ""
+              upsert_env "PUBLIC_PREFIX" "public"
               upsert_env "APP_MAINTENANCE_DRIVER" "file"
               rm -f "$APP_PATH/bootstrap/cache/config.php"
 
@@ -269,65 +269,6 @@ pipelines:
 
               leave_maintenance
 
-              NGINX_CONF="/etc/nginx/sites-available/sonora.conf"
-              NGINX_ENABLED="/etc/nginx/sites-enabled/sonora.conf"
-              NGINX_DOMAIN="${APP_DOMAIN:-sonora.spotpromo.com.br}"
-              NGINX_TMP="/tmp/sonora-nginx-$$.conf"
-
-              cat > "$NGINX_TMP" <<NGINXEOF
-              server {
-                  listen 80;
-                  server_name ${NGINX_DOMAIN};
-                  root ${APP_PATH}/public;
-
-                  add_header X-Frame-Options "SAMEORIGIN";
-                  add_header X-Content-Type-Options "nosniff";
-
-                  index index.php index.html;
-
-                  charset utf-8;
-
-                  location / {
-                      try_files \$uri \$uri/ /index.php?\$query_string;
-                  }
-
-                  location = /favicon.ico { access_log off; log_not_found off; }
-                  location = /robots.txt  { access_log off; log_not_found off; }
-
-                  error_page 404 /index.php;
-
-                  location ~ \.php$ {
-                      fastcgi_pass unix:/run/php/php8.2-fpm.sock;
-                      fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
-                      include fastcgi_params;
-                  }
-
-                  location ~ /\.(?!well-known).* {
-                      deny all;
-                  }
-
-                  client_max_body_size 100M;
-              }
-              NGINXEOF
-
-              sed -i 's/^              //' "$NGINX_TMP"
-
-              if run_with_privilege cp "$NGINX_TMP" "$NGINX_CONF"; then
-                log "Nginx config written to $NGINX_CONF"
-                if [ ! -e "$NGINX_ENABLED" ]; then
-                  run_with_privilege ln -sfn "$NGINX_CONF" "$NGINX_ENABLED" || true
-                fi
-                if run_with_privilege nginx -t 2>&1; then
-                  run_with_privilege systemctl reload nginx
-                  log "Nginx reloaded."
-                else
-                  log "Warning: nginx config test failed, not reloading."
-                fi
-              else
-                log "Warning: could not write nginx config (no sudo?)."
-              fi
-              rm -f "$NGINX_TMP"
-
               if [ -x "$POST_HOOK" ]; then
                 log "Running post-deploy hook..."
                 "$POST_HOOK" "$APP_PATH" || true
@@ -342,33 +283,15 @@ pipelines:
 
               PUBLIC_DOMAIN="${APP_DOMAIN:-sonora.spotpromo.com.br}"
               PUBLIC_BASE_URL="https://${PUBLIC_DOMAIN}"
-              STATIC_MANIFEST_URL="${PUBLIC_BASE_URL}/build/manifest.json"
-              PHP_ENTRY_URL="${PUBLIC_BASE_URL}/index.php"
-              LEGACY_STATIC_MANIFEST_URL="${PUBLIC_BASE_URL}/public/build/manifest.json"
-              LEGACY_PHP_ENTRY_URL="${PUBLIC_BASE_URL}/public/index.php"
+              STATIC_MANIFEST_URL="${PUBLIC_BASE_URL}/public/build/manifest.json"
               ROOT_HEADERS="/tmp/sonora-root-headers-$$.txt"
+              LOGIN_HTML="/tmp/sonora-login-body-$$.html"
 
               STATIC_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$STATIC_MANIFEST_URL" || true)"
-              PHP_ENTRY_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$PHP_ENTRY_URL" || true)"
-              LEGACY_STATIC_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$LEGACY_STATIC_MANIFEST_URL" || true)"
-              LEGACY_PHP_ENTRY_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$LEGACY_PHP_ENTRY_URL" || true)"
 
-              if [ "$STATIC_STATUS" = "200" ] && [ "$PHP_ENTRY_STATUS" = "403" ]; then
-                log "ERROR: o servidor entrega arquivos estaticos, mas bloqueia a execucao de PHP em $PHP_ENTRY_URL."
-                log "O deploy da aplicacao esta correto no checkout; o vhost atual continua configurado como site estatico."
-                exit 29
-              fi
-
-              if [ "$STATIC_STATUS" != "200" ] && [ "$LEGACY_STATIC_STATUS" = "200" ]; then
-                log "ERROR: o host continua servindo assets em $LEGACY_STATIC_MANIFEST_URL, indicando docroot legado."
-                log "A raiz publica correta para o Sonora agora e $APP_PATH/public."
+              if [ "$STATIC_STATUS" != "200" ]; then
+                log "ERROR: smoke check falhou em $STATIC_MANIFEST_URL."
                 exit 28
-              fi
-
-              if [ "$PHP_ENTRY_STATUS" = "404" ] && [ "$LEGACY_PHP_ENTRY_STATUS" = "200" -o "$LEGACY_PHP_ENTRY_STATUS" = "302" ]; then
-                log "ERROR: o host continua expondo /public/index.php em vez de /index.php."
-                log "Ajuste o vhost para root $APP_PATH/public."
-                exit 27
               fi
 
               log "Executando smoke checks em ${PUBLIC_BASE_URL}..."
@@ -391,10 +314,17 @@ pipelines:
                   ;;
               esac
 
-              curl -fsS "$PUBLIC_BASE_URL/login" >/dev/null || {
+              curl -fsS "$PUBLIC_BASE_URL/login" -o "$LOGIN_HTML" || {
                 log "ERROR: smoke check falhou em $PUBLIC_BASE_URL/login."
                 exit 32
               }
+
+              if ! grep -q '/public/build/' "$LOGIN_HTML"; then
+                log "ERROR: /login nao esta referenciando assets em /public/build/."
+                rm -f "$LOGIN_HTML"
+                exit 34
+              fi
+              rm -f "$LOGIN_HTML"
 
               curl -fsS "$PUBLIC_BASE_URL/api/health" >/dev/null || {
                 log "ERROR: smoke check falhou em $PUBLIC_BASE_URL/api/health."

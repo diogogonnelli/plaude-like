@@ -17,19 +17,45 @@ class PublicAssetUrl
 
     public static function prefix(): string
     {
-        $prefix = config('app.public_prefix', '');
+        $configuredPrefix = config('app.public_prefix', '');
 
-        if (! is_string($prefix)) {
+        if (is_string($configuredPrefix)) {
+            $configuredPrefix = trim($configuredPrefix);
+
+            if ($configuredPrefix !== '' && $configuredPrefix !== '/') {
+                return '/'.trim($configuredPrefix, '/');
+            }
+        }
+
+        if (! app()->bound('request')) {
             return '';
         }
 
-        $prefix = trim($prefix);
+        $request = request();
+        $scriptCandidates = array_filter([
+            $request->server('ORIGINAL_SCRIPT_FILENAME'),
+            $request->server('SCRIPT_FILENAME'),
+        ], static fn ($value) => is_string($value) && $value !== '');
 
-        if ($prefix === '' || $prefix === '/') {
-            return '';
+        $publicIndex = self::normalizePath(public_path('index.php'));
+        $rootEntryPoints = [
+            base_path('index.php'),
+        ];
+        $normalizedRootEntries = array_map(self::normalizePath(...), $rootEntryPoints);
+
+        foreach ($scriptCandidates as $candidate) {
+            $normalizedCandidate = self::normalizePath($candidate);
+
+            if ($normalizedCandidate === $publicIndex) {
+                return '';
+            }
+
+            if (in_array($normalizedCandidate, $normalizedRootEntries, true)) {
+                return '/public';
+            }
         }
 
-        return '/'.trim($prefix, '/');
+        return '';
     }
 
     private static function relativePath(string $path): string
@@ -38,5 +64,13 @@ class PublicAssetUrl
         $prefix = self::prefix();
 
         return ($prefix !== '' ? $prefix : '').'/'.$trimmedPath;
+    }
+
+    private static function normalizePath(string $path): string
+    {
+        $resolvedPath = realpath($path);
+        $path = $resolvedPath !== false ? $resolvedPath : $path;
+
+        return str_replace('\\', '/', $path);
     }
 }
