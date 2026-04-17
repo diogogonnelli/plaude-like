@@ -3,10 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\Profile;
+use App\Models\Project;
+use App\Models\Recording;
 use App\Models\User;
 use App\Support\PublicAssetUrl;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -22,8 +26,8 @@ class WebAccessTest extends TestCase
 
         $response->assertOk()
             ->assertSee('Sonora')
-            ->assertSee('max-w-[448px]', false)
-            ->assertSee('Entrar');
+            ->assertSee('Entrar')
+            ->assertSee('Fluxo web');
     }
 
     public function test_guest_login_route_redirects_to_root(): void
@@ -47,22 +51,32 @@ class WebAccessTest extends TestCase
             'password' => 'secret-1234',
         ]);
 
-        $response->assertRedirect('/');
+        $response->assertRedirect('/?tab=home');
         $this->assertAuthenticatedAs($user);
     }
 
     public function test_authenticated_root_renders_one_page_dashboard_for_regular_user(): void
     {
         $user = $this->createUserWithProfile('user');
+        $project = $this->createProjectForUser($user, 'Projeto Demo');
+        Recording::query()->create([
+            'user_id' => $user->id,
+            'created_by_user_id' => $user->id,
+            'project_id' => $project->id,
+            'title' => 'Ata da semana',
+            'source_type' => 'upload',
+            'status' => 'ready',
+        ]);
         $this->actingAs($user);
         $this->fakeBuiltAssets();
 
         $response = $this->get('/');
 
         $response->assertOk()
-            ->assertSee('Resumo')
-            ->assertSee('Gravacoes Recentes')
-            ->assertSee('Projetos')
+            ->assertSee('Biblioteca')
+            ->assertSee('Sistema')
+            ->assertSee('Iniciar capta')
+            ->assertSee('Enviar')
             ->assertDontSee('Administracao');
     }
 
@@ -72,12 +86,57 @@ class WebAccessTest extends TestCase
         $this->actingAs($user);
         $this->fakeBuiltAssets();
 
-        $response = $this->get('/');
+        $response = $this->get('/?tab=admin');
 
         $response->assertOk()
             ->assertSee('Administracao')
             ->assertSee('Usuarios')
             ->assertSee('Perfis');
+    }
+
+    public function test_authenticated_user_can_select_active_project_from_root_shell(): void
+    {
+        $user = $this->createUserWithProfile('user');
+        $project = $this->createProjectForUser($user, 'Projeto Shell');
+        $this->actingAs($user);
+        $this->fakeBuiltAssets();
+
+        $response = $this->post('/', [
+            'intent' => 'select-active-project',
+            'project_id' => $project->id,
+            'tab' => 'home',
+        ]);
+
+        $response->assertRedirect('/?tab=home');
+        $response->assertSessionHas('web.active_project_id', $project->id);
+    }
+
+    public function test_authenticated_user_can_upload_audio_from_root_shell(): void
+    {
+        Storage::fake('recordings');
+
+        $user = $this->createUserWithProfile('user');
+        $project = $this->createProjectForUser($user, 'Projeto Upload');
+        $this->actingAs($user);
+        $this->fakeBuiltAssets();
+
+        $response = $this->post('/', [
+            'intent' => 'upload-audio',
+            'tab' => 'library',
+            'title' => 'Audio do front',
+            'source_type' => 'upload',
+            'project_id' => $project->id,
+            'audio' => UploadedFile::fake()->create('front-shell.wav', 256),
+        ]);
+
+        $response->assertRedirect();
+
+        $recording = Recording::query()->where('title', 'Audio do front')->first();
+
+        $this->assertNotNull($recording);
+        $this->assertSame($project->id, $recording->project_id);
+        $this->assertNotNull($recording->audio_path);
+        Storage::disk('recordings')->assertExists($recording->audio_path);
     }
 
     public function test_root_index_wrapper_exists(): void
@@ -150,6 +209,22 @@ class WebAccessTest extends TestCase
             'password' => 'secret-1234',
             'is_active' => true,
         ], $overrides));
+    }
+
+    private function createProjectForUser(User $user, string $name): Project
+    {
+        $project = Project::query()->create([
+            'name' => $name,
+            'slug' => Str::slug($name).'-'.Str::lower((string) Str::uuid()),
+            'status' => 'active',
+        ]);
+
+        $project->members()->create([
+            'user_id' => $user->id,
+            'role' => 'owner',
+        ]);
+
+        return $project;
     }
 
     private function fakeBuiltAssets(?array $manifest = null): void
