@@ -1,20 +1,20 @@
-# Guia de Deploy (Laravel pela raiz do repositorio)
+# Guia de Deploy (Laravel com docroot em `public/`)
 
 ## Visao geral
 
-O deploy de producao do Sonora segue o mesmo molde operacional do `assinatura-web`:
+O deploy de producao do Sonora agora publica o Laravel diretamente pela pasta `public/` do checkout:
 
-- o dominio publico aponta para a **raiz do checkout** em `/storage-apps/www/sonora`
-- o `index.php` na raiz encaminha para `backend-laravel/public/index.php`
-- os assets do Laravel continuam fisicamente em `backend-laravel/public/build`
+- o dominio publico deve apontar para `/storage-apps/www/sonora/public`
+- o `index.php` publico fica em `/storage-apps/www/sonora/public/index.php`
+- os assets do Laravel ficam em `/storage-apps/www/sonora/public/build`
 - o pipeline gera `public/build` no CI e publica esse artefato no host
-- o pipeline **nao** altera configuracao de `nginx` no servidor
+- o pipeline tenta reconciliar a configuracao do `nginx` para o layout novo quando o usuario de deploy tem privilegio suficiente
 
 Layout esperado no host:
 
-- `/storage-apps/www/sonora/index.php`
-- `/storage-apps/www/sonora/backend-laravel`
-- `/storage-apps/www/sonora/backend-laravel/public/build`
+- `/storage-apps/www/sonora/.env`
+- `/storage-apps/www/sonora/public/index.php`
+- `/storage-apps/www/sonora/public/build`
 
 ## Pre-requisitos do host
 
@@ -45,14 +45,14 @@ Itens fixos no pipeline:
 
 Use `deploy/nginx/sonora-laravel.conf.example` como base. O ponto importante e:
 
-- `root /storage-apps/www/sonora;`
+- `root /storage-apps/www/sonora/public;`
 - `try_files $uri $uri/ /index.php?$query_string;`
 
 Isso permite que o `nginx` sirva diretamente:
 
-- `/index.php` na raiz do checkout
-- `/backend-laravel/public/build/*`
-- `/backend-laravel/public/storage/*`
+- `/index.php` pela pasta `public/`
+- `/build/*`
+- `/storage/*`
 
 Exemplo de validacao:
 
@@ -61,7 +61,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-O arquivo `deploy/nginx/sonora-app.conf.example` agora e apenas legado. Ele documenta o fluxo antigo do Flutter Web estatico e nao deve ser usado como raiz publica principal.
+Se o host ainda estiver apontando para a raiz do repositorio ou para `/public` como subpasta URL, o sintoma esperado e `403` em `/` ou assets servidos em `/public/build/*`. Esse estado e legado e deve ser removido.
 
 ## Primeiro deploy no host
 
@@ -102,50 +102,46 @@ spotti ALL=NOPASSWD: /bin/systemctl restart php8.2-fpm
 
 Na `main`, o pipeline:
 
-1. gera `backend-laravel/public/build` em uma etapa `node:20`
+1. gera `public/build` em uma etapa `node:20`
 2. publica esse build como artefato do CI
 3. envia o artefato `.tar.gz` para o host
 4. por SSH, sincroniza o checkout com `origin/main`
-5. preserva ou cria `backend-laravel/.env`
+5. preserva `/.env`, ou migra automaticamente `backend-laravel/.env` legado para `/.env` quando necessario
 6. fixa:
    - `APP_ENV=production`
    - `APP_DEBUG=false`
-   - `PUBLIC_PREFIX=/backend-laravel/public`
+   - `PUBLIC_PREFIX=` (vazio)
    - `APP_URL=https://<dominio>` quando `DEPLOY_APP_DOMAIN` estiver definido
 7. executa `composer install`
-8. atualiza `backend-laravel/public/build` com o artefato do CI
+8. atualiza `public/build` com o artefato do CI
 9. roda `storage:link`, migrations, caches e seed de perfis
-10. reinicia o `php-fpm` ou executa `post-deploy.sh`
-11. executa smoke checks obrigatorios:
+10. tenta reconciliar a configuracao do `nginx` para `root /storage-apps/www/sonora/public`
+11. reinicia o `php-fpm` ou executa `post-deploy.sh`
+12. executa smoke checks obrigatorios:
    - `/` precisa redirecionar para `/login`
    - `/login` precisa responder `200`
    - `/api/health` precisa responder `200`
 
-## Backend `.env`
+## Runtime `.env`
 
-O arquivo persistente continua em:
-
-```bash
-/storage-apps/www/sonora/backend-laravel/.env
-```
-
-No primeiro deploy, ele e criado a partir de `backend-laravel/.env.example`. Depois disso, o pipeline preserva o arquivo e atualiza apenas as chaves operacionais do deploy.
-
-A nova chave relevante para publicacao pela raiz e:
+O arquivo persistente agora vive em:
 
 ```bash
-PUBLIC_PREFIX=/backend-laravel/public
+/storage-apps/www/sonora/.env
 ```
 
-Ela controla as URLs geradas para:
+No primeiro deploy, ele e criado a partir de `.env.example`. Se o host ainda tiver apenas `backend-laravel/.env`, o pipeline copia esse arquivo para a raiz antes de rodar o Laravel.
 
-- assets do Vite em producao
-- disco `public` do Laravel (`/storage`)
+A chave relevante para o layout atual e:
+
+```bash
+PUBLIC_PREFIX=
+```
 
 ## Checklist pos-deploy
 
 - `https://sonora.spotpromo.com.br/` redireciona para `/login`
 - `https://sonora.spotpromo.com.br/login` responde `200`
 - `https://sonora.spotpromo.com.br/api/health` responde `200`
-- `backend-laravel/public/build/manifest.json` existe no host
-- `backend-laravel/public/storage` existe ou foi recriado por `storage:link`
+- `public/build/manifest.json` existe no host
+- `public/storage` existe ou foi recriado por `storage:link`

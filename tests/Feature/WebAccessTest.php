@@ -24,9 +24,9 @@ class WebAccessTest extends TestCase
             ->assertSee('Sonora');
     }
 
-    public function test_login_page_uses_public_prefix_for_built_assets(): void
+    public function test_login_page_uses_root_public_build_asset_urls(): void
     {
-        config(['app.public_prefix' => '/backend-laravel/public']);
+        config(['app.public_prefix' => '']);
         $this->fakeBuiltAssets([
             'resources/css/app.css' => ['file' => 'assets/app-test.css'],
             'resources/js/app.js' => ['file' => 'assets/app-test.js'],
@@ -35,8 +35,8 @@ class WebAccessTest extends TestCase
         $response = $this->get('/login');
 
         $response->assertOk()
-            ->assertSee('/backend-laravel/public/build/assets/app-test.css', false)
-            ->assertSee('/backend-laravel/public/build/assets/app-test.js', false);
+            ->assertSee('/build/assets/app-test.css', false)
+            ->assertSee('/build/assets/app-test.js', false);
     }
 
     private function fakeBuiltAssets(?array $manifest = null): void

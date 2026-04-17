@@ -44,8 +44,10 @@ pipelines:
               PHP_BIN="${PHP_BIN:-php}"
               COMPOSER_BIN="${COMPOSER_BIN:-composer}"
               ENV_BACKUP="/tmp/sonora-env.backup"
+              LEGACY_ENV_PATH="$APP_PATH/backend-laravel/.env"
               POST_HOOK="/home/spotti/post-deploy.sh"
               PHP_FPM_SERVICE="${PHP_FPM_SERVICE:-php8.2-fpm}"
+              MAINTENANCE_ACTIVE=0
 
               log(){ printf "[%s] %s\n" "$(date +%F' '%T)" "$*"; }
               assert_runtime_writable() {
@@ -63,7 +65,13 @@ pipelines:
                   git remote add origin "$REPO"
                 fi
               }
-              backup_env(){ [ -f "$APP_PATH/.env" ] && cp "$APP_PATH/.env" "$ENV_BACKUP" || true; }
+              backup_env(){
+                if [ -f "$APP_PATH/.env" ]; then
+                  cp "$APP_PATH/.env" "$ENV_BACKUP"
+                elif [ -f "$LEGACY_ENV_PATH" ]; then
+                  cp "$LEGACY_ENV_PATH" "$ENV_BACKUP"
+                fi
+              }
               restore_env(){ [ ! -f "$APP_PATH/.env" ] && [ -f "$ENV_BACKUP" ] && cp "$ENV_BACKUP" "$APP_PATH/.env" || true; }
               purge_checkout_blockers(){ find "$APP_PATH" -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.env' -exec rm -rf {} +; }
               normalize_checkout_perms(){
@@ -91,6 +99,22 @@ pipelines:
                 fi
                 return 1
               }
+              leave_maintenance(){
+                if [ "$MAINTENANCE_ACTIVE" = "1" ]; then
+                  log "Leaving maintenance mode..."
+                  "$PHP_BIN" artisan up || true
+                  MAINTENANCE_ACTIVE=0
+                fi
+              }
+              on_exit(){
+                status=$?
+                trap - EXIT
+                if [ "$status" -ne 0 ]; then
+                  leave_maintenance
+                fi
+                exit "$status"
+              }
+              trap on_exit EXIT
 
               if [ -d "$APP_PATH" ] && [ ! -w "$APP_PATH" ]; then
                 log "ERROR: $APP_PATH existe, mas nao esta gravavel para $(whoami)."
@@ -149,6 +173,11 @@ pipelines:
 
               cd "$APP_PATH"
 
+              if [ ! -f "$APP_PATH/.env" ] && [ -f "$LEGACY_ENV_PATH" ]; then
+                cp "$LEGACY_ENV_PATH" "$APP_PATH/.env"
+                log "Arquivo .env migrado do layout legado ($LEGACY_ENV_PATH)."
+              fi
+
               if [ ! -f "$APP_PATH/.env" ] && [ -f "$APP_PATH/.env.example" ]; then
                 cp "$APP_PATH/.env.example" "$APP_PATH/.env"
                 log "Arquivo .env criado a partir de .env.example."
@@ -161,6 +190,7 @@ pipelines:
               fi
               upsert_env "APP_ENV" "production"
               upsert_env "APP_DEBUG" "false"
+              upsert_env "PUBLIC_PREFIX" ""
               upsert_env "APP_MAINTENANCE_DRIVER" "file"
               rm -f "$APP_PATH/bootstrap/cache/config.php"
 
@@ -217,9 +247,10 @@ pipelines:
 
               log "Entrando em maintenance mode..."
               "$PHP_BIN" artisan down || true
+              MAINTENANCE_ACTIVE=1
 
               log "Executando migrations..."
-              "$PHP_BIN" artisan migrate --force || true
+              "$PHP_BIN" artisan migrate --force
 
               log "Clearing caches..."
               "$PHP_BIN" artisan config:clear || true
@@ -233,10 +264,69 @@ pipelines:
               "$PHP_BIN" artisan route:cache || true
               "$PHP_BIN" artisan view:cache || true
 
-              "$PHP_BIN" artisan db:seed --class=ProfileSeeder --force --no-interaction 2>/dev/null || true
+              log "Executando seed de perfis..."
+              "$PHP_BIN" artisan db:seed --class=ProfileSeeder --force --no-interaction
 
-              log "Leaving maintenance mode..."
-              "$PHP_BIN" artisan up || true
+              leave_maintenance
+
+              NGINX_CONF="/etc/nginx/sites-available/sonora.conf"
+              NGINX_ENABLED="/etc/nginx/sites-enabled/sonora.conf"
+              NGINX_DOMAIN="${APP_DOMAIN:-sonora.spotpromo.com.br}"
+              NGINX_TMP="/tmp/sonora-nginx-$$.conf"
+
+              cat > "$NGINX_TMP" <<NGINXEOF
+              server {
+                  listen 80;
+                  server_name ${NGINX_DOMAIN};
+                  root ${APP_PATH}/public;
+
+                  add_header X-Frame-Options "SAMEORIGIN";
+                  add_header X-Content-Type-Options "nosniff";
+
+                  index index.php index.html;
+
+                  charset utf-8;
+
+                  location / {
+                      try_files \$uri \$uri/ /index.php?\$query_string;
+                  }
+
+                  location = /favicon.ico { access_log off; log_not_found off; }
+                  location = /robots.txt  { access_log off; log_not_found off; }
+
+                  error_page 404 /index.php;
+
+                  location ~ \.php$ {
+                      fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+                      fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
+                      include fastcgi_params;
+                  }
+
+                  location ~ /\.(?!well-known).* {
+                      deny all;
+                  }
+
+                  client_max_body_size 100M;
+              }
+              NGINXEOF
+
+              sed -i 's/^              //' "$NGINX_TMP"
+
+              if run_with_privilege cp "$NGINX_TMP" "$NGINX_CONF"; then
+                log "Nginx config written to $NGINX_CONF"
+                if [ ! -e "$NGINX_ENABLED" ]; then
+                  run_with_privilege ln -sfn "$NGINX_CONF" "$NGINX_ENABLED" || true
+                fi
+                if run_with_privilege nginx -t 2>&1; then
+                  run_with_privilege systemctl reload nginx
+                  log "Nginx reloaded."
+                else
+                  log "Warning: nginx config test failed, not reloading."
+                fi
+              else
+                log "Warning: could not write nginx config (no sudo?)."
+              fi
+              rm -f "$NGINX_TMP"
 
               if [ -x "$POST_HOOK" ]; then
                 log "Running post-deploy hook..."
@@ -254,15 +344,31 @@ pipelines:
               PUBLIC_BASE_URL="https://${PUBLIC_DOMAIN}"
               STATIC_MANIFEST_URL="${PUBLIC_BASE_URL}/build/manifest.json"
               PHP_ENTRY_URL="${PUBLIC_BASE_URL}/index.php"
+              LEGACY_STATIC_MANIFEST_URL="${PUBLIC_BASE_URL}/public/build/manifest.json"
+              LEGACY_PHP_ENTRY_URL="${PUBLIC_BASE_URL}/public/index.php"
               ROOT_HEADERS="/tmp/sonora-root-headers-$$.txt"
 
               STATIC_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$STATIC_MANIFEST_URL" || true)"
               PHP_ENTRY_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$PHP_ENTRY_URL" || true)"
+              LEGACY_STATIC_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$LEGACY_STATIC_MANIFEST_URL" || true)"
+              LEGACY_PHP_ENTRY_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$LEGACY_PHP_ENTRY_URL" || true)"
 
               if [ "$STATIC_STATUS" = "200" ] && [ "$PHP_ENTRY_STATUS" = "403" ]; then
                 log "ERROR: o servidor entrega arquivos estaticos, mas bloqueia a execucao de PHP em $PHP_ENTRY_URL."
                 log "O deploy da aplicacao esta correto no checkout; o vhost atual continua configurado como site estatico."
                 exit 29
+              fi
+
+              if [ "$STATIC_STATUS" != "200" ] && [ "$LEGACY_STATIC_STATUS" = "200" ]; then
+                log "ERROR: o host continua servindo assets em $LEGACY_STATIC_MANIFEST_URL, indicando docroot legado."
+                log "A raiz publica correta para o Sonora agora e $APP_PATH/public."
+                exit 28
+              fi
+
+              if [ "$PHP_ENTRY_STATUS" = "404" ] && [ "$LEGACY_PHP_ENTRY_STATUS" = "200" -o "$LEGACY_PHP_ENTRY_STATUS" = "302" ]; then
+                log "ERROR: o host continua expondo /public/index.php em vez de /index.php."
+                log "Ajuste o vhost para root $APP_PATH/public."
+                exit 27
               fi
 
               log "Executando smoke checks em ${PUBLIC_BASE_URL}..."
