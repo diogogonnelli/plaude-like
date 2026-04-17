@@ -7,14 +7,13 @@ pipelines:
           caches:
             - node
           script:
-            - echo "==> Gerando build web do backend-laravel..."
-            - cd backend-laravel
+            - echo "==> Gerando build web do sonora..."
             - npm ci
             - npm run build
             - test -f public/build/manifest.json
             - ls -la public/build | sed 's/^/  /'
           artifacts:
-            - backend-laravel/public/build/**
+            - public/build/**
 
       - step:
           name: "Deploy Sonora"
@@ -31,11 +30,11 @@ pipelines:
             - mkdir -p ~/.ssh
             - ssh-keyscan -T 5 172.18.0.86 >> ~/.ssh/known_hosts 2>/dev/null || true
             - 'test -s ./id_rsa || { echo "Decoded SSH key is empty. Check SSH_KEY_webrun01."; exit 1; }'
-            - test -f backend-laravel/public/build/manifest.json
-            - tar -czf backend-laravel-public-build-artifact.tar.gz -C backend-laravel/public build
-            - scp -i ./id_rsa ./backend-laravel-public-build-artifact.tar.gz spotti@172.18.0.86:/tmp/sonora-backend-laravel-build-${BITBUCKET_BUILD_NUMBER}.tar.gz
+            - test -f public/build/manifest.json
+            - tar -czf public-build-artifact.tar.gz -C public build
+            - scp -i ./id_rsa ./public-build-artifact.tar.gz spotti@172.18.0.86:/tmp/sonora-build-${BITBUCKET_BUILD_NUMBER}.tar.gz
             - |
-              BUILD_ARCHIVE="/tmp/sonora-backend-laravel-build-${BITBUCKET_BUILD_NUMBER}.tar.gz"
+              BUILD_ARCHIVE="/tmp/sonora-build-${BITBUCKET_BUILD_NUMBER}.tar.gz"
               ssh -i ./id_rsa spotti@172.18.0.86 "APP_DOMAIN='${DEPLOY_APP_DOMAIN:-}' BUILD_ARCHIVE='$BUILD_ARCHIVE' bash -s" <<'BASH'
               set -Eeuo pipefail
 
@@ -47,8 +46,6 @@ pipelines:
               ENV_BACKUP="/tmp/sonora-env.backup"
               POST_HOOK="/home/spotti/post-deploy.sh"
               PHP_FPM_SERVICE="${PHP_FPM_SERVICE:-php8.2-fpm}"
-              BACKEND_DIR="$APP_PATH/backend-laravel"
-              PUBLIC_PREFIX_DEFAULT="/backend-laravel/public"
 
               log(){ printf "[%s] %s\n" "$(date +%F' '%T)" "$*"; }
               assert_runtime_writable() {
@@ -66,8 +63,8 @@ pipelines:
                   git remote add origin "$REPO"
                 fi
               }
-              backup_env(){ [ -f "$BACKEND_DIR/.env" ] && cp "$BACKEND_DIR/.env" "$ENV_BACKUP" || true; }
-              restore_env(){ [ ! -f "$BACKEND_DIR/.env" ] && [ -f "$ENV_BACKUP" ] && cp "$ENV_BACKUP" "$BACKEND_DIR/.env" || true; }
+              backup_env(){ [ -f "$APP_PATH/.env" ] && cp "$APP_PATH/.env" "$ENV_BACKUP" || true; }
+              restore_env(){ [ ! -f "$APP_PATH/.env" ] && [ -f "$ENV_BACKUP" ] && cp "$ENV_BACKUP" "$APP_PATH/.env" || true; }
               purge_checkout_blockers(){ find "$APP_PATH" -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.env' -exec rm -rf {} +; }
               normalize_checkout_perms(){
                 [ -d "$APP_PATH" ] || return 0
@@ -76,11 +73,11 @@ pipelines:
               upsert_env(){
                 key="$1"
                 value="$2"
-                [ -f "$BACKEND_DIR/.env" ] || return 0
-                if grep -q "^${key}=" "$BACKEND_DIR/.env"; then
-                  sed -i "s|^${key}=.*|${key}=${value}|" "$BACKEND_DIR/.env"
+                [ -f "$APP_PATH/.env" ] || return 0
+                if grep -q "^${key}=" "$APP_PATH/.env"; then
+                  sed -i "s|^${key}=.*|${key}=${value}|" "$APP_PATH/.env"
                 else
-                  printf "\n%s=%s\n" "$key" "$value" >> "$BACKEND_DIR/.env"
+                  printf "\n%s=%s\n" "$key" "$value" >> "$APP_PATH/.env"
                 fi
               }
               run_with_privilege(){
@@ -152,8 +149,8 @@ pipelines:
 
               cd "$APP_PATH"
 
-              if [ ! -f "$BACKEND_DIR/.env" ] && [ -f "$BACKEND_DIR/.env.example" ]; then
-                cp "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
+              if [ ! -f "$APP_PATH/.env" ] && [ -f "$APP_PATH/.env.example" ]; then
+                cp "$APP_PATH/.env.example" "$APP_PATH/.env"
                 log "Arquivo .env criado a partir de .env.example."
               else
                 log "Arquivo .env mantido no servidor."
@@ -164,9 +161,8 @@ pipelines:
               fi
               upsert_env "APP_ENV" "production"
               upsert_env "APP_DEBUG" "false"
-              upsert_env "PUBLIC_PREFIX" "$PUBLIC_PREFIX_DEFAULT"
               upsert_env "APP_MAINTENANCE_DRIVER" "file"
-              rm -f "$BACKEND_DIR/bootstrap/cache/config.php"
+              rm -f "$APP_PATH/bootstrap/cache/config.php"
 
               if ! "$COMPOSER_BIN" --version >/dev/null 2>&1; then
                 for c in /usr/local/bin/composer /usr/bin/composer; do
@@ -180,7 +176,6 @@ pipelines:
               fi
 
               log "Running composer install..."
-              cd "$BACKEND_DIR"
               "$COMPOSER_BIN" install --no-dev --prefer-dist --no-interaction --optimize-autoloader
 
               if [ ! -f "$BUILD_ARCHIVE" ]; then
@@ -189,30 +184,30 @@ pipelines:
               fi
 
               log "Atualizando public/build..."
-              rm -rf "$BACKEND_DIR/public/build"
-              tar -xzf "$BUILD_ARCHIVE" -C "$BACKEND_DIR/public"
+              rm -rf "$APP_PATH/public/build"
+              tar -xzf "$BUILD_ARCHIVE" -C "$APP_PATH/public"
               rm -f "$BUILD_ARCHIVE"
-              test -f "$BACKEND_DIR/public/build/manifest.json"
+              test -f "$APP_PATH/public/build/manifest.json"
 
-              mkdir -p "$BACKEND_DIR/bootstrap/cache"
-              mkdir -p "$BACKEND_DIR/storage/logs"
-              mkdir -p "$BACKEND_DIR/storage/framework/cache/data"
-              mkdir -p "$BACKEND_DIR/storage/framework/sessions"
-              mkdir -p "$BACKEND_DIR/storage/framework/views"
-              mkdir -p "$BACKEND_DIR/storage/app/recordings"
-              chmod -R a+rwX "$BACKEND_DIR/bootstrap/cache" "$BACKEND_DIR/storage" || true
-              assert_runtime_writable "$BACKEND_DIR/bootstrap/cache"
-              assert_runtime_writable "$BACKEND_DIR/storage/logs"
-              assert_runtime_writable "$BACKEND_DIR/storage/framework/cache/data"
-              assert_runtime_writable "$BACKEND_DIR/storage/framework/sessions"
-              assert_runtime_writable "$BACKEND_DIR/storage/framework/views"
-              assert_runtime_writable "$BACKEND_DIR/storage/app/recordings"
+              mkdir -p "$APP_PATH/bootstrap/cache"
+              mkdir -p "$APP_PATH/storage/logs"
+              mkdir -p "$APP_PATH/storage/framework/cache/data"
+              mkdir -p "$APP_PATH/storage/framework/sessions"
+              mkdir -p "$APP_PATH/storage/framework/views"
+              mkdir -p "$APP_PATH/storage/app/recordings"
+              chmod -R a+rwX "$APP_PATH/bootstrap/cache" "$APP_PATH/storage" || true
+              assert_runtime_writable "$APP_PATH/bootstrap/cache"
+              assert_runtime_writable "$APP_PATH/storage/logs"
+              assert_runtime_writable "$APP_PATH/storage/framework/cache/data"
+              assert_runtime_writable "$APP_PATH/storage/framework/sessions"
+              assert_runtime_writable "$APP_PATH/storage/framework/views"
+              assert_runtime_writable "$APP_PATH/storage/app/recordings"
 
-              if [ ! -L "$BACKEND_DIR/public/storage" ]; then
+              if [ ! -L "$APP_PATH/public/storage" ]; then
                 "$PHP_BIN" artisan storage:link 2>/dev/null || true
               fi
 
-              if [ -f "$BACKEND_DIR/.env" ] && grep -q '^APP_KEY=$' "$BACKEND_DIR/.env"; then
+              if [ -f "$APP_PATH/.env" ] && grep -q '^APP_KEY=$' "$APP_PATH/.env"; then
                 log "Gerando APP_KEY..."
                 "$PHP_BIN" artisan key:generate --force || true
               fi
@@ -257,7 +252,18 @@ pipelines:
 
               PUBLIC_DOMAIN="${APP_DOMAIN:-sonora.spotpromo.com.br}"
               PUBLIC_BASE_URL="https://${PUBLIC_DOMAIN}"
+              STATIC_MANIFEST_URL="${PUBLIC_BASE_URL}/build/manifest.json"
+              PHP_ENTRY_URL="${PUBLIC_BASE_URL}/index.php"
               ROOT_HEADERS="/tmp/sonora-root-headers-$$.txt"
+
+              STATIC_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$STATIC_MANIFEST_URL" || true)"
+              PHP_ENTRY_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$PHP_ENTRY_URL" || true)"
+
+              if [ "$STATIC_STATUS" = "200" ] && [ "$PHP_ENTRY_STATUS" = "403" ]; then
+                log "ERROR: o servidor entrega arquivos estaticos, mas bloqueia a execucao de PHP em $PHP_ENTRY_URL."
+                log "O deploy da aplicacao esta correto no checkout; o vhost atual continua configurado como site estatico."
+                exit 29
+              fi
 
               log "Executando smoke checks em ${PUBLIC_BASE_URL}..."
               curl -sS -D "$ROOT_HEADERS" -o /dev/null "$PUBLIC_BASE_URL/"
