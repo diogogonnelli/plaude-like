@@ -781,7 +781,8 @@ a { color: inherit; text-decoration: none; }
 
 .table,
 table.table-primary,
-.admin-table {
+.admin-table,
+.table-wrap table {
     width: 100%;
     border-collapse: collapse;
     border-top: 1px solid var(--ink-line);
@@ -789,7 +790,8 @@ table.table-primary,
 
 .table thead th,
 table.table-primary thead th,
-.admin-table thead th {
+.admin-table thead th,
+.table-wrap table thead th {
     text-align: left;
     padding: var(--sp-3) var(--sp-4);
     font-family: var(--font-body);
@@ -804,7 +806,8 @@ table.table-primary thead th,
 
 .table tbody td,
 table.table-primary tbody td,
-.admin-table tbody td {
+.admin-table tbody td,
+.table-wrap table tbody td {
     padding: var(--sp-4);
     border-bottom: 1px solid var(--ink-line-soft);
     color: var(--ink-loud);
@@ -814,17 +817,21 @@ table.table-primary tbody td,
 
 .table tbody tr:nth-child(even),
 table.table-primary tbody tr:nth-child(even),
-.admin-table tbody tr:nth-child(even) { background: var(--ink-rise); }
+.admin-table tbody tr:nth-child(even),
+.table-wrap table tbody tr:nth-child(even) { background: var(--ink-rise); }
 
 .table tbody tr:hover,
 table.table-primary tbody tr:hover,
-.admin-table tbody tr:hover { background: var(--ink-edge); }
+.admin-table tbody tr:hover,
+.table-wrap table tbody tr:hover { background: var(--ink-edge); }
 
 .table-secondary,
 .caption {
     color: var(--ink-mute);
     font-size: 0.875rem;
 }
+
+.table-primary { font-weight: 700; }
 
 .mono { font-family: var(--font-mono); }
 
