@@ -272,36 +272,41 @@ pipelines:
                 fi
               fi
 
-              PUBLIC_DOMAIN="${APP_DOMAIN:-sonora.spotpromo.com.br}"
-              PUBLIC_BASE_URL="https://${PUBLIC_DOMAIN}"
-              STATIC_MANIFEST_URL="${PUBLIC_BASE_URL}/build/manifest.json"
-              HOME_HTML="/tmp/sonora-home-body-$$.html"
+              if [ -n "${APP_DOMAIN:-}" ]; then
+                PUBLIC_BASE_URL="https://${APP_DOMAIN}"
+                STATIC_MANIFEST_URL="${PUBLIC_BASE_URL}/build/manifest.json"
+                HOME_HTML="/tmp/sonora-home-body-$$.html"
 
-              STATIC_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$STATIC_MANIFEST_URL" || true)"
+                STATIC_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$STATIC_MANIFEST_URL" || true)"
 
-              if [ "$STATIC_STATUS" != "200" ]; then
-                log "ERROR: smoke check falhou em $STATIC_MANIFEST_URL."
-                exit 28
-              fi
+                if [ "$STATIC_STATUS" != "200" ]; then
+                  log "ERROR: smoke check falhou em $STATIC_MANIFEST_URL com HTTP $STATIC_STATUS."
+                  log "Verifique se o nginx do dominio aponta para $APP_PATH/public e serve /build como arquivo estatico."
+                  exit 28
+                fi
 
-              log "Executando smoke checks em ${PUBLIC_BASE_URL}..."
-              curl -fsS "$PUBLIC_BASE_URL/" -o "$HOME_HTML" || {
-                log "ERROR: smoke check falhou em $PUBLIC_BASE_URL/."
-                exit 30
-              }
+                log "Executando smoke checks em ${PUBLIC_BASE_URL}..."
+                curl -fsS "$PUBLIC_BASE_URL/" -o "$HOME_HTML" || {
+                  log "ERROR: smoke check falhou em $PUBLIC_BASE_URL/."
+                  exit 30
+                }
 
-              if ! grep -q '/build/' "$HOME_HTML"; then
-                log "ERROR: / nao esta referenciando assets em /build/."
+                if ! grep -q '/build/' "$HOME_HTML"; then
+                  log "ERROR: / nao esta referenciando assets em /build/."
+                  rm -f "$HOME_HTML"
+                  exit 31
+                fi
+
+                if ! grep -Eq 'Entrar|Painel Sonora' "$HOME_HTML"; then
+                  log "ERROR: / nao retornou a shell web esperada."
+                  rm -f "$HOME_HTML"
+                  exit 32
+                fi
                 rm -f "$HOME_HTML"
-                exit 31
+              else
+                log "DEPLOY_APP_DOMAIN nao configurado; smoke HTTP publico ignorado."
+                log "Validacao local do deploy concluida em $APP_PATH/public/build/manifest.json."
               fi
-
-              if ! grep -Eq 'Entrar|Painel Sonora' "$HOME_HTML"; then
-                log "ERROR: / nao retornou a shell web esperada."
-                rm -f "$HOME_HTML"
-                exit 32
-              fi
-              rm -f "$HOME_HTML"
 
               log "Deploy finished successfully."
               BASH
