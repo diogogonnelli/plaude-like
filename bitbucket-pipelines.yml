@@ -44,7 +44,6 @@ pipelines:
               PHP_BIN="${PHP_BIN:-php}"
               COMPOSER_BIN="${COMPOSER_BIN:-composer}"
               ENV_BACKUP="/tmp/sonora-env.backup"
-              LEGACY_ENV_PATH="$APP_PATH/backend-laravel/.env"
               POST_HOOK="/home/spotti/post-deploy.sh"
               PHP_FPM_SERVICE="${PHP_FPM_SERVICE:-php8.2-fpm}"
               MAINTENANCE_ACTIVE=0
@@ -68,8 +67,6 @@ pipelines:
               backup_env(){
                 if [ -f "$APP_PATH/.env" ]; then
                   cp "$APP_PATH/.env" "$ENV_BACKUP"
-                elif [ -f "$LEGACY_ENV_PATH" ]; then
-                  cp "$LEGACY_ENV_PATH" "$ENV_BACKUP"
                 fi
               }
               restore_env(){ [ ! -f "$APP_PATH/.env" ] && [ -f "$ENV_BACKUP" ] && cp "$ENV_BACKUP" "$APP_PATH/.env" || true; }
@@ -173,11 +170,6 @@ pipelines:
 
               cd "$APP_PATH"
 
-              if [ ! -f "$APP_PATH/.env" ] && [ -f "$LEGACY_ENV_PATH" ]; then
-                cp "$LEGACY_ENV_PATH" "$APP_PATH/.env"
-                log "Arquivo .env migrado do layout legado ($LEGACY_ENV_PATH)."
-              fi
-
               if [ ! -f "$APP_PATH/.env" ] && [ -f "$APP_PATH/.env.example" ]; then
                 cp "$APP_PATH/.env.example" "$APP_PATH/.env"
                 log "Arquivo .env criado a partir de .env.example."
@@ -190,7 +182,6 @@ pipelines:
               fi
               upsert_env "APP_ENV" "production"
               upsert_env "APP_DEBUG" "false"
-              upsert_env "PUBLIC_PREFIX" "public"
               upsert_env "APP_MAINTENANCE_DRIVER" "file"
               rm -f "$APP_PATH/bootstrap/cache/config.php"
 
@@ -283,7 +274,7 @@ pipelines:
 
               PUBLIC_DOMAIN="${APP_DOMAIN:-sonora.spotpromo.com.br}"
               PUBLIC_BASE_URL="https://${PUBLIC_DOMAIN}"
-              STATIC_MANIFEST_URL="${PUBLIC_BASE_URL}/public/build/manifest.json"
+              STATIC_MANIFEST_URL="${PUBLIC_BASE_URL}/build/manifest.json"
               HOME_HTML="/tmp/sonora-home-body-$$.html"
 
               STATIC_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$STATIC_MANIFEST_URL" || true)"
@@ -299,8 +290,8 @@ pipelines:
                 exit 30
               }
 
-              if ! grep -q '/public/build/' "$HOME_HTML"; then
-                log "ERROR: / nao esta referenciando assets em /public/build/."
+              if ! grep -q '/build/' "$HOME_HTML"; then
+                log "ERROR: / nao esta referenciando assets em /build/."
                 rm -f "$HOME_HTML"
                 exit 31
               fi

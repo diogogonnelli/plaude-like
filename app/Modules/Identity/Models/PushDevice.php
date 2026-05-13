@@ -1,0 +1,23 @@
+<?php
+
+namespace App\Modules\Identity\Models;
+
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class PushDevice extends Model
+{
+    use HasUuids;
+
+    protected $fillable = [
+        'user_id',
+        'token',
+        'platform',
+    ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+}

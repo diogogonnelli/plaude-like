@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Models\Profile;
-use App\Models\Recording;
-use App\Models\User;
+use App\Modules\Identity\Models\Profile;
+use App\Modules\Projects\Models\Project;
+use App\Modules\Recordings\Models\Recording;
+use App\Modules\Identity\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class RecordingTest extends TestCase
@@ -61,6 +63,22 @@ class RecordingTest extends TestCase
             ->assertJsonPath('data.status', 'uploaded');
     }
 
+    public function test_create_recording_rejects_project_when_user_is_not_a_member(): void
+    {
+        $project = $this->createProject('Projeto privado');
+
+        $response = $this->postJson('/api/recordings', [
+            'title' => 'Tentativa fora do projeto',
+            'project_id' => $project->id,
+            'source_type' => 'upload',
+        ], $this->authHeaders());
+
+        $response->assertForbidden();
+        $this->assertDatabaseMissing('recordings', [
+            'title' => 'Tentativa fora do projeto',
+        ]);
+    }
+
     public function test_get_recording_detail(): void
     {
         $recording = Recording::create([
@@ -93,6 +111,27 @@ class RecordingTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.title', 'Updated Title');
+    }
+
+    public function test_update_recording_rejects_project_when_user_is_not_a_member(): void
+    {
+        $recording = Recording::create([
+            'user_id' => $this->user->id,
+            'created_by_user_id' => $this->user->id,
+            'title' => 'Original',
+            'source_type' => 'upload',
+            'status' => 'uploaded',
+        ]);
+        $project = $this->createProject('Projeto alheio');
+
+        $response = $this->patchJson("/api/recordings/{$recording->id}", [
+            'project_id' => $project->id,
+        ], $this->authHeaders());
+
+        $response->assertForbidden();
+
+        $recording->refresh();
+        $this->assertNull($recording->project_id);
     }
 
     public function test_delete_recording(): void
@@ -162,5 +201,14 @@ class RecordingTest extends TestCase
         ], $this->authHeaders());
 
         $response->assertForbidden();
+    }
+
+    private function createProject(string $name): Project
+    {
+        return Project::create([
+            'name' => $name,
+            'slug' => Str::slug($name).'-'.Str::lower(Str::random(8)),
+            'status' => 'active',
+        ]);
     }
 }

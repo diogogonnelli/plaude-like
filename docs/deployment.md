@@ -1,17 +1,26 @@
 # Deploy
 
-O fluxo de producao via Bitbucket Pipelines + host Linux esta documentado em `DEPLOY.md`.
+O deploy oficial esta documentado em [`../DEPLOY.md`](../DEPLOY.md).
 
-Para validacao local rapida com containers, o `compose.yaml` continua disponivel:
+Contrato atual:
 
-```bash
-cd C:\vscode_projects\Plaude_like
-copy backend\.env.example backend\.env
-docker compose up --build
+- nginx aponta para `public/index.php`;
+- assets estaticos ficam em `public/build` no disco;
+- assets sao acessados por `/build/...`;
+- nao use `PUBLIC_PREFIX`.
+
+Validacao local minima:
+
+```powershell
+composer test
+npm run build
+php artisan serve
 ```
 
-Endpoints locais esperados:
+Endpoints esperados:
 
-- app web: `http://localhost:8080`
-- admin web: `http://localhost:8081`
-- backend: `http://localhost:8787/health`
+- `/`
+- `/login`
+- `/admin`
+- `/api/health`
+- `/build/manifest.json`

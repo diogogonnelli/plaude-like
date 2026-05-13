@@ -1,11 +1,11 @@
 param(
-  [string]$BackendUrl = "http://localhost:8787"
+  [string]$BaseUrl = "http://localhost:8000"
 )
 
-Write-Host "Checking backend health..."
+Write-Host "Checking Laravel API health..."
 try {
-  $backend = Invoke-RestMethod -Uri "$BackendUrl/health" -Method Get
-  $backend | ConvertTo-Json -Depth 4
+  $health = Invoke-RestMethod -Uri "$BaseUrl/api/health" -Method Get
+  $health | ConvertTo-Json -Depth 4
 } catch {
-  Write-Error "Backend healthcheck failed: $($_.Exception.Message)"
+  Write-Error "Laravel healthcheck failed: $($_.Exception.Message)"
 }

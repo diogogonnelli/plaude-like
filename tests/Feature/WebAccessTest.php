@@ -2,11 +2,15 @@
 
 namespace Tests\Feature;
 
-use App\Models\Profile;
-use App\Models\Project;
-use App\Models\Recording;
-use App\Models\User;
-use App\Support\PublicAssetUrl;
+use App\Modules\Chat\Models\ChatMessage;
+use App\Modules\Chat\Models\ChatSession;
+use App\Modules\Recordings\Models\NoteArtifact;
+use App\Modules\Identity\Models\Profile;
+use App\Modules\Projects\Models\Project;
+use App\Modules\Recordings\Models\Recording;
+use App\Modules\Recordings\Models\Summary;
+use App\Modules\Recordings\Models\TranscriptSegment;
+use App\Modules\Identity\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
@@ -18,16 +22,16 @@ class WebAccessTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guest_root_renders_login_page(): void
+    public function test_guest_root_renders_new_login_page(): void
     {
         $this->fakeBuiltAssets();
 
         $response = $this->get('/');
 
         $response->assertOk()
-            ->assertSee('Sonora')
-            ->assertSee('Entrar')
-            ->assertSee('Fluxo web');
+            ->assertSee('Entrar no workspace')
+            ->assertSee('SPOT endorsed workflow')
+            ->assertSee('Frontend web Laravel');
     }
 
     public function test_guest_login_route_redirects_to_root(): void
@@ -37,101 +41,133 @@ class WebAccessTest extends TestCase
         $response->assertRedirect('/');
     }
 
-    public function test_guest_can_authenticate_from_root_form(): void
+    public function test_guest_can_authenticate_from_login_route(): void
     {
         $user = $this->createUserWithProfile('user', [
             'email' => 'user@example.com',
             'password' => 'secret-1234',
         ]);
-        $this->fakeBuiltAssets();
 
-        $response = $this->post('/', [
-            'intent' => 'login',
+        $response = $this->post('/login', [
             'email' => $user->email,
             'password' => 'secret-1234',
         ]);
 
-        $response->assertRedirect('/?tab=home');
+        $response->assertRedirect('/');
         $this->assertAuthenticatedAs($user);
     }
 
-    public function test_authenticated_root_renders_one_page_dashboard_for_regular_user(): void
+    public function test_authenticated_root_redirects_to_home_route(): void
     {
         $user = $this->createUserWithProfile('user');
-        $project = $this->createProjectForUser($user, 'Projeto Demo');
-        Recording::query()->create([
-            'user_id' => $user->id,
-            'created_by_user_id' => $user->id,
-            'project_id' => $project->id,
-            'title' => 'Ata da semana',
-            'source_type' => 'upload',
-            'status' => 'ready',
-        ]);
         $this->actingAs($user);
-        $this->fakeBuiltAssets();
 
         $response = $this->get('/');
 
-        $response->assertOk()
-            ->assertSee('Biblioteca')
-            ->assertSee('Sistema')
-            ->assertSee('Iniciar capta')
-            ->assertSee('Enviar')
-            ->assertDontSee('Administracao');
+        $response->assertRedirect('/home');
     }
 
-    public function test_authenticated_root_renders_admin_navigation_for_admin_user(): void
+    public function test_authenticated_user_can_access_workspace_routes(): void
     {
-        $user = $this->createUserWithProfile('admin');
-        $this->actingAs($user);
         $this->fakeBuiltAssets();
 
-        $response = $this->get('/?tab=admin');
+        $user = $this->createUserWithProfile('user');
+        $project = $this->createProjectForUser($user, 'Projeto Demo');
+        $recording = $this->createRecordingForUser($user, $project, 'Ata semanal');
 
-        $response->assertOk()
-            ->assertSee('Administracao')
-            ->assertSee('Usuarios')
-            ->assertSee('Perfis');
+        $this->actingAs($user);
+
+        $this->get('/home')->assertOk()->assertSee('Grave agora. Execute depois.');
+        $this->get('/library')->assertOk()->assertSee('Biblioteca operacional');
+        $this->get(route('workspace.recordings.show', $recording))->assertOk()->assertSee('Resumo executivo');
+        $this->get(route('workspace.recordings.chat', $recording))->assertOk()->assertSee('Chat contextual');
+        $this->get('/settings')->assertOk()->assertSee('Sessao atual');
     }
 
-    public function test_authenticated_user_can_select_active_project_from_root_shell(): void
+    public function test_admin_user_can_access_admin_routes(): void
+    {
+        $this->fakeBuiltAssets();
+
+        $admin = $this->createUserWithProfile('admin');
+        $project = $this->createProjectForUser($admin, 'Projeto Admin');
+        $recording = $this->createRecordingForUser($admin, $project, 'Gravacao Admin');
+
+        $this->actingAs($admin);
+
+        $this->get('/admin')->assertOk()->assertSee('Usuarios recentes');
+        $this->get('/admin/users')->assertOk()->assertSee('Diretorio de usuarios');
+        $this->get('/admin/profiles')->assertOk()->assertSee('Perfis de acesso');
+        $this->get('/admin/projects')->assertOk()->assertSee('Projetos');
+        $this->get(route('workspace.admin.projects.members', $project))->assertOk()->assertSee('Membros atuais');
+        $this->get('/admin/recordings')->assertOk()->assertSee('Catalogo de gravacoes');
+        $this->get(route('workspace.admin.recordings.show', $recording))->assertOk()->assertSee('Detalhe administrativo');
+        $this->get('/admin/jobs')->assertOk()->assertSee('Jobs operacionais');
+    }
+
+    public function test_non_admin_user_is_blocked_from_admin_routes(): void
     {
         $user = $this->createUserWithProfile('user');
-        $project = $this->createProjectForUser($user, 'Projeto Shell');
         $this->actingAs($user);
-        $this->fakeBuiltAssets();
 
-        $response = $this->post('/', [
-            'intent' => 'select-active-project',
+        $response = $this->get('/admin');
+
+        $response->assertForbidden();
+    }
+
+    public function test_legacy_library_query_redirects_to_new_library_route(): void
+    {
+        $user = $this->createUserWithProfile('user');
+        $this->actingAs($user);
+
+        $response = $this->get('/?tab=library&project=all&status=ready&query=ata');
+
+        $response->assertRedirect('/library?project=all&status=ready&query=ata');
+    }
+
+    public function test_legacy_recording_query_redirects_to_new_recording_detail_route(): void
+    {
+        $user = $this->createUserWithProfile('user');
+        $project = $this->createProjectForUser($user, 'Projeto Redirect');
+        $recording = $this->createRecordingForUser($user, $project, 'Gravacao Redirect');
+        $this->actingAs($user);
+
+        $response = $this->get('/?tab=library&recording='.$recording->id);
+
+        $response->assertRedirect(route('workspace.recordings.show', $recording, false));
+    }
+
+    public function test_authenticated_user_can_select_active_project(): void
+    {
+        $user = $this->createUserWithProfile('user');
+        $project = $this->createProjectForUser($user, 'Projeto Ativo');
+        $this->actingAs($user);
+
+        $response = $this->post(route('workspace.projects.active'), [
             'project_id' => $project->id,
-            'tab' => 'home',
         ]);
 
-        $response->assertRedirect('/?tab=home');
+        $response->assertRedirect();
         $response->assertSessionHas('web.active_project_id', $project->id);
     }
 
-    public function test_authenticated_user_can_upload_audio_from_root_shell(): void
+    public function test_authenticated_user_can_upload_audio_from_workspace(): void
     {
         Storage::fake('recordings');
 
         $user = $this->createUserWithProfile('user');
         $project = $this->createProjectForUser($user, 'Projeto Upload');
         $this->actingAs($user);
-        $this->fakeBuiltAssets();
 
-        $response = $this->post('/', [
-            'intent' => 'upload-audio',
-            'tab' => 'library',
-            'title' => 'Audio do front',
+        $response = $this->post(route('workspace.recordings.upload'), [
+            'title' => 'Audio do workspace',
             'source_type' => 'upload',
             'project_id' => $project->id,
-            'audio' => UploadedFile::fake()->create('front-shell.wav', 256),
+            'audio' => UploadedFile::fake()->create('workspace.wav', 256),
         ]);
 
         $response->assertRedirect();
 
-        $recording = Recording::query()->where('title', 'Audio do front')->first();
+        $recording = Recording::query()->where('title', 'Audio do workspace')->first();
 
         $this->assertNotNull($recording);
         $this->assertSame($project->id, $recording->project_id);
@@ -139,32 +175,7 @@ class WebAccessTest extends TestCase
         Storage::disk('recordings')->assertExists($recording->audio_path);
     }
 
-    public function test_root_index_wrapper_exists(): void
-    {
-        $this->assertFileExists(base_path('index.php'));
-        $this->assertStringContainsString(
-            "require __DIR__.'/public/index.php';",
-            File::get(base_path('index.php'))
-        );
-    }
-
-    public function test_root_page_uses_public_prefixed_build_asset_urls_when_request_comes_from_root_wrapper(): void
-    {
-        $this->fakeBuiltAssets([
-            'resources/css/app.css' => ['file' => 'assets/app-test.css'],
-            'resources/js/app.js' => ['file' => 'assets/app-test.js'],
-        ]);
-
-        $response = $this->withServerVariables([
-            'SCRIPT_FILENAME' => base_path('index.php'),
-        ])->get('/');
-
-        $response->assertOk()
-            ->assertSee('/public/build/assets/app-test.css', false)
-            ->assertSee('/public/build/assets/app-test.js', false);
-    }
-
-    public function test_root_page_uses_direct_build_asset_urls_when_request_comes_from_public_entry(): void
+    public function test_root_page_uses_direct_build_asset_urls(): void
     {
         $this->fakeBuiltAssets([
             'resources/css/app.css' => ['file' => 'assets/app-test.css'],
@@ -178,17 +189,6 @@ class WebAccessTest extends TestCase
         $response->assertOk()
             ->assertSee('/build/assets/app-test.css', false)
             ->assertSee('/build/assets/app-test.js', false);
-    }
-
-    public function test_public_asset_url_prefixes_public_when_request_uses_root_wrapper(): void
-    {
-        $this->fakeBuiltAssets();
-
-        $this->withServerVariables([
-            'SCRIPT_FILENAME' => base_path('index.php'),
-        ])->get('/');
-
-        $this->assertSame('/public/build/app.js', PublicAssetUrl::toUrl('build/app.js'));
     }
 
     private function createUserWithProfile(string $profileCode, array $overrides = []): User
@@ -225,6 +225,60 @@ class WebAccessTest extends TestCase
         ]);
 
         return $project;
+    }
+
+    private function createRecordingForUser(User $user, ?Project $project, string $title): Recording
+    {
+        $recording = Recording::query()->create([
+            'user_id' => $user->id,
+            'created_by_user_id' => $user->id,
+            'project_id' => $project?->id,
+            'title' => $title,
+            'source_type' => 'upload',
+            'status' => 'ready',
+            'transcription_provider' => 'mock',
+            'transcription_job_id' => 'job-'.Str::lower(Str::random(8)),
+            'transcription_started_at' => now()->subMinutes(2),
+            'transcription_completed_at' => now()->subMinute(),
+        ]);
+
+        Summary::query()->create([
+            'recording_id' => $recording->id,
+            'overview' => 'Resumo executivo do audio de teste.',
+            'chapters' => [
+                ['heading' => 'Contexto', 'body' => 'Visao geral do encontro.'],
+                ['heading' => 'Proximos passos', 'body' => 'Encaminhamentos combinados.'],
+            ],
+        ]);
+
+        NoteArtifact::query()->create([
+            'recording_id' => $recording->id,
+            'title' => 'Nota estruturada',
+            'tags' => ['teste'],
+            'highlights' => ['Ponto importante 1', 'Ponto importante 2'],
+            'action_items' => ['Acao 1', 'Acao 2'],
+        ]);
+
+        TranscriptSegment::query()->create([
+            'recording_id' => $recording->id,
+            'speaker_label' => 'Speaker 1',
+            'start_ms' => 0,
+            'end_ms' => 12000,
+            'text' => 'Trecho inicial do transcript de teste.',
+        ]);
+
+        $chatSession = ChatSession::query()->create([
+            'recording_id' => $recording->id,
+        ]);
+
+        ChatMessage::query()->create([
+            'chat_session_id' => $chatSession->id,
+            'role' => 'assistant',
+            'content' => 'Resposta de exemplo do chat contextual.',
+            'citations' => [],
+        ]);
+
+        return $recording;
     }
 
     private function fakeBuiltAssets(?array $manifest = null): void

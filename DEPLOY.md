@@ -1,148 +1,60 @@
-# Guia de Deploy (Laravel pela raiz do repositorio)
+# Guia de Deploy
 
-## Visao geral
+## Visao Geral
 
-O deploy de producao do Sonora deve seguir o mesmo modelo operacional do `assinatura-web`:
-
-- o dominio publico aponta para a raiz do checkout em `/storage-apps/www/sonora`
-- o `index.php` na raiz encaminha para `public/index.php`
-- os assets do Laravel ficam em `/storage-apps/www/sonora/public/build`
-- o pipeline gera `public/build` no CI e publica esse artefato no host
-- o pipeline nao tenta alterar `nginx`; ele assume o mesmo contrato de host do `assinatura-web`
-- a superficie web exposta em producao precisa caber em `/`, porque esse host nao encaminha rotas Laravel arbitrarias como `/login`
-
-Layout esperado no host:
-
-- `/storage-apps/www/sonora/.env`
-- `/storage-apps/www/sonora/index.php`
-- `/storage-apps/www/sonora/public/index.php`
-- `/storage-apps/www/sonora/public/build`
-
-## Pre-requisitos do host
-
-- Linux com `nginx`
-- `git`
-- `curl`
-- `systemd`
-- `php` e `composer`
-- usuario de deploy com acesso SSH
-- usuario de deploy com permissao para reiniciar o `php-fpm` ou executar um `post-deploy.sh`
-- acesso SSH do host ao repositorio Bitbucket para `git clone` e `git fetch`
-
-## Variaveis do Bitbucket
-
-Defina no repositorio ou em `Deployments > Production`, no minimo:
-
-- `SSH_KEY_webrun01`: chave privada em base64 usada pelo pipeline para conectar no host
-- `DEPLOY_APP_DOMAIN`: opcional. Se informado, o deploy atualiza `APP_URL=https://<dominio>`
-
-Itens fixos no pipeline:
-
-- host SSH: `172.18.0.86`
-- usuario SSH: `spotti`
-- repositorio sincronizado no host: `git@bitbucket.org:spotpromo/sonora.git`
-- caminho do app no host: `/storage-apps/www/sonora`
-
-## Contrato do host
-
-No host atual, o contrato garantido pelo `nginx` e:
-
-- `root /storage-apps/www/sonora;`
-- `/` executa o `index.php` da raiz
-- `/public/build/*` e `/public/storage/*` sao servidos como arquivos estaticos
-- nao conte com rewrites adicionais para rotas Laravel como `/login` ou `/api/health`
-
-Exemplo de validacao:
-
-```bash
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-Se o host ja estiver no mesmo modelo do `assinatura-web`, `https://<dominio>/public/build/manifest.json` deve responder `200` e `/` deve ser atendido pelo `index.php` da raiz.
-
-## Primeiro deploy no host
-
-Bootstrap recomendado antes do primeiro deploy:
-
-```bash
-sudo mkdir -p /storage-apps/www/sonora
-sudo chown -R spotti:spotti /storage-apps/www/sonora
-```
-
-Se quiser manter um hook no mesmo estilo do `assinatura-web`:
-
-```bash
-cat >/home/spotti/post-deploy.sh <<'BASH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-APP_ROOT="${1:-/storage-apps/www/sonora}"
-sudo /bin/systemctl restart php8.2-fpm
-BASH
-
-chmod +x /home/spotti/post-deploy.sh
-```
-
-Se o deploy rodar como `spotti`, libere ao menos:
-
-```bash
-sudo visudo
-```
-
-Adicione algo como:
+O Sonora roda como uma aplicacao Laravel unica. Em producao, o nginx deve apontar diretamente para:
 
 ```text
-spotti ALL=NOPASSWD: /bin/systemctl restart php8.2-fpm
+/storage-apps/www/sonora/public/index.php
 ```
 
-## Como o pipeline faz o deploy
+O repositorio no host continua em `/storage-apps/www/sonora`, mas o document root publico deve ser `/storage-apps/www/sonora/public`.
 
-Na `main`, o pipeline:
+## Layout Esperado
 
-1. gera `public/build` em uma etapa `node:20`
-2. publica esse build como artefato do CI
-3. envia o artefato `.tar.gz` para o host
-4. por SSH, sincroniza o checkout com `origin/main`
-5. preserva `/.env`, ou migra automaticamente `backend-laravel/.env` legado para `/.env` quando necessario
-6. fixa:
-   - `APP_ENV=production`
-   - `APP_DEBUG=false`
-   - `PUBLIC_PREFIX=public`
-   - `APP_URL=https://<dominio>` quando `DEPLOY_APP_DOMAIN` estiver definido
-7. executa `composer install`
-8. atualiza `public/build` com o artefato do CI
-9. roda `storage:link`, migrations, caches e seed de perfis
-10. reinicia o `php-fpm` ou executa `post-deploy.sh`
-11. executa smoke checks obrigatorios:
-   - `/` precisa responder `200`
-   - `/` precisa referenciar assets em `/public/build/`
-   - `/` precisa retornar a shell web esperada, seja a tela de login ou o painel autenticado
-   - `/public/build/manifest.json` precisa responder `200`
+- `/storage-apps/www/sonora/.env`
+- `/storage-apps/www/sonora/artisan`
+- `/storage-apps/www/sonora/public/index.php`
+- `/storage-apps/www/sonora/public/build/manifest.json`
+- `/storage-apps/www/sonora/storage`
+- `/storage-apps/www/sonora/bootstrap/cache`
 
-## Runtime `.env`
+## Variaveis de Producao
 
-O arquivo persistente agora vive em:
+Obrigatorias ou esperadas:
 
-```bash
-/storage-apps/www/sonora/.env
-```
+- `APP_ENV=production`
+- `APP_DEBUG=false`
+- `APP_URL=https://<dominio>`
+- `DB_CONNECTION=sqlsrv`
+- `OPENAI_API_KEY`
+- `ASSEMBLYAI_API_KEY`
+- `ASSEMBLYAI_WEBHOOK_SECRET`
 
-No primeiro deploy, ele e criado a partir de `.env.example`. Se o host ainda tiver apenas `backend-laravel/.env`, o pipeline copia esse arquivo para a raiz antes de rodar o Laravel.
+Nao use `PUBLIC_PREFIX`; assets devem responder em `/build/...`.
 
-A chave relevante para o layout atual e:
+## Pipeline
 
-```bash
-PUBLIC_PREFIX=public
-```
+Na branch `main`, o Bitbucket Pipelines:
 
-## Checklist pos-deploy
+1. instala dependencias Node;
+2. roda `npm run build`;
+3. publica `public/build` como artefato;
+4. sincroniza o checkout no host;
+5. preserva o `.env` existente ou cria a partir de `.env.example`;
+6. fixa `APP_ENV=production`, `APP_DEBUG=false` e `APP_MAINTENANCE_DRIVER=file`;
+7. roda `composer install --no-dev`;
+8. atualiza `public/build`;
+9. prepara permissao de `storage` e `bootstrap/cache`;
+10. roda migrations, caches e `ProfileSeeder`;
+11. reinicia PHP-FPM ou executa `/home/spotti/post-deploy.sh`;
+12. valida `/`, `/build/manifest.json` e referencias a `/build/`.
 
-- `https://sonora.spotpromo.com.br/` responde `200`
-- `/` renderiza a pagina unica do Sonora
-- guests veem o formulario de login em `/`
-- usuarios autenticados veem o painel em `/`
-- `index.php` existe na raiz
-- `public/index.php` existe no host
-- `public/build/manifest.json` existe no host
-- `public/storage` existe ou foi recriado por `storage:link`
+## Checklist Pos-Deploy
+
+- `https://<dominio>/` responde 200.
+- `https://<dominio>/login` usa as rotas Laravel normais.
+- `https://<dominio>/admin` exige usuario autenticado com perfil admin.
+- `https://<dominio>/api/health` responde JSON `{"status":"ok"}`.
+- `https://<dominio>/build/manifest.json` responde 200.
+- O HTML renderizado referencia assets em `/build/assets/...`.

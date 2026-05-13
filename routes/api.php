@@ -1,15 +1,15 @@
 <?php
 
-use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\RecordingController;
-use App\Http\Controllers\Api\ProjectController;
-use App\Http\Controllers\Api\ChatController;
-use App\Http\Controllers\Api\PushDeviceController;
-use App\Http\Controllers\Api\WebhookController;
-use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
-use App\Http\Controllers\Api\Admin\ProfileController as AdminProfileController;
-use App\Http\Controllers\Api\Admin\ProjectController as AdminProjectController;
-use App\Http\Controllers\Api\Admin\RecordingController as AdminRecordingController;
+use App\Modules\Identity\Http\Controllers\Api\AuthController;
+use App\Modules\Recordings\Http\Controllers\Api\RecordingController;
+use App\Modules\Projects\Http\Controllers\Api\ProjectController;
+use App\Modules\Chat\Http\Controllers\Api\ChatController;
+use App\Modules\Identity\Http\Controllers\Api\PushDeviceController;
+use App\Modules\Integrations\Http\Controllers\Api\WebhookController;
+use App\Modules\Admin\Http\Controllers\Api\UserController as AdminUserController;
+use App\Modules\Admin\Http\Controllers\Api\ProfileController as AdminProfileController;
+use App\Modules\Admin\Http\Controllers\Api\ProjectController as AdminProjectController;
+use App\Modules\Admin\Http\Controllers\Api\RecordingController as AdminRecordingController;
 use Illuminate\Support\Facades\Route;
 
 // Public

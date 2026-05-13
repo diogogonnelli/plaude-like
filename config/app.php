@@ -54,10 +54,6 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
-    'public_prefix' => env('PUBLIC_PREFIX')
-        ? '/'.trim((string) env('PUBLIC_PREFIX'), '/')
-        : '',
-
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
