@@ -1,63 +1,59 @@
-@extends('layouts.app-shell')
+@extends('layouts.app-shell', [
+    'pageEyebrow' => 'Comando central',
+    'pageTitle' => 'Grave agora. Execute depois.',
+    'pageSubtitle' => 'Projeto ativo: ' . ($activeProject?->name ?? 'Sem projeto') . '. Audio, transcricao, resumo e operacao em uma esteira unica.',
+])
 
 @section('topbar-actions')
-    <a class="button-secondary" href="{{ route('workspace.library') }}">Abrir library</a>
-    <a class="button-secondary" href="{{ route('workspace.settings') }}">Settings</a>
+    <a class="btn-quiet" href="{{ route('workspace.library') }}">Library</a>
+    <a class="btn-quiet" href="{{ route('workspace.settings') }}">Settings</a>
     @if ($showAdminNav)
-        <a class="button-secondary" href="{{ route('workspace.admin.dashboard') }}">Admin</a>
+        <a class="btn-quiet" href="{{ route('workspace.admin.dashboard') }}">Admin</a>
     @endif
 @endsection
 
 @section('content')
-    <section class="hero-panel">
-        <div class="hero-copy">
-            <div class="shell-kicker">Comando central</div>
-            <h2 class="page-title">Grave agora. Execute depois.</h2>
-            <p class="page-copy">
-                Projeto ativo para novas gravacoes: <strong>{{ $activeProject?->name ?? 'Sem projeto' }}</strong>.
-                O frontend web consolida audio, resumo, transcript e operacao de chat em uma unica esteira.
-            </p>
-        </div>
-
-        <div class="hero-actions">
-            <a class="button" href="{{ route('workspace.library') }}">Ir para a library</a>
-            <a class="button-ghost" href="{{ route('workspace.settings') }}">Organizar projetos</a>
-        </div>
-
-        <div class="metric-grid">
-            <article class="metric-card">
-                <div class="metric-label">Notas</div>
-                <div class="metric-value">{{ $summaryStats['total'] }}</div>
-            </article>
-            <article class="metric-card">
-                <div class="metric-label">Processando</div>
-                <div class="metric-value">{{ $summaryStats['processing'] }}</div>
-            </article>
-            <article class="metric-card">
-                <div class="metric-label">Falhas</div>
-                <div class="metric-value">{{ $summaryStats['failed'] }}</div>
-            </article>
+    <section class="hero">
+        <span class="ring ring--lg" aria-hidden="true"></span>
+        <div class="kicker-row" style="margin-bottom: var(--sp-2);"><span class="dot-live" aria-hidden="true"></span><span class="type-kicker">Ao vivo · pronto para captar</span></div>
+        <p class="type-body" style="max-width: 64ch; color: var(--ink-mute); margin-top: var(--sp-3);">
+            Inicie pela captacao via microfone, envie um arquivo local ou abra a library para revisar a fila.
+        </p>
+        <div style="display: flex; gap: var(--sp-3); margin-top: var(--sp-5); flex-wrap: wrap;">
+            <a class="btn-primary" href="{{ route('workspace.library') }}">Abrir library</a>
+            <a class="btn-ghost" href="{{ route('workspace.settings') }}">Organizar projetos</a>
         </div>
     </section>
 
-    <div class="split-grid">
-        <section class="surface-panel">
-            <div class="section-header">
-                <div>
-                    <h2 class="section-title">Enviar audio</h2>
-                    <p class="section-copy">Selecione um arquivo local e reuse o projeto ativo ou escolha outro projeto acessivel.</p>
-                </div>
-                <span class="surface-badge">
-                    <span>Status</span>
-                    <strong>{{ $summaryStats['ready'] }} prontas</strong>
-                </span>
-            </div>
+    <div class="metric-row">
+        <div class="metric-cell">
+            <div class="metric-label">Notas</div>
+            <div class="metric-value">{{ $summaryStats['total'] }}</div>
+        </div>
+        <div class="metric-cell">
+            <div class="metric-label">Processando</div>
+            <div class="metric-value">{{ $summaryStats['processing'] }}</div>
+        </div>
+        <div class="metric-cell">
+            <div class="metric-label">Prontas</div>
+            <div class="metric-value">{{ $summaryStats['ready'] }}</div>
+        </div>
+        <div class="metric-cell">
+            <div class="metric-label">Falhas</div>
+            <div class="metric-value">{{ $summaryStats['failed'] }}</div>
+        </div>
+    </div>
 
-            <form class="stack-form" method="POST" action="{{ route('workspace.recordings.upload') }}" enctype="multipart/form-data" data-upload-form>
+    <div class="split-grid">
+        <section class="panel">
+            <div class="kicker-row"><span class="dot"></span><span class="type-kicker">Enviar audio</span></div>
+            <h2 class="type-section" style="margin: 0 0 var(--sp-4);">Carregue um arquivo local</h2>
+
+            <form method="POST" action="{{ route('workspace.recordings.upload') }}" enctype="multipart/form-data" data-upload-form style="display: flex; flex-direction: column; gap: var(--sp-4);">
                 @csrf
                 <input type="hidden" name="source_type" value="upload">
                 <div class="field-grid">
-                    <label for="upload-title">Titulo da gravacao</label>
+                    <label for="upload-title">Titulo</label>
                     <input class="field-input" id="upload-title" type="text" name="title" placeholder="Nome do audio ou reuniao">
                 </div>
                 <div class="field-grid">
@@ -72,71 +68,36 @@
                     </select>
                 </div>
                 <input data-audio-input type="file" name="audio" accept="audio/*" hidden>
-                <div class="form-actions">
-                    <button class="button-primary" type="button" data-audio-upload-trigger>Selecionar arquivo</button>
-                    <span class="caption">Ao escolher o arquivo, o envio e o processamento sao iniciados automaticamente.</span>
+                <div>
+                    <button class="btn-primary" type="button" data-audio-upload-trigger>Selecionar arquivo</button>
+                    <p class="type-meta" style="margin-top: var(--sp-3);">O envio inicia automaticamente apos a escolha.</p>
                 </div>
             </form>
         </section>
 
-        <section class="surface-panel">
-            <div class="section-header">
-                <div>
-                    <h2 class="section-title">Captacao por microfone</h2>
-                    <p class="section-copy">Use o navegador para capturar audio em tempo real e enviar como uma nova gravacao.</p>
-                </div>
-            </div>
+        <section class="panel" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-4); min-height: 320px;">
+            <div class="kicker-row" style="align-self: flex-start; margin: 0;"><span class="dot"></span><span class="type-kicker">Captacao por microfone</span></div>
 
-            <form class="stack-form" method="POST" action="{{ route('workspace.recordings.upload') }}" enctype="multipart/form-data" data-record-form>
+            <form method="POST" action="{{ route('workspace.recordings.upload') }}" enctype="multipart/form-data" data-record-form style="display: contents;">
                 @csrf
                 <input type="hidden" name="source_type" value="microphone">
-                <div class="field-grid">
-                    <label for="record-title">Titulo da captacao</label>
-                    <input class="field-input" id="record-title" type="text" name="title" value="Captacao web {{ now()->format('d/m H:i') }}">
-                </div>
-                <div class="field-grid">
-                    <label for="record-project-id">Projeto</label>
-                    <select class="field-select" id="record-project-id" name="project_id">
-                        <option value="">Sem projeto</option>
-                        @foreach ($projects as $projectOption)
-                            <option value="{{ $projectOption->id }}" @selected(optional($activeProject)->id === $projectOption->id)>
-                                {{ $projectOption->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
+                <input type="hidden" name="title" value="Captacao web {{ now()->format('d/m H:i') }}">
+                <input type="hidden" name="project_id" value="{{ $activeProject?->id }}">
                 <input data-record-input type="file" name="audio" hidden>
-                <div class="form-actions">
-                    <button
-                        class="button-primary"
-                        type="button"
-                        data-record-trigger
-                        data-record-label-start="Iniciar captacao"
-                        data-record-label-stop="Parar captacao"
-                    >
-                        Iniciar captacao
-                    </button>
-                    <span class="caption">Quando voce parar a captacao, o audio sera enviado automaticamente para processamento.</span>
-                </div>
+                <button
+                    class="btn-mic"
+                    type="button"
+                    data-record-trigger
+                    data-record-label-start="Iniciar"
+                    data-record-label-stop="Parar"
+                >
+                    <span class="dot" aria-hidden="true"></span>
+                    <span data-record-label>Iniciar</span>
+                </button>
+                <p class="type-meta" style="text-align: center; max-width: 32ch; margin: 0;">
+                    Captacao via microfone enviada automaticamente ao parar.
+                </p>
             </form>
         </section>
-    </div>
-
-    <div class="overview-grid">
-        <article class="overview-card">
-            <span class="eyebrow">Projeto ativo</span>
-            <strong>{{ $activeProject?->name ?? 'Sem projeto' }}</strong>
-            <p class="muted-copy">Troque o projeto a qualquer momento pelo seletor da barra lateral ou pela tela de settings.</p>
-        </article>
-        <article class="overview-card">
-            <span class="eyebrow">Carteira</span>
-            <strong>{{ $projects->count() }} projetos</strong>
-            <p class="muted-copy">Cada novo audio pode herdar o projeto ativo ou ser enviado sem vinculo.</p>
-        </article>
-        <article class="overview-card">
-            <span class="eyebrow">Admin</span>
-            <strong>{{ $showAdminNav ? 'Disponivel' : 'Oculto' }}</strong>
-            <p class="muted-copy">A navegacao administrativa e exibida apenas para usuarios com perfil admin.</p>
-        </article>
     </div>
 @endsection

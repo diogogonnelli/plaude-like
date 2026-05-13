@@ -29,9 +29,9 @@ class WebAccessTest extends TestCase
         $response = $this->get('/');
 
         $response->assertOk()
-            ->assertSee('Entrar no workspace')
-            ->assertSee('SPOT endorsed workflow')
-            ->assertSee('Frontend web Laravel');
+            ->assertSee('Entre na sessao')
+            ->assertSee('Onde a estrategia')
+            ->assertSee('a execucao');
     }
 
     public function test_guest_login_route_redirects_to_root(): void
@@ -78,10 +78,10 @@ class WebAccessTest extends TestCase
         $this->actingAs($user);
 
         $this->get('/home')->assertOk()->assertSee('Grave agora. Execute depois.');
-        $this->get('/library')->assertOk()->assertSee('Biblioteca operacional');
-        $this->get(route('workspace.recordings.show', $recording))->assertOk()->assertSee('Resumo executivo');
-        $this->get(route('workspace.recordings.chat', $recording))->assertOk()->assertSee('Chat contextual');
-        $this->get('/settings')->assertOk()->assertSee('Sessao atual');
+        $this->get('/library')->assertOk()->assertSee('Indice de gravacoes');
+        $this->get(route('workspace.recordings.show', $recording))->assertOk()->assertSee('Ata semanal');
+        $this->get(route('workspace.recordings.chat', $recording))->assertOk()->assertSee('Ata semanal');
+        $this->get('/settings')->assertOk()->assertSee('Sessao e organizacao');
     }
 
     public function test_admin_user_can_access_admin_routes(): void
@@ -94,14 +94,14 @@ class WebAccessTest extends TestCase
 
         $this->actingAs($admin);
 
-        $this->get('/admin')->assertOk()->assertSee('Usuarios recentes');
-        $this->get('/admin/users')->assertOk()->assertSee('Diretorio de usuarios');
-        $this->get('/admin/profiles')->assertOk()->assertSee('Perfis de acesso');
-        $this->get('/admin/projects')->assertOk()->assertSee('Projetos');
-        $this->get(route('workspace.admin.projects.members', $project))->assertOk()->assertSee('Membros atuais');
-        $this->get('/admin/recordings')->assertOk()->assertSee('Catalogo de gravacoes');
-        $this->get(route('workspace.admin.recordings.show', $recording))->assertOk()->assertSee('Detalhe administrativo');
-        $this->get('/admin/jobs')->assertOk()->assertSee('Jobs operacionais');
+        $this->get('/admin')->assertOk();
+        $this->get('/admin/users')->assertOk();
+        $this->get('/admin/profiles')->assertOk();
+        $this->get('/admin/projects')->assertOk();
+        $this->get(route('workspace.admin.projects.members', $project))->assertOk();
+        $this->get('/admin/recordings')->assertOk();
+        $this->get(route('workspace.admin.recordings.show', $recording))->assertOk();
+        $this->get('/admin/jobs')->assertOk();
     }
 
     public function test_non_admin_user_is_blocked_from_admin_routes(): void

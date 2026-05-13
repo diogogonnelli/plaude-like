@@ -1,4 +1,8 @@
-@extends('layouts.app-shell')
+@extends('layouts.app-shell', [
+    'pageEyebrow' => 'Chat',
+    'pageTitle' => $recording->title ?: 'Gravacao sem titulo',
+    'pageSubtitle' => 'Converse com a IA usando o transcript desta gravacao.',
+])
 
 @php
     $messages = $recording->chatSession?->messages ?? collect();
@@ -12,116 +16,71 @@
 @endphp
 
 @section('topbar-actions')
-    <a class="button-secondary" href="{{ route('workspace.recordings.show', $recording) }}">Voltar ao detalhe</a>
-    <a class="button-secondary" href="{{ route('workspace.library') }}">Library</a>
+    <a class="btn-quiet" href="{{ route('workspace.recordings.show', $recording) }}">&larr; Detalhe</a>
+    <a class="btn-quiet" href="{{ route('workspace.library') }}">Library</a>
 @endsection
 
 @section('content')
-    <div class="detail-grid">
-        <section class="surface-panel">
-            <div class="section-header">
+    @if (! $canChat)
+        @include('web.partials.empty-state', [
+            'eyebrow' => 'Chat bloqueado',
+            'title' => 'Chat temporariamente indisponivel.',
+            'description' => 'A conversa e liberada quando a gravacao estiver pronta e com transcript disponivel.',
+        ])
+    @endif
+
+    <div class="chat-thread">
+        @if ($messages->isEmpty())
+            <div class="chat-msg-assistant">
+                <span class="dot" aria-hidden="true"></span>
                 <div>
-                    <h2 class="section-title">Chat contextual</h2>
-                    <p class="section-copy">Perguntas guiadas pelo transcript atual, persistidas no historico desta gravacao.</p>
+                    <p>Pergunte algo sobre esta gravacao. Posso resumir, buscar trechos, listar acoes ou desenhar uma timeline.</p>
                 </div>
-                @include('web.partials.status-pill', ['status' => $recording->status])
             </div>
-
-            @if (! $canChat)
-                @include('web.partials.empty-state', [
-                    'title' => 'Chat temporariamente bloqueado',
-                    'description' => 'A conversa e liberada quando a gravacao estiver pronta e com transcript disponivel.',
-                ])
-            @endif
-
-            <div class="chat-thread">
-                @if ($messages->isEmpty())
-                    @include('web.partials.empty-state', [
-                        'title' => 'Nenhuma mensagem ainda',
-                        'description' => 'Use um prompt rapido ou escreva sua primeira pergunta sobre esta gravacao.',
-                    ])
+        @else
+            @foreach ($messages as $message)
+                @if ($message->role === 'user')
+                    <div class="chat-msg-user">
+                        {{ $message->content }}
+                        <div class="type-meta" style="margin-top: var(--sp-2); font-size: 0.7rem;">{{ optional($message->created_at)->format('H:i') }}</div>
+                    </div>
                 @else
-                    @foreach ($messages as $message)
-                        <article class="chat-bubble {{ $message->role }}">
-                            <div class="meta-row">
-                                <span class="meta-chip">{{ $message->role === 'assistant' ? 'Assistente' : 'Usuario' }}</span>
-                                <span class="meta-chip">{{ optional($message->created_at)->format('d/m/Y H:i') ?? 'Sem data' }}</span>
-                            </div>
-                            <p class="recording-card-copy">{{ $message->content }}</p>
+                    <div class="chat-msg-assistant">
+                        <span class="dot" aria-hidden="true"></span>
+                        <div>
+                            {!! nl2br(e($message->content)) !!}
                             @if (! empty($message->citations))
-                                <div class="detail-block">
-                                    <span class="caption">Citacoes</span>
-                                    <ul class="list-plain">
+                                <div style="margin-top: var(--sp-3);">
+                                    <span class="type-kicker"><span class="dot"></span> Citacoes</span>
+                                    <ul style="list-style: none; padding: 0; margin: var(--sp-2) 0 0; display: flex; flex-direction: column; gap: 4px;">
                                         @foreach ($message->citations as $citation)
-                                            <li>{{ is_array($citation) ? json_encode($citation) : $citation }}</li>
+                                            <li class="type-meta">{{ is_array($citation) ? json_encode($citation) : $citation }}</li>
                                         @endforeach
                                     </ul>
                                 </div>
                             @endif
-                        </article>
-                    @endforeach
+                        </div>
+                    </div>
                 @endif
-            </div>
-
-            <div class="chip-list">
-                @foreach ($quickPrompts as $prompt)
-                    <form class="quick-chip" method="POST" action="{{ route('workspace.recordings.chat.send', $recording) }}">
-                        @csrf
-                        <input type="hidden" name="message" value="{{ $prompt }}">
-                        <button type="submit" @disabled(! $canChat)>{{ $prompt }}</button>
-                    </form>
-                @endforeach
-            </div>
-
-            <form class="stack-form" method="POST" action="{{ route('workspace.recordings.chat.send', $recording) }}">
-                @csrf
-                <div class="field-grid">
-                    <label for="chat-message">Pergunta</label>
-                    <textarea class="field-textarea" id="chat-message" name="message" placeholder="Pergunte sobre contexto, resumo, riscos ou acoes..." @disabled(! $canChat)>{{ old('message') }}</textarea>
-                </div>
-                <div class="form-actions">
-                    <button class="button-primary" type="submit" @disabled(! $canChat)>Enviar mensagem</button>
-                </div>
-            </form>
-        </section>
-
-        <div class="detail-stack">
-            <section class="surface-panel detail-block">
-                <h2 class="section-title">Contexto da gravacao</h2>
-                <div class="info-grid">
-                    <div class="info-card">
-                        <span>Titulo</span>
-                        <strong>{{ $recording->title }}</strong>
-                    </div>
-                    <div class="info-card">
-                        <span>Projeto</span>
-                        <strong>{{ $recording->project?->name ?? 'Sem projeto' }}</strong>
-                    </div>
-                    <div class="info-card">
-                        <span>Origem</span>
-                        <strong>{{ \App\Modules\Recordings\Support\WebUi::recordingSourceDetail($recording) }}</strong>
-                    </div>
-                    <div class="info-card">
-                        <span>Segmentos</span>
-                        <strong>{{ $recording->transcriptSegments->count() }}</strong>
-                    </div>
-                </div>
-            </section>
-
-            <section class="surface-panel detail-block">
-                <h2 class="section-title">Resumo disponivel</h2>
-                @if ($recording->summary?->overview)
-                    <div class="detail-item">
-                        <span>Overview</span>
-                        <strong>{{ $recording->summary->overview }}</strong>
-                    </div>
-                @else
-                    @include('web.partials.empty-state', [
-                        'title' => 'Sem overview',
-                        'description' => 'O resumo desta gravacao ainda nao esta pronto.',
-                    ])
-                @endif
-            </section>
-        </div>
+            @endforeach
+        @endif
     </div>
+
+    <div class="chip-row" style="justify-content: center; margin-top: var(--sp-5);">
+        @foreach ($quickPrompts as $prompt)
+            <form method="POST" action="{{ route('workspace.recordings.chat.send', $recording) }}">
+                @csrf
+                <input type="hidden" name="message" value="{{ $prompt }}">
+                <button class="chip" type="submit" @disabled(! $canChat) style="cursor: pointer;">{{ $prompt }}</button>
+            </form>
+        @endforeach
+    </div>
+
+    <form class="chat-composer" method="POST" action="{{ route('workspace.recordings.chat.send', $recording) }}">
+        @csrf
+        <textarea name="message" placeholder="Pergunte sobre contexto, resumo, riscos ou acoes..." rows="1" required @disabled(! $canChat)>{{ old('message') }}</textarea>
+        <button class="btn-primary" type="submit" aria-label="Enviar" @disabled(! $canChat) style="height: 44px; min-height: 44px; padding: 0 16px;">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l18-9-9 18-2-7-7-2z"/></svg>
+        </button>
+    </form>
 @endsection
