@@ -1,4 +1,5 @@
 import './bootstrap';
+import './theme-toggle';
 
 const audioUploadForms = document.querySelectorAll('[data-upload-form]');
 
@@ -34,7 +35,12 @@ if (recordTrigger instanceof HTMLButtonElement && recordForm instanceof HTMLForm
     let chunks = [];
 
     const setLabel = (label) => {
-        recordTrigger.textContent = label;
+        const labelEl = recordTrigger.querySelector('[data-record-label]');
+        if (labelEl) {
+            labelEl.textContent = label;
+        } else {
+            recordTrigger.textContent = label;
+        }
     };
 
     recordTrigger.addEventListener('click', async () => {
